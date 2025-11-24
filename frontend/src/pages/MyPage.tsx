@@ -86,7 +86,6 @@ const AttendanceGrid: React.FC<{
 }> = ({ data }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [numWeeks, setNumWeeks] = useState(20);
-  // [수정] 클릭 시 정보를 보여주기 위한 상태 추가
   const [selectedInfo, setSelectedInfo] = useState<string | null>(null);
 
   useEffect(() => {
@@ -95,8 +94,11 @@ const AttendanceGrid: React.FC<{
     const calculateWeeks = () => {
       if (containerRef.current) {
         const width = containerRef.current.offsetWidth;
-        const availableWidth = width - 30;
-        const itemSize = window.innerWidth >= 640 ? 17.5 : 15.5;
+        const availableWidth = width - 34; // 라벨 + 패딩 공간
+
+        // 아이템 사이즈 (Size + Gap)
+        const itemSize = window.innerWidth >= 640 ? 26 : 20;
+
         const calculated = Math.floor(availableWidth / itemSize);
         setNumWeeks(Math.max(5, calculated));
       }
@@ -146,17 +148,24 @@ const AttendanceGrid: React.FC<{
     return weeks;
   }, [data, numWeeks]);
 
+  // [수정] 모든 셀에 border를 부여하여 레이아웃 깜빡임/검은 테두리 방지
   const getColor = (
     item?: { attended: boolean; count?: number },
     isFuture?: boolean
   ) => {
+    // 미래 날짜: 회색 테두리
     if (isFuture) return "bg-transparent border border-gray-100";
-    if (!item || !item.attended) return "bg-gray-100";
+
+    // 기본 클래스: 테두리는 있지만 투명하게 (공간 차지)
+    const base = "border border-transparent";
+
+    if (!item || !item.attended) return `bg-gray-100 ${base}`;
+
     const c = item.count ?? 1;
-    if (c >= 4) return "bg-rose-700";
-    if (c === 3) return "bg-rose-600";
-    if (c === 2) return "bg-rose-500";
-    return "bg-rose-400";
+    if (c >= 4) return `bg-rose-700 ${base}`;
+    if (c === 3) return `bg-rose-600 ${base}`;
+    if (c === 2) return `bg-rose-500 ${base}`;
+    return `bg-rose-400 ${base}`;
   };
 
   const dayLabels = ["일", "월", "화", "수", "목", "금", "토"];
@@ -170,16 +179,18 @@ const AttendanceGrid: React.FC<{
             출석 그리드
           </span>
         </div>
-
-        {/* [수정] 웹에서 색상 범례 설명 div 제거됨 */}
       </div>
 
-      <div ref={containerRef} className="flex gap-2 w-full overflow-hidden">
-        <div className="flex flex-col gap-[3px] pt-[0px]">
+      <div
+        ref={containerRef}
+        className="flex gap-1 sm:gap-1.5 w-full overflow-hidden"
+      >
+        {/* 요일 라벨 */}
+        <div className="flex flex-col gap-1 sm:gap-1.5 pt-[0px]">
           {dayLabels.map((d) => (
             <div
               key={d}
-              className="h-3 sm:h-3.5 flex items-center justify-end pr-1"
+              className="h-4 sm:h-5 flex items-center justify-end pr-1"
             >
               <span className="text-[10px] sm:text-[11px] text-gray-400 font-medium">
                 {d}
@@ -188,13 +199,13 @@ const AttendanceGrid: React.FC<{
           ))}
         </div>
 
-        <div className="flex gap-[3px] flex-1">
+        {/* 메인 그리드 (가운데 정렬) */}
+        <div className="flex gap-1 sm:gap-1.5 flex-1 justify-center">
           {gridData.map((week, wi) => (
-            <div key={wi} className="flex flex-col gap-[3px]">
+            <div key={wi} className="flex flex-col gap-1 sm:gap-1.5">
               {week.map((day, di) => (
                 <div
                   key={`${wi}-${di}`}
-                  // [수정] 모바일 터치 지원을 위한 onClick 추가
                   onClick={() => {
                     if (day.isFuture) return;
                     const count = day.item?.count ?? 0;
@@ -204,11 +215,10 @@ const AttendanceGrid: React.FC<{
                     setSelectedInfo(text);
                   }}
                   className={`
-                    w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-[2px] sm:rounded-sm 
+                    w-4 h-4 sm:w-5 sm:h-5 rounded-[3px] sm:rounded 
                     ${getColor(day.item, day.isFuture)} 
                     transition-colors duration-200 cursor-pointer
                   `}
-                  // title 속성은 PC 호버용으로 유지
                   title={`${day.dateStr}${
                     day.isFuture
                       ? ""
@@ -223,7 +233,6 @@ const AttendanceGrid: React.FC<{
         </div>
       </div>
 
-      {/* [수정] 선택된 날짜 정보 표시 (모바일용) */}
       <div className="mt-2 h-4 text-right">
         {selectedInfo ? (
           <span className="text-xs text-rose-600 font-medium animate-fade-in">
@@ -381,7 +390,6 @@ const MyPage: React.FC = () => {
           <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
             출석 현황
           </h2>
-          {/* [수정] '우측이 오늘입니다' 설명 제거 */}
           <p className="text-sm sm:text-base text-gray-600">
             매일의 학습 기록을 확인하세요
           </p>

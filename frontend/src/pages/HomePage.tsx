@@ -11,6 +11,7 @@ import {
   Flame,
   ChevronRight,
   Repeat,
+  Award,
 } from "lucide-react";
 import type { TrainingType } from "../services/trainingService";
 import { useProfile } from "../hooks/useProfile";
@@ -31,6 +32,14 @@ type LocalProfileContext = {
   profile: (UserProfileResponse & { tier?: string; score?: number }) | null;
   isLoading?: boolean;
   loading?: boolean;
+};
+
+type LeaderPreviewItem = {
+  id: string;
+  name: string;
+  score: number;
+  tier?: string;
+  rank?: number;
 };
 
 const HomePage: React.FC = () => {
@@ -180,7 +189,7 @@ const HomePage: React.FC = () => {
   const chosen = tierStyles[tier] ?? tierStyles.Bronze;
 
   const [leaderPreview, setLeaderPreview] = useState<
-    { id: string; name: string; score: number; tier?: string }[] | null
+    LeaderPreviewItem[] | null
   >(null);
   const [leaderLoading, setLeaderLoading] = useState(false);
 
@@ -193,7 +202,16 @@ const HomePage: React.FC = () => {
         if (!mounted) return;
         if (res.ok) {
           const json = await res.json();
-          setLeaderPreview(json?.data ?? json ?? []);
+          const data: LeaderPreviewItem[] = Array.isArray(json?.data ?? json)
+            ? json?.data ?? json
+            : [];
+          data.sort((a, b) => {
+            if (typeof a.rank === "number" && typeof b.rank === "number") {
+              return a.rank - b.rank;
+            }
+            return (b.score ?? 0) - (a.score ?? 0);
+          });
+          setLeaderPreview(data);
         } else {
           setLeaderPreview([]);
         }
@@ -331,7 +349,7 @@ const HomePage: React.FC = () => {
           ))}
         </ul>
 
-        {/* --- 듀오링고 스타일 리더보드 카드 (상단의 전체보기 버튼 제거) --- */}
+        {/* 듀오링고 스타일 리더보드 카드 (상위 3명: 실제 rank/score 반영) */}
         <section className="mt-8">
           <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4">
             리더보드
@@ -345,7 +363,9 @@ const HomePage: React.FC = () => {
                 <div className="w-14 h-14 rounded-full bg-white shadow-md flex items-center justify-center">
                   <Avatar name={leaderPreview?.[1]?.name} size={56} />
                 </div>
-                <div className="mt-2 text-xs text-muted-foreground">2</div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  {leaderPreview?.[1]?.rank ?? 2}
+                </div>
                 <div className="text-sm font-semibold truncate max-w-[90px] text-center">
                   {leaderPreview?.[1]?.name ?? "—"}
                 </div>
@@ -362,7 +382,7 @@ const HomePage: React.FC = () => {
                     <Avatar name={leaderPreview?.[0]?.name} size={80} />
                   </div>
                   <div className="absolute -bottom-2 -right-2 bg-yellow-400 text-white rounded-full px-2 py-0.5 text-xs font-semibold shadow">
-                    1
+                    {leaderPreview?.[0]?.rank ?? 1}
                   </div>
                 </div>
                 <div className="mt-3 text-sm font-semibold truncate max-w-[120px] text-center">
@@ -378,7 +398,9 @@ const HomePage: React.FC = () => {
                 <div className="w-12 h-12 rounded-full bg-white shadow-md flex items-center justify-center">
                   <Avatar name={leaderPreview?.[2]?.name} size={48} />
                 </div>
-                <div className="mt-2 text-xs text-muted-foreground">3</div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  {leaderPreview?.[2]?.rank ?? 3}
+                </div>
                 <div className="text-sm font-semibold truncate max-w-[90px] text-center">
                   {leaderPreview?.[2]?.name ?? "—"}
                 </div>
@@ -398,14 +420,14 @@ const HomePage: React.FC = () => {
                   </span>
                 </div>
               ) : leaderPreview && leaderPreview.length > 0 ? (
-                leaderPreview.slice(3, 5).map((p, idx) => (
+                leaderPreview.slice(3, 5).map((p) => (
                   <div
                     key={p.id}
                     className="flex items-center justify-between p-2 rounded-md bg-white/80"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-md bg-rose-50 flex items-center justify-center font-semibold text-rose-600">
-                        {idx + 4}
+                        {p.rank ?? "—"}
                       </div>
                       <div className="min-w-0">
                         <div className="font-medium truncate">{p.name}</div>
@@ -424,11 +446,7 @@ const HomePage: React.FC = () => {
                     </button>
                   </div>
                 ))
-              ) : (
-                <div className="text-sm text-muted-foreground">
-                  순위 정보를 불러올 수 없습니다.
-                </div>
-              )}
+              ) : null}
             </div>
 
             {/* 하단 CTA (카드 내부에 남김) */}

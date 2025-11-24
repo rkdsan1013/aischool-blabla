@@ -2,7 +2,7 @@
 // cspell:ignore voiceroom
 
 // ----------------------------------------------------------------------
-// [Polyfill] Node.js Buffer & Process for simple-peer
+// [Critical Fix] Advanced Polyfill for simple-peer
 import { Buffer } from "buffer";
 
 if (typeof window !== "undefined") {
@@ -19,7 +19,6 @@ if (typeof window !== "undefined") {
 
   if (!process.nextTick) {
     process.nextTick = (cb: () => void) => {
-      // Microtask is faster/closer to Node's nextTick
       if (typeof queueMicrotask === "function") {
         queueMicrotask(cb);
       } else {
@@ -214,8 +213,11 @@ export default function VoiceRoomDetail(): React.ReactElement {
   const animationRef = useRef<number | null>(null);
   const participantAnalyzers = useRef<Map<string, AnalyserNode>>(new Map());
   const lastSpeakingTimeRef = useRef<Map<string, number>>(new Map());
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const recorderMimeRef = useRef<string | null>(null);
+
+  // [API 연동 대기] 주석 처리
+  // const recorderRef = useRef<MediaRecorder | null>(null);
+  // const recorderMimeRef = useRef<string | null>(null);
+
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
   const interimIdRef = useRef<string | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
@@ -256,7 +258,12 @@ export default function VoiceRoomDetail(): React.ReactElement {
     isMutedRef.current = isMuted;
   }, [isMuted]);
 
-  // [Fix] Global Error Handler to suppress simple-peer cleanup noise
+  const profileRef = useRef(profile);
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
+
+  // Global Error Handler
   useEffect(() => {
     const handleError = (e: ErrorEvent) => {
       if (
@@ -266,7 +273,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
       ) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        // console.log('Ignored expected simple-peer cleanup error.');
         return true;
       }
     };
@@ -285,6 +291,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
     });
   }, []);
 
+  /*
+  // [API 연동 대기] 추후 서버 API 연동 시 주석 해제하여 사용
   const sendTranscriptToServer = useCallback(
     async (item: {
       id: string;
@@ -314,6 +322,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
     },
     [roomId, profile]
   );
+  */
 
   /* ------------------ Audio Analyzer (VAD) ------------------ */
   const attachAnalyzer = useCallback(
@@ -455,6 +464,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
             p.socketId === "me" ? { ...p, isSpeaking: false } : p
           )
         );
+        // Restart if not muted and socket is active
         if (!isMutedRef.current && (socketRef.current?.connected ?? true)) {
           setTimeout(() => {
             try {
@@ -519,7 +529,16 @@ export default function VoiceRoomDetail(): React.ReactElement {
             return [...filtered, finalItem];
           });
 
-          socketRef.current?.emit("local_transcript", finalItem);
+          // 1. 소켓으로 자막 전송 (실시간 공유)
+          socketRef.current?.emit("local_transcript", {
+            id: finalItem.id,
+            speaker: profileRef.current ? profileRef.current.name : "나",
+            text: finalItem.text,
+            timestamp: new Date().toISOString(),
+          });
+
+          /*
+          // [API 연동 대기]
           sendTranscriptToServer({
             id: finalItem.id,
             speaker: finalItem.speaker,
@@ -527,6 +546,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
             timestamp: finalItem.timestamp,
             feedback: finalItem.feedback || null,
           });
+          */
         }
       };
 
@@ -542,7 +562,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
       console.warn("Failed to initialize SpeechRecognition", e);
       recognitionRef.current = null;
     }
-  }, [sendTranscriptToServer]);
+  }, []);
 
   const stopLocalRecognition = useCallback(() => {
     const rec = recognitionRef.current;
@@ -600,7 +620,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
         });
         localStreamRef.current = stream;
 
-        // Initial mute check from tracks
+        // Initial hardware mute check
         const audioTrack = stream.getAudioTracks()[0];
         const initialIsMuted = audioTrack ? !audioTrack.enabled : false;
         setIsMuted(initialIsMuted);
@@ -643,7 +663,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
             roomId,
             userId: profile.user_id,
             name: profile.name,
-            isMuted: isMutedRef.current, // Send explicit mute state
+            isMuted: isMutedRef.current,
           });
         });
 
@@ -720,7 +740,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
                 name: user.name,
                 isSpeaking: false,
                 speakingTime: 0,
-                isMuted: !!user.isMuted, // Reflect server state
+                isMuted: !!user.isMuted,
               });
             });
 
@@ -734,11 +754,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
           }
         );
 
-        // 2. New User Joined (Optimistic UI Update)
+        // 2. New User Joined
         socket.on("user_joined", (payload: UserJoinedPayload) => {
-          console.log("👤 User Joined Event:", payload.userInfo); // [Debug]
-
-          // 1. 즉시 UI 업데이트 (Peer 연결 기다리지 않음)
           setParticipants((prev) => {
             if (prev.find((p) => p.socketId === payload.callerID)) return prev;
             return [
@@ -749,12 +766,11 @@ export default function VoiceRoomDetail(): React.ReactElement {
                 name: payload.userInfo.name,
                 isSpeaking: false,
                 speakingTime: 0,
-                isMuted: !!payload.userInfo.isMuted, // Explicitly use payload mute state
+                isMuted: !!payload.userInfo.isMuted,
               },
             ];
           });
 
-          // 2. Peer 연결 시작 (백그라운드)
           if (!peersRef.current.find((p) => p.peerID === payload.callerID)) {
             const peer = createPeer(payload.callerID, false, stream);
             peer.signal(payload.signal);
@@ -776,7 +792,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
             try {
               peerObj.peer.destroy();
             } catch {
-              /* safe */
+              /* safe destroy */
             }
           }
           peersRef.current = peersRef.current.filter((p) => p.peerID !== id);
@@ -805,7 +821,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
         socket.on("transcript_item", (item: TranscriptItem) => {
           const normalized: TranscriptItem = {
             ...item,
-            timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
+            timestamp: new Date(item.timestamp),
             interim: false,
           };
           if (interimIdRef.current) {
@@ -828,47 +844,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
           }
         );
 
-        /* --- MediaRecorder --- */
-        try {
-          const supportedTypes = [
-            "audio/webm;codecs=opus",
-            "audio/webm",
-            "audio/ogg;codecs=opus",
-            "audio/ogg",
-          ];
-          const mimeType =
-            supportedTypes.find((t) => MediaRecorder.isTypeSupported(t)) ||
-            "audio/webm";
-          recorderMimeRef.current = mimeType;
-
-          const recorder = new MediaRecorder(stream, { mimeType });
-          recorderRef.current = recorder;
-
-          recorder.ondataavailable = async (ev: BlobEvent) => {
-            if (!ev.data || ev.data.size === 0) return;
-            if (isMutedRef.current || !socketRef.current?.connected) return;
-            try {
-              socketRef.current.emit(
-                "audio_chunk",
-                { roomId, mimeType: recorderMimeRef.current },
-                ev.data
-              );
-            } catch {
-              /* warn */
-            }
-          };
-
-          if (!isMutedRef.current) {
-            try {
-              recorder.start(1000);
-            } catch {
-              /* warn */
-            }
-          }
-        } catch {
-          /* warn */
-        }
-
         startLocalRecognition();
       } catch (err) {
         console.error("🚨 Init Error:", err);
@@ -887,25 +862,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
         socketRef.current.disconnect();
         socketRef.current = null;
       }
-
-      if (recorderRef.current && recorderRef.current.state !== "inactive") {
-        try {
-          recorderRef.current.stop();
-        } catch {
-          /* safe */
-        }
-      }
-      recorderRef.current = null;
-
-      const rec = recognitionRef.current;
-      if (rec) {
-        try {
-          rec.stop();
-        } catch {
-          /* safe */
-        }
-      }
-      recognitionRef.current = null;
+      stopLocalRecognition();
 
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -929,6 +886,14 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
       analyzersRef.clear();
       transcriptIds.clear();
+
+      /*
+      // [API 연동 대기]
+      if (recorderRef.current && recorderRef.current.state !== "inactive") {
+        try { recorderRef.current.stop(); } catch { }
+      }
+      recorderRef.current = null;
+      */
     };
   }, [
     roomId,
@@ -937,6 +902,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
     navigate,
     startAudioAnalysis,
     startLocalRecognition,
+    stopLocalRecognition, // cleaned up deps
     addOrUpdateTranscript,
   ]);
 
@@ -956,25 +922,13 @@ export default function VoiceRoomDetail(): React.ReactElement {
       audioTrack.enabled = !isMuted;
       socketRef.current?.emit("toggle_mute", isMuted);
 
-      const rec = recorderRef.current;
       if (isMuted) {
-        if (rec && rec.state === "recording") rec.pause();
         stopLocalRecognition();
       } else {
-        if (rec) {
-          if (rec.state === "paused") rec.resume();
-          else if (rec.state === "inactive") {
-            try {
-              rec.start(1000);
-            } catch {
-              /* safe */
-            }
-          }
-        }
         startLocalRecognition();
       }
     }
-  }, [isMuted, stopLocalRecognition, startLocalRecognition]);
+  }, [isMuted, startLocalRecognition, stopLocalRecognition]);
 
   /* ------------------ Scroll & Timer ------------------ */
   useEffect(() => {
@@ -993,13 +947,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
   /* ------------------ Handlers ------------------ */
   const handleLeaveRoom = () => {
-    if (recorderRef.current && recorderRef.current.state !== "inactive") {
-      try {
-        recorderRef.current.stop();
-      } catch {
-        /* safe */
-      }
-    }
     stopLocalRecognition();
     navigate("/voiceroom");
   };
@@ -1007,21 +954,34 @@ export default function VoiceRoomDetail(): React.ReactElement {
   const handleSend = () => {
     const text = inputText.trim();
     if (!text) return;
+
+    const finalId = makeId();
     const newTranscript: TranscriptItem = {
-      id: makeId(),
+      id: finalId,
       speaker: "나",
       text,
       timestamp: new Date(),
     };
     addOrUpdateTranscript(newTranscript);
     setInputText("");
-    socketRef.current?.emit("local_transcript", newTranscript);
+
+    // 1. 소켓 전송 (실시간 공유)
+    socketRef.current?.emit("local_transcript", {
+      id: finalId,
+      speaker: profileRef.current ? profileRef.current.name : "나",
+      text: text,
+      timestamp: new Date().toISOString(),
+    });
+
+    /*
+    // [API 연동 대기]
     sendTranscriptToServer({
-      id: newTranscript.id,
+      id: finalId,
       speaker: newTranscript.speaker,
       text: newTranscript.text,
       timestamp: newTranscript.timestamp,
     });
+    */
   };
 
   const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
@@ -1216,6 +1176,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
                     >
                       {p.name.charAt(0)}
                     </div>
+                    {/* Mute Icon Overlay */}
                     {p.isMuted && (
                       <div className="absolute -bottom-1 -right-1 bg-red-500 rounded-full p-1 border-2 border-white shadow-sm flex items-center justify-center">
                         <MicOff className="w-3 h-3 text-white" />
@@ -1248,7 +1209,11 @@ export default function VoiceRoomDetail(): React.ReactElement {
             <div
               ref={transcriptRef}
               className="absolute inset-x-0 top-[56px] overflow-y-auto px-3"
-              style={{ bottom: 92, paddingBottom: 12, background: "white" }}
+              style={{
+                bottom: 92,
+                paddingBottom: 12,
+                background: "white",
+              }}
             >
               {transcript.map((item) => {
                 const isMe =

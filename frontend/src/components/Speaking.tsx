@@ -1,3 +1,4 @@
+/* cspell:disable */
 // frontend/src/components/Speaking.tsx
 import React, {
   useState,
@@ -57,44 +58,36 @@ interface IWindow extends Window {
 }
 // -------------------------------
 
-// 침묵 감지 시간: 1.0초
 const SILENCE_TIMEOUT_MS = 1000;
 
 function normalizeText(text: string): string {
   if (!text) return "";
-  return (
-    text
-      .toLowerCase()
-      .replace(/[.,!?'"]/g, "")
-      // cSpell:disable-next-line
-      .replace(/\b(i|you|he|she|it|we|they)m\b/g, "$1 am")
-      // cSpell:disable-next-line
-      .replace(/\b(i|you|he|she|it|we|they)re\b/g, "$1 are")
-      // cSpell:disable-next-line
-      .replace(/\b(i|you|he|she|it|we|they)ve\b/g, "$1 have")
-      // cSpell:disable-next-line
-      .replace(/\b(i|you|he|she|it|we|they)ll\b/g, "$1 will")
-      // cSpell:disable-next-line
-      .replace(/\b(i|you|he|she|it|we|they)d\b/g, "$1 would")
-      .replace(/\bcant\b/g, "cannot")
-      .replace(/\bdont\b/g, "do not")
-      .replace(/\bdoesnt\b/g, "does not")
-      .replace(/\bdidnt\b/g, "did not")
-      .replace(/\bwont\b/g, "will not")
-      .replace(/\bisnt\b/g, "is not")
-      .replace(/\barent\b/g, "are not")
-      .replace(/\bwasnt\b/g, "was not")
-      .replace(/\bwerent\b/g, "were not")
-      .replace(/\blets\b/g, "let us")
-      .replace(/\s+/g, " ")
-      .trim()
-  );
+  return text
+    .toLowerCase()
+    .replace(/[.,!?'"]/g, "")
+    .replace(/\b(i|you|he|she|it|we|they)m\b/g, "$1 am")
+    .replace(/\b(i|you|he|she|it|we|they)re\b/g, "$1 are")
+    .replace(/\b(i|you|he|she|it|we|they)ve\b/g, "$1 have")
+    .replace(/\b(i|you|he|she|it|we|they)ll\b/g, "$1 will")
+    .replace(/\b(i|you|he|she|it|we|they)d\b/g, "$1 would")
+    .replace(/\bcant\b/g, "cannot")
+    .replace(/\bdont\b/g, "do not")
+    .replace(/\bdoesnt\b/g, "does not")
+    .replace(/\bdidnt\b/g, "did not")
+    .replace(/\bwont\b/g, "will not")
+    .replace(/\bisnt\b/g, "is not")
+    .replace(/\barent\b/g, "are not")
+    .replace(/\bwasnt\b/g, "was not")
+    .replace(/\bwerent\b/g, "were not")
+    .replace(/\blets\b/g, "let us")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 interface Props {
   prompt: string;
   onRecord: (audioBlob: Blob) => void;
-  serverTranscript?: string | null; // [수정] 서버 인식 텍스트 (우선순위 높음)
+  serverTranscript?: string | null;
 }
 
 const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
@@ -107,11 +100,20 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasSpokenRef = useRef(false);
 
+  // 컴포넌트 언마운트 시 TTS 중단
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
   // Prompt 변경 시 상태 초기화
   useEffect(() => {
     setTranscript("");
     setIsRecording(false);
     hasSpokenRef.current = false;
+
+    window.speechSynthesis.cancel();
 
     if (
       mediaRecorderRef.current &&
@@ -123,7 +125,7 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
       try {
         recognitionRef.current.stop();
       } catch {
-        // ignore error
+        // ignore
       }
     }
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
@@ -131,12 +133,49 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
 
   const promptWords = useMemo(() => prompt.split(" "), [prompt]);
 
-  // [핵심] serverTranscript가 있으면 그것을 정규화해서 비교 기준으로 사용
   const spokenWords = useMemo(() => {
     const sourceText = serverTranscript || transcript;
     const normalized = normalizeText(sourceText);
     return normalized.split(" ").filter((s) => s !== "");
   }, [transcript, serverTranscript]);
+
+  // [수정됨] 순차적 매칭 로직 (Sequential Matching Logic)
+  const matchStatuses = useMemo(() => {
+    // 현재까지 매칭된 spokenWords의 인덱스 위치를 추적합니다.
+    let currentSpokenIndex = 0;
+
+    return promptWords.map((word) => {
+      // I'm -> ["i", "am"] 처럼 분리될 수 있음
+      const normTargetParts = normalizeText(word).split(" ");
+
+      let tempIndex = currentSpokenIndex;
+      let allPartsFound = true;
+
+      // 분리된 단어 파트들이 '순서대로' 존재하는지 확인
+      for (const part of normTargetParts) {
+        // tempIndex(이전 단어가 찾은 위치) 이후부터 검색
+        const foundIndex = spokenWords.indexOf(part, tempIndex);
+
+        if (foundIndex !== -1) {
+          // 찾았으면 다음 파트는 그 뒤에서부터 찾도록 인덱스 업데이트
+          tempIndex = foundIndex + 1;
+        } else {
+          allPartsFound = false;
+          break;
+        }
+      }
+
+      if (allPartsFound) {
+        // 해당 단어(혹은 구)가 순서대로 발견되었다면,
+        // 다음 promptWord는 이 단어가 끝난 지점 이후부터 찾도록 main 포인터 업데이트
+        currentSpokenIndex = tempIndex;
+        return true;
+      }
+
+      // 찾지 못했으면 currentSpokenIndex를 업데이트하지 않음 (건너뛰고 다음 단어 매칭 시도 가능)
+      return false;
+    });
+  }, [promptWords, spokenWords]);
 
   const stopRecordingProcess = useCallback(() => {
     if (silenceTimerRef.current) {
@@ -155,7 +194,7 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
       try {
         recognitionRef.current.stop();
       } catch {
-        // ignore error
+        // ignore
       }
     }
   }, []);
@@ -184,6 +223,8 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
 
   const startRecording = useCallback(async () => {
     try {
+      window.speechSynthesis.cancel();
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       let mimeType = "audio/webm";
@@ -242,9 +283,7 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
         };
 
         recognition.onerror = (event: ISpeechRecognitionErrorEvent) => {
-          if (event.error === "no-speech") {
-            return;
-          }
+          if (event.error === "no-speech") return;
           console.warn("Speech Recognition Error:", event.error);
         };
 
@@ -271,20 +310,13 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
     }
   }, [isRecording, startRecording, stopAndSubmit]);
 
-  // 자동 완료 로직 (서버 결과가 없을 때만 작동)
+  // 자동 완료 로직
   useEffect(() => {
     if (!isRecording || serverTranscript) return;
 
-    let matchedCount = 0;
-    for (const targetWord of promptWords) {
-      const normTargetParts = normalizeText(targetWord).split(" ");
-      const isMatched = normTargetParts.every((part) =>
-        spokenWords.includes(part)
-      );
-      if (isMatched) matchedCount++;
-    }
+    const matchedCount = matchStatuses.filter((s) => s).length;
 
-    if (matchedCount >= promptWords.length && promptWords.length > 0) {
+    if (matchedCount >= promptWords.length * 0.8 && promptWords.length > 0) {
       const timer = setTimeout(() => {
         if (isRecording) stopAndSubmit();
       }, 1000);
@@ -294,12 +326,13 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
     transcript,
     isRecording,
     promptWords,
-    spokenWords,
+    matchStatuses,
     stopAndSubmit,
     serverTranscript,
   ]);
 
   const playTTS = () => {
+    window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(prompt);
     u.lang = "en-US";
     window.speechSynthesis.speak(u);
@@ -318,22 +351,20 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
       <div className="bg-gray-50 border border-gray-200 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[200px] relative">
         <button
           onClick={playTTS}
-          className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white border hover:text-rose-500 flex items-center justify-center"
+          disabled={isRecording}
+          className={`absolute top-3 right-3 p-2 rounded-full transition-colors z-10 ${
+            isRecording
+              ? "text-gray-300 cursor-not-allowed"
+              : "text-gray-400 hover:text-rose-500 hover:bg-gray-100"
+          }`}
+          title="듣기"
         >
-          <Volume2 className="w-5 h-5" />
+          <Volume2 className="w-6 h-6" />
         </button>
 
-        <div className="text-center text-2xl sm:text-3xl font-semibold text-gray-800 leading-relaxed flex flex-wrap justify-center gap-x-2">
+        <div className="w-full text-left text-2xl sm:text-3xl font-semibold text-gray-800 leading-relaxed flex flex-wrap justify-start gap-x-2 pt-6">
           {promptWords.map((word, i) => {
-            const normTarget = normalizeText(word);
-            const targetParts = normTarget.split(" ");
-
-            // [수정] isSuccess 강제 처리를 제거하고,
-            // serverTranscript 기반의 spokenWords와 정규화 매칭을 수행하여
-            // '진짜' 인식된 단어만 하이라이트 처리
-            const isMatched = targetParts.every((part) =>
-              spokenWords.includes(part)
-            );
+            const isMatched = matchStatuses[i];
 
             return (
               <span
@@ -348,12 +379,9 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
           })}
         </div>
 
-        <div className="mt-6 text-sm font-medium text-gray-500 h-6 flex items-center gap-2 justify-center">
+        <div className="w-full mt-6 text-sm font-medium text-gray-500 h-6 flex items-center gap-2 justify-center">
           {isRecording && <Loader2 className="w-3 h-3 animate-spin" />}
-          {/* serverTranscript가 있으면(채점 완료) 그것을 보여주고, 아니면 실시간 transcript */}
-          {serverTranscript ||
-            transcript ||
-            (isRecording ? "듣고 있습니다..." : "대기 중")}
+          {isRecording ? "듣고 있습니다..." : "대기 중"}
         </div>
       </div>
 

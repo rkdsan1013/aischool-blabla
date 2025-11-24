@@ -1,135 +1,170 @@
-// src/pages/VoiceRoomPage.tsx
-import React, { useEffect, useMemo, useState } from "react";
+// frontend/src/pages/VoiceRoomPage.tsx
+// cspell:ignore voiceroom
+
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Lock, Plus, Radio, Sparkles, Search } from "lucide-react";
+import {
+  Users,
+  Lock,
+  Plus,
+  Radio,
+  Sparkles,
+  Search,
+  Loader2,
+} from "lucide-react";
+import VoiceRoomService from "../services/voiceroomService";
+import type { VoiceRoom } from "../services/voiceroomService";
+import { useProfile } from "../hooks/useProfile";
+
+/**
+ * UI에서 사용하는 Room 타입
+ */
+interface PreviewUser {
+  id: number;
+  name: string;
+  image: string | null;
+}
 
 interface Room {
   id: string;
-  name: string;
-  topic: string;
-  host: string;
-  participants: number;
-  maxParticipants: number;
-  level: string;
-  isPrivate: boolean;
+  name: string | null;
+  topic: string | null;
+  host: string | null;
+  participants: number | null;
+  maxParticipants: number | null;
+  level: string | null;
+  isPrivate: boolean | null;
+  previewUsers: PreviewUser[];
 }
 
 export default function VoiceRoomPage() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<{ name: string; email: string } | null>({
-    name: "홍길동",
-    email: "test@test.com",
-  });
-  const [isLoading, setIsLoading] = useState(false);
+
+  // 전역 상태에서 유저 정보 가져오기
+  const { profile, isProfileLoading } = useProfile();
+
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [query, setQuery] = useState<string>("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // 로그인 체크
   useEffect(() => {
-    if (!isLoading && !user) {
-      navigate("/login");
+    if (!isProfileLoading && !profile) {
+      navigate("/auth");
     }
-  }, [user, isLoading, navigate]);
+  }, [profile, isProfileLoading, navigate]);
 
+  // 방 목록 조회
+  const fetchRooms = async (isBackground = false) => {
+    try {
+      if (!isBackground) setIsLoading(true);
+
+      const data: VoiceRoom[] = await VoiceRoomService.getRooms();
+
+      const mapped: Room[] = data.map((v) => {
+        // 참여자 미리보기 정보 파싱
+        // Format: "id|name|img, ..."
+        let previews: PreviewUser[] = [];
+        if (v.preview_users) {
+          previews = v.preview_users.split(",").map((str) => {
+            // [수정] 변수명 변경 (uimg -> userImage) 하여 스펠링 체크 경고 회피
+            const [userIdStr, userName, userImage] = str.split("|");
+            return {
+              id: Number(userIdStr),
+              name: userName || "User",
+              image: userImage !== "null" && userImage ? userImage : null,
+            };
+          });
+        }
+
+        return {
+          id: String(v.room_id),
+          name: v.name ?? null,
+          topic: v.description ?? null,
+          host: v.host_name ?? "알 수 없음",
+          participants: v.current_participants ?? 0,
+          maxParticipants:
+            v.max_participants !== undefined && v.max_participants !== null
+              ? Number(v.max_participants)
+              : null,
+          level: v.level ?? null,
+          isPrivate: null,
+          previewUsers: previews,
+        };
+      });
+
+      // 최신순 정렬
+      mapped.sort((a, b) => parseInt(b.id, 10) - parseInt(a.id, 10));
+      setRooms(mapped);
+      if (!isBackground) setErrorMessage(null);
+    } catch (err: unknown) {
+      console.error("보이스룸 목록 로드 실패:", err);
+      if (!isBackground) {
+        setErrorMessage(
+          "보이스룸을 불러오는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요."
+        );
+        setRooms([]);
+      }
+    } finally {
+      if (!isBackground) setIsLoading(false);
+    }
+  };
+
+  // 초기 로드 및 폴링
   useEffect(() => {
-    // 초기 더미 데이터 로드
-    setRooms([
-      {
-        id: "1",
-        name: "초보자 환영방",
-        topic: "일상 대화 연습",
-        host: "김영희",
-        participants: 4,
-        maxParticipants: 8,
-        level: "A1-A2",
-        isPrivate: false,
-      },
-      {
-        id: "2",
-        name: "비즈니스 영어",
-        topic: "회의 표현 연습",
-        host: "이철수",
-        participants: 6,
-        maxParticipants: 10,
-        level: "B2-C1",
-        isPrivate: false,
-      },
-      {
-        id: "3",
-        name: "여행 영어",
-        topic: "공항/호텔 상황 연습",
-        host: "박민수",
-        participants: 3,
-        maxParticipants: 6,
-        level: "A2-B1",
-        isPrivate: false,
-      },
-      {
-        id: "4",
-        name: "프리토킹",
-        topic: "자유 주제 대화",
-        host: "최지은",
-        participants: 8,
-        maxParticipants: 12,
-        level: "B1-B2",
-        isPrivate: false,
-      },
-      {
-        id: "5",
-        name: "발음 교정실",
-        topic: "발음 집중 연습",
-        host: "정수진",
-        participants: 2,
-        maxParticipants: 5,
-        level: "전체",
-        isPrivate: false,
-      },
-    ]);
+    let mounted = true;
+
+    // 1. 최초 실행
+    fetchRooms();
+
+    // 2. 방금 나간 방 업데이트를 위한 빠른 재조회
+    const refreshTimeout = setTimeout(() => {
+      if (mounted) fetchRooms(true);
+    }, 300);
+
+    // 3. 주기적 갱신 (3초마다)
+    const intervalId = setInterval(() => {
+      if (mounted) fetchRooms(true);
+    }, 3000);
+
+    return () => {
+      mounted = false;
+      clearTimeout(refreshTimeout);
+      clearInterval(intervalId);
+    };
   }, []);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500"></div>
-      </div>
-    );
-  }
-
-  if (!user) return null;
-
   const handleJoinRoom = (roomId: string) => {
-    navigate(`/voiceroom/room/${roomId}`);
+    navigate(`/voiceroom/${roomId}`);
   };
 
   const handleCreateRoom = () => {
     navigate("/voiceroom/create");
   };
 
-  // 검색어에 따라 rooms 필터링 (이름, 주제, 호스트, 레벨) 및 최신순 정렬
+  // 검색 필터링
   const filteredRooms = useMemo(() => {
     const q = query.trim().toLowerCase();
-
-    // 1. 검색어로 먼저 필터링합니다.
     const baseList = !q
-      ? rooms // 검색어가 없으면 전체 목록
+      ? rooms
       : rooms.filter((r) => {
-          // 검색어가 있으면 필터링
           return (
-            r.name.toLowerCase().includes(q) ||
-            r.topic.toLowerCase().includes(q) ||
-            r.host.toLowerCase().includes(q) ||
-            r.level.toLowerCase().includes(q)
+            (r.name ?? "").toLowerCase().includes(q) ||
+            (r.topic ?? "").toLowerCase().includes(q) ||
+            (r.host ?? "").toLowerCase().includes(q) ||
+            (r.level ?? "").toLowerCase().includes(q)
           );
         });
 
-    // 2. 필터링된 결과를 ID의 내림차순(큰 값순)으로 정렬합니다.
-    //    sort()는 원본 배열을 변경할 수 있으므로, [...baseList]로 복사본을 만들어 정렬합니다.
     return [...baseList].sort(
       (a, b) => parseInt(b.id, 10) - parseInt(a.id, 10)
     );
   }, [rooms, query]);
 
+  // 렌더링
   return (
-    <div className="min-h-screen bg-white pb-14">
+    <div className="min-h-screen bg-white pb-20">
       {/* Hero Section */}
       <div className="bg-gradient-to-b from-rose-50 to-white border-b border-rose-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -196,84 +231,134 @@ export default function VoiceRoomPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          {filteredRooms.map((room, index) => (
-            <div
-              key={room.id}
-              className="group bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6 hover:border-rose-200 hover:shadow-xl transition-all duration-300 active:scale-[0.99] sm:hover:-translate-y-1"
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              {/* Room Header */}
-              <div className="flex items-start justify-between gap-3 mb-3 sm:mb-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-rose-500 transition-colors truncate">
-                      {room.name}
-                    </h3>
-                    {room.isPrivate && (
-                      <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
-                    )}
-                  </div>
-                  <p className="text-sm sm:text-base text-gray-600 leading-relaxed line-clamp-2">
-                    {room.topic}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-rose-50 text-rose-600 rounded-lg text-xs sm:text-sm font-semibold flex-shrink-0">
-                  <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                  {room.level}
-                </div>
-              </div>
+        {/* 로딩 상태 표시 */}
+        {isLoading && rooms.length === 0 && (
+          <div className="min-h-[200px] flex items-center justify-center">
+            <Loader2 className="w-10 h-10 animate-spin text-rose-500" />
+          </div>
+        )}
 
-              {/* Room Stats */}
-              <div className="flex items-center gap-4 sm:gap-6 mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-100">
-                <div className="flex items-center gap-2">
-                  <div className="flex -space-x-2">
-                    {[...Array(Math.min(room.participants, 3))].map((_, i) => (
-                      <div
-                        key={i}
-                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 border-2 border-white flex items-center justify-center text-white text-xs font-semibold"
-                      >
-                        {i + 1}
+        {/* 에러 메시지 */}
+        {errorMessage && (
+          <div className="text-center text-sm text-red-600 mb-4">
+            {errorMessage}
+          </div>
+        )}
+
+        {/* 방 목록 그리드 */}
+        {!isLoading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            {filteredRooms.map((room, index) => {
+              const participants = room.participants ?? 0;
+              const maxParticipants = room.maxParticipants ?? 8;
+              const levelLabel = room.level ?? "전체";
+              const hostLabel = room.host ?? "알 수 없음";
+              const topicLabel = room.topic ?? "설명 없음";
+
+              return (
+                <div
+                  key={room.id}
+                  className="group bg-white rounded-xl sm:rounded-2xl border-2 border-gray-200 p-4 sm:p-6 hover:border-rose-200 hover:shadow-xl transition-all duration-300 active:scale-[0.99] sm:hover:-translate-y-1"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  {/* Room Header */}
+                  <div className="flex items-start justify-between gap-3 mb-3 sm:mb-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
+                        <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-rose-500 transition-colors truncate">
+                          {room.name ?? "이름 없음"}
+                        </h3>
+                        {room.isPrivate && (
+                          <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
+                        )}
                       </div>
-                    ))}
+                      <p className="text-sm sm:text-base text-gray-600 leading-relaxed line-clamp-2">
+                        {topicLabel}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-rose-50 text-rose-600 rounded-lg text-xs sm:text-sm font-semibold flex-shrink-0">
+                      <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      {levelLabel}
+                    </div>
                   </div>
-                  <div className="text-xs sm:text-sm">
-                    <span className="font-semibold text-gray-900">
-                      {room.participants}
-                    </span>
-                    <span className="text-gray-500">
-                      /{room.maxParticipants}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-xs sm:text-sm text-gray-600 truncate">
-                  호스트:{" "}
-                  <span className="font-semibold text-gray-900">
-                    {room.host}
-                  </span>
-                </div>
-              </div>
 
-              {/* Join Button */}
-              <button
-                onClick={() => handleJoinRoom(room.id)}
-                disabled={room.participants >= room.maxParticipants}
-                className={`w-full h-11 sm:h-12 rounded-xl font-semibold text-sm sm:text-base transition-all ${
-                  room.participants >= room.maxParticipants
-                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                    : "bg-rose-500 text-white hover:bg-rose-600 hover:shadow-lg hover:shadow-rose-500/25 active:scale-[0.98]"
-                }`}
-              >
-                {room.participants >= room.maxParticipants
-                  ? "방이 가득 찼습니다"
-                  : "입장하기"}
-              </button>
-            </div>
-          ))}
-        </div>
+                  {/* Room Stats */}
+                  <div className="flex items-center gap-4 sm:gap-6 mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <div className="flex -space-x-2">
+                        {/* 참여자 프로필 표시 */}
+                        {room.previewUsers.map((user) => (
+                          <div
+                            key={user.id}
+                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-white bg-gray-200 overflow-hidden"
+                            title={user.name}
+                          >
+                            {user.image ? (
+                              <img
+                                src={user.image}
+                                alt={user.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-rose-400 text-white text-xs font-bold">
+                                {user.name.charAt(0)}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {/* 빈 슬롯 플레이스홀더 (옵션) */}
+                        {room.previewUsers.length < Math.min(participants, 3) &&
+                          [
+                            ...Array(
+                              Math.min(participants, 3) -
+                                room.previewUsers.length
+                            ),
+                          ].map((_, i) => (
+                            <div
+                              key={`placeholder-${i}`}
+                              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gray-100 border-2 border-white animate-pulse"
+                            />
+                          ))}
+                      </div>
+                      <div className="text-xs sm:text-sm">
+                        <span className="font-semibold text-gray-900">
+                          {participants}
+                        </span>
+                        <span className="text-gray-500">
+                          /{maxParticipants}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-xs sm:text-sm text-gray-600 truncate">
+                      호스트:{" "}
+                      <span className="font-semibold text-gray-900">
+                        {hostLabel}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Join Button */}
+                  <button
+                    onClick={() => handleJoinRoom(room.id)}
+                    disabled={participants >= maxParticipants}
+                    className={`w-full h-11 sm:h-12 rounded-xl font-semibold text-sm sm:text-base transition-all ${
+                      participants >= maxParticipants
+                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        : "bg-rose-500 text-white hover:bg-rose-600 hover:shadow-lg hover:shadow-rose-500/25 active:scale-[0.98]"
+                    }`}
+                  >
+                    {participants >= maxParticipants
+                      ? "방이 가득 찼습니다"
+                      : "입장하기"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Empty State (if no rooms after filtering) */}
-        {filteredRooms.length === 0 && rooms.length > 0 && (
+        {!isLoading && filteredRooms.length === 0 && rooms.length > 0 && (
           <div className="text-center py-12 sm:py-16 px-4">
             <div className="w-14 h-14 sm:w-16 sm:h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
               <Users className="w-7 h-7 sm:w-8 sm:h-8 text-rose-500" />
@@ -294,7 +379,7 @@ export default function VoiceRoomPage() {
         )}
 
         {/* Empty State (no rooms at all) */}
-        {rooms.length === 0 && (
+        {!isLoading && rooms.length === 0 && (
           <div className="text-center py-12 sm:py-16 px-4">
             <div className="w-14 h-14 sm:w-16 sm:h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
               <Users className="w-7 h-7 sm:w-8 sm:h-8 text-rose-500" />

@@ -1,4 +1,4 @@
-// backend/src/llm/client.ts
+// backend/src/ai/client.ts
 import OpenAI from "openai";
 
 const apiKey = process.env.OPENAI_API_KEY;

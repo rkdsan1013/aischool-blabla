@@ -1,5 +1,5 @@
 // backend/src/models/aiTalkModel.ts
-import { pool } from "../config/db"; // Named export { pool }
+import { pool } from "../config/db";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
 
 /**
@@ -11,8 +11,6 @@ export interface AIScenario {
   title: string;
   description: string;
   context: string;
-  category?: string | null;
-  is_public?: number | null;
   created_at?: Date | string | null;
 }
 
@@ -26,8 +24,7 @@ export interface AIMessage {
 
 /**
  * aiTalkModel
- * - 각 메서드는 DB 쿼리를 실행하고 명확한 타입을 반환합니다.
- * - 에러는 호출자에게 전달되므로 컨트롤러에서 적절히 처리하세요.
+ * - ai_scenarios, ai_sessions, ai_messages, ai_feedbacks 테이블과 상호작용
  */
 export const aiTalkModel = {
   // 1. 시나리오 목록 조회
@@ -103,8 +100,9 @@ export const aiTalkModel = {
     return result.affectedRows > 0;
   },
 
-  // 6. 세션 생성
+  // 6. 세션 생성 (DB의 ai_sessions 테이블과 매칭)
   async createSession(userId: number, scenarioId: number): Promise<number> {
+    // started_at은 DB 기본값(CURRENT_TIMESTAMP)을 사용해도 되지만, 명시적으로 NOW() 사용
     const query = `
       INSERT INTO ai_sessions (user_id, scenario_id, status, started_at)
       VALUES (?, ?, 'ACTIVE', NOW())
@@ -116,7 +114,7 @@ export const aiTalkModel = {
     return result.insertId;
   },
 
-  // 7. 메시지 생성
+  // 7. 메시지 생성 (DB의 ai_messages 테이블과 매칭)
   async createMessage(
     sessionId: number,
     role: "user" | "ai",
@@ -150,7 +148,7 @@ export const aiTalkModel = {
       ORDER BY created_at ASC
     `;
     const [rows] = await pool.query<RowDataPacket[]>(query, [sessionId]);
-    // MySQL DATETIME이 string으로 올 수 있으므로 Date로 변환
+
     return (rows as any[]).map((r) => ({
       message_id: r.message_id,
       session_id: r.session_id,
@@ -161,12 +159,13 @@ export const aiTalkModel = {
     })) as AIMessage[];
   },
 
-  // 8. 피드백 저장 (JSON)
+  // 8. 피드백 저장 (DB의 ai_feedbacks 테이블과 매칭)
   async createFeedback(messageId: number, feedbackData: any): Promise<void> {
     const query = `
       INSERT INTO ai_feedbacks (message_id, feedback_data, created_at)
       VALUES (?, ?, NOW())
     `;
+    // feedbackData 객체를 JSON 문자열로 변환하여 저장
     await pool.query(query, [messageId, JSON.stringify(feedbackData)]);
   },
 

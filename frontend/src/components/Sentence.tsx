@@ -1,3 +1,4 @@
+// frontend/src/components/Sentence.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
@@ -12,7 +13,6 @@ import {
   type UniqueIdentifier,
   type DragOverEvent,
   type CollisionDetection,
-  // 💡 사용하지 않는 DragEndEvent, DroppableContainer 제거
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -29,6 +29,8 @@ interface Props {
   onPick?: (part: string) => void;
   onRemove?: (part: string) => void;
   onReorder?: (order: string[]) => void;
+  showFeedback?: boolean;
+  isCorrect?: boolean;
 }
 
 const CARD_TEXT_CLASS =
@@ -38,10 +40,12 @@ function SortablePlacedItem({
   id,
   value,
   onRemove,
+  disabled = false,
 }: {
   id: UniqueIdentifier;
   value: string;
   onRemove?: (id: string) => void;
+  disabled?: boolean;
 }) {
   const {
     attributes,
@@ -50,7 +54,7 @@ function SortablePlacedItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id, disabled });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -62,7 +66,8 @@ function SortablePlacedItem({
   };
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDragging && e.detail > 0 && onRemove) {
+    // disabled(채점 중/후) 상태가 아니면 클릭으로 삭제 가능
+    if (!disabled && !isDragging && e.detail > 0 && onRemove) {
       onRemove(String(id));
     }
   };
@@ -76,9 +81,9 @@ function SortablePlacedItem({
       onClick={handleClick}
       role="listitem"
       aria-label={`선택된 단어 ${value}`}
-      className={`flex-none rounded-2xl bg-rose-100 border border-rose-300 text-rose-800 shadow-sm flex items-center select-none cursor-grab active:cursor-grabbing ${
-        isDragging ? "z-50" : ""
-      }`}
+      className={`flex-none rounded-2xl bg-rose-100 border border-rose-300 text-rose-800 shadow-sm flex items-center select-none ${
+        disabled ? "cursor-default" : "cursor-grab active:cursor-grabbing"
+      } ${isDragging ? "z-50" : ""}`}
     >
       <div
         className={`inline-flex items-center px-4 py-2 sm:px-5 sm:py-3 ${CARD_TEXT_CLASS}`}
@@ -105,11 +110,9 @@ function PoolItem({
       disabled={disabled}
       aria-pressed={disabled}
       className={`flex-none text-left rounded-2xl transition-all duration-200 inline-flex items-center ${
-        disabled ? "cursor-not-allowed" : "hover:shadow-md active:scale-95"
-      } ${
         disabled
-          ? "bg-gray-100 text-gray-400 border border-gray-200"
-          : "bg-white border border-gray-200 text-foreground"
+          ? "cursor-not-allowed bg-gray-100 text-gray-400 border border-gray-200"
+          : "hover:shadow-md active:scale-95 bg-white border border-gray-200 text-foreground"
       }`}
     >
       <div
@@ -148,6 +151,7 @@ const Sentence: React.FC<Props> = ({
   onPick,
   onRemove,
   onReorder,
+  showFeedback = false,
 }) => {
   const { uniqueOptions, wordMap } = useMemo(() => {
     const map = new Map<string, string>();
@@ -198,20 +202,15 @@ const Sentence: React.FC<Props> = ({
     onReorder?.(nextIds.map((pid) => wordMap.get(pid)!));
   };
 
-  // --- 맞춤형 충돌 감지 전략 ---
   const customCollisionStrategy: CollisionDetection = (args) => {
-    // 1. 커서가 아이템 위에 있는지 확인
     const pointerCollisions = pointerWithin(args);
     if (pointerCollisions.length > 0) {
       return pointerCollisions;
     }
-
-    // 2. 커서가 빈 공간에 있을 경우, 가장 가까운 아이템을 찾음 (Fallback)
     const droppableContainers = args.droppableContainers.filter(
       (container) =>
         container.id !== "pool" && placedIds.includes(String(container.id))
     );
-
     return closestCenter({
       ...args,
       droppableContainers: droppableContainers,
@@ -219,23 +218,19 @@ const Sentence: React.FC<Props> = ({
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (showFeedback) return;
     setActiveId(event.active.id);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
+    if (showFeedback) return;
     const { active, over } = event;
-
     if (!over || active.id === over.id) return;
-
     const overIdStr = String(over.id);
-    if (!placedIds.includes(overIdStr)) {
-      return;
-    }
-
+    if (!placedIds.includes(overIdStr)) return;
     const activeIdStr = String(active.id);
     const oldIndex = placedIds.indexOf(activeIdStr);
     const newIndex = placedIds.indexOf(overIdStr);
-
     if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
       setPlacedIds((items) => {
         const currentOldIndex = items.indexOf(activeIdStr);
@@ -313,6 +308,7 @@ const Sentence: React.FC<Props> = ({
                       id={id}
                       value={wordMap.get(id)!}
                       onRemove={handleRemove}
+                      disabled={showFeedback}
                     />
                   ))
                 )}
@@ -342,7 +338,12 @@ const Sentence: React.FC<Props> = ({
             .filter(({ id }) => !placedIds.includes(id))
             .map(({ id, word }) => {
               return (
-                <PoolItem key={id} value={word} onAdd={() => handleAdd(id)} />
+                <PoolItem
+                  key={id}
+                  value={word}
+                  onAdd={() => handleAdd(id)}
+                  disabled={showFeedback}
+                />
               );
             })}
         </div>

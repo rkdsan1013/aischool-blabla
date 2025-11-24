@@ -1,4 +1,3 @@
-// src/components/FloatingFeedbackCard.tsx
 import React from "react";
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
 
@@ -26,6 +25,7 @@ type Props = {
   mobile: boolean;
   feedback?: FeedbackPayload;
   activeWordIndexes: number[]; // [] => sentence-level(style) feedback
+  isAbove?: boolean; // ✅ [추가] 카드가 말풍선 위에 있는지 여부
 };
 
 export default function FloatingFeedbackCard({
@@ -37,6 +37,7 @@ export default function FloatingFeedbackCard({
   mobile,
   feedback,
   activeWordIndexes,
+  isAbove = false, // ✅ [추가] 기본값 false
 }: Props) {
   const isStyleOnly = activeWordIndexes.length === 0;
 
@@ -58,7 +59,15 @@ export default function FloatingFeedbackCard({
         className={`fixed z-50 transition-opacity duration-150 ${
           show ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
-        style={{ top, left, width, maxWidth: "92vw" }}
+        style={{
+          top,
+          left,
+          width,
+          maxWidth: "92vw",
+          // ✅ [수정] 위쪽 배치일 경우(isAbove=true), 현재 top 위치(말풍선 바로 위)를 기준으로
+          // 자신의 높이만큼 위로(-100%) 이동시킵니다. 이렇게 하면 카드 높이가 유동적이어도 딱 붙습니다.
+          transform: isAbove ? "translateY(-100%)" : "none",
+        }}
         onClick={onCardClick}
       >
         <div className="relative rounded-lg border border-gray-200 bg-white shadow-md px-3 py-2">

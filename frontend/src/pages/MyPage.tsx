@@ -1,4 +1,5 @@
-import React, { useEffect } from "react";
+// frontend/src/pages/MyPage.tsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Flame,
@@ -11,6 +12,22 @@ import {
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfile } from "../hooks/useProfile";
+import { getMyAttendance, type AttendanceStat } from "../services/userService";
+
+// --- Helper: 시간 포맷팅 ---
+const formatStudyTime = (totalSeconds: number) => {
+  if (totalSeconds < 60) {
+    return "<1분";
+  }
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  if (totalMinutes < 60) {
+    return `${totalMinutes}분`;
+  }
+  const hours = (totalMinutes / 60).toFixed(1);
+  return hours.endsWith(".0") ? `${parseInt(hours)}시간` : `${hours}시간`;
+};
+
+// --- Components ---
 
 const StatCard: React.FC<{
   icon: React.ReactNode;
@@ -62,10 +79,184 @@ const NavigateRow: React.FC<{
   </div>
 );
 
+// --- Attendance Grid Logic ---
+
+const AttendanceGrid: React.FC<{
+  data: { date: string; attended: boolean; count?: number }[];
+}> = ({ data }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [numWeeks, setNumWeeks] = useState(20);
+  const [selectedInfo, setSelectedInfo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const calculateWeeks = () => {
+      if (containerRef.current) {
+        const width = containerRef.current.offsetWidth;
+        const availableWidth = width - 34; // 라벨 + 패딩 공간
+
+        // 아이템 사이즈 (Size + Gap)
+        const itemSize = window.innerWidth >= 640 ? 26 : 20;
+
+        const calculated = Math.floor(availableWidth / itemSize);
+        setNumWeeks(Math.max(5, calculated));
+      }
+    };
+
+    calculateWeeks();
+    const resizeObserver = new ResizeObserver(() => calculateWeeks());
+    resizeObserver.observe(containerRef.current);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  const gridData = useMemo(() => {
+    const dataMap = new Map(data.map((item) => [item.date, item]));
+
+    const today = new Date();
+    const endOfWeek = new Date(today);
+    const dayOfWeek = endOfWeek.getDay();
+    endOfWeek.setDate(today.getDate() + (6 - dayOfWeek));
+
+    const weeks = [];
+    const startDate = new Date(endOfWeek);
+    startDate.setDate(endOfWeek.getDate() - numWeeks * 7 + 1);
+
+    const current = new Date(startDate);
+
+    for (let w = 0; w < numWeeks; w++) {
+      const weekDays = [];
+      for (let d = 0; d < 7; d++) {
+        const y = current.getFullYear();
+        const m = String(current.getMonth() + 1).padStart(2, "0");
+        const dd = String(current.getDate()).padStart(2, "0");
+        const dateStr = `${y}-${m}-${dd}`;
+
+        const isFuture = current > today;
+
+        weekDays.push({
+          date: new Date(current),
+          dateStr,
+          item: dataMap.get(dateStr),
+          isFuture,
+        });
+
+        current.setDate(current.getDate() + 1);
+      }
+      weeks.push(weekDays);
+    }
+    return weeks;
+  }, [data, numWeeks]);
+
+  // [수정] 모든 셀에 border를 부여하여 레이아웃 깜빡임/검은 테두리 방지
+  const getColor = (
+    item?: { attended: boolean; count?: number },
+    isFuture?: boolean
+  ) => {
+    // 미래 날짜: 회색 테두리
+    if (isFuture) return "bg-transparent border border-gray-100";
+
+    // 기본 클래스: 테두리는 있지만 투명하게 (공간 차지)
+    const base = "border border-transparent";
+
+    if (!item || !item.attended) return `bg-gray-100 ${base}`;
+
+    const c = item.count ?? 1;
+    if (c >= 4) return `bg-rose-700 ${base}`;
+    if (c === 3) return `bg-rose-600 ${base}`;
+    if (c === 2) return `bg-rose-500 ${base}`;
+    return `bg-rose-400 ${base}`;
+  };
+
+  const dayLabels = ["일", "월", "화", "수", "목", "금", "토"];
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Clock className="w-4 h-4 text-rose-500" />
+          <span className="text-sm sm:text-base font-semibold text-gray-900">
+            출석 그리드
+          </span>
+        </div>
+      </div>
+
+      <div
+        ref={containerRef}
+        className="flex gap-1 sm:gap-1.5 w-full overflow-hidden"
+      >
+        {/* 요일 라벨 */}
+        <div className="flex flex-col gap-1 sm:gap-1.5 pt-[0px]">
+          {dayLabels.map((d) => (
+            <div
+              key={d}
+              className="h-4 sm:h-5 flex items-center justify-end pr-1"
+            >
+              <span className="text-[10px] sm:text-[11px] text-gray-400 font-medium">
+                {d}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* 메인 그리드 (가운데 정렬) */}
+        <div className="flex gap-1 sm:gap-1.5 flex-1 justify-center">
+          {gridData.map((week, wi) => (
+            <div key={wi} className="flex flex-col gap-1 sm:gap-1.5">
+              {week.map((day, di) => (
+                <div
+                  key={`${wi}-${di}`}
+                  onClick={() => {
+                    if (day.isFuture) return;
+                    const count = day.item?.count ?? 0;
+                    const text = day.item?.attended
+                      ? `${day.dateStr}: ${count}회 학습 완료`
+                      : `${day.dateStr}: 학습 기록 없음`;
+                    setSelectedInfo(text);
+                  }}
+                  className={`
+                    w-4 h-4 sm:w-5 sm:h-5 rounded-[3px] sm:rounded 
+                    ${getColor(day.item, day.isFuture)} 
+                    transition-colors duration-200 cursor-pointer
+                  `}
+                  title={`${day.dateStr}${
+                    day.isFuture
+                      ? ""
+                      : day.item?.attended
+                      ? ` • 출석 (${day.item.count}회)`
+                      : " • 미출석"
+                  }`}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-2 h-4 text-right">
+        {selectedInfo ? (
+          <span className="text-xs text-rose-600 font-medium animate-fade-in">
+            {selectedInfo}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-300">
+            날짜를 클릭하여 확인하세요
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// --- Main Page ---
+
 const MyPage: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthLoading, logout } = useAuth();
   const { profile, isProfileLoading } = useProfile();
+
+  const [attendanceStats, setAttendanceStats] = useState<AttendanceStat[]>([]);
+  const [isAttendanceLoading, setIsAttendanceLoading] = useState(true);
 
   const isLoading = isAuthLoading || isProfileLoading;
 
@@ -75,7 +266,28 @@ const MyPage: React.FC = () => {
     }
   }, [profile, isLoading, navigate]);
 
-  if (isLoading) {
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      if (profile) {
+        const data = await getMyAttendance();
+        setAttendanceStats(data);
+        setIsAttendanceLoading(false);
+      }
+    };
+    if (!isProfileLoading && profile) {
+      fetchAttendance();
+    }
+  }, [isProfileLoading, profile]);
+
+  const gridInputData = useMemo(() => {
+    return attendanceStats.map((stat) => ({
+      date: stat.date,
+      attended: stat.count > 0,
+      count: stat.count,
+    }));
+  }, [attendanceStats]);
+
+  if (isLoading || isAttendanceLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-rose-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
@@ -106,12 +318,7 @@ const MyPage: React.FC = () => {
     }
   };
 
-  const handleRetakeTest = () => navigate("/level-test");
-
-  // 프로필 관리 클릭 시 MyPageProfile 컴포넌트로 이동 (/profile 경로)
   const handleOpenProfile = () => navigate("/my/profile");
-
-  // 히스토리로 이동
   const handleOpenHistory = () => navigate("/my/history");
 
   return (
@@ -181,10 +388,23 @@ const MyPage: React.FC = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-6 sm:mb-8">
           <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
-            학습 현황
+            출석 현황
           </h2>
           <p className="text-sm sm:text-base text-gray-600">
-            나의 학습 통계와 진행 상황을 확인하세요
+            매일의 학습 기록을 확인하세요
+          </p>
+        </div>
+
+        <div className="mb-6 sm:mb-8">
+          <AttendanceGrid data={gridInputData} />
+        </div>
+
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
+            학습 통계
+          </h2>
+          <p className="text-sm sm:text-base text-gray-600">
+            나의 학습 데이터 요약
           </p>
         </div>
 
@@ -196,7 +416,7 @@ const MyPage: React.FC = () => {
           />
           <StatCard
             icon={<Clock className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
-            value={stats.totalStudyTime}
+            value={formatStudyTime(stats.totalStudyTime)}
             label="총 학습 시간"
           />
           <StatCard
@@ -210,9 +430,6 @@ const MyPage: React.FC = () => {
           <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
             계정 관리
           </h2>
-          <p className="text-sm sm:text-base text-gray-600">
-            프로필 설정과 학습 데이터를 관리하세요
-          </p>
         </div>
 
         <div className="space-y-2">
@@ -224,13 +441,6 @@ const MyPage: React.FC = () => {
           />
 
           <NavigateRow
-            icon={<Trophy className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
-            title="레벨 테스트"
-            subtitle="레벨을 다시 측정해보세요"
-            onClick={handleRetakeTest}
-          />
-
-          <NavigateRow
             icon={<User className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
             title="프로필 관리"
             subtitle="개인정보를 수정하세요"
@@ -238,7 +448,7 @@ const MyPage: React.FC = () => {
           />
         </div>
 
-        <div className="mt-3">
+        <div className="mt-6">
           <button
             className="w-full h-12 border border-rose-500 text-rose-500 rounded-xl font-semibold hover:bg-rose-50 transition"
             onClick={handleLogout}

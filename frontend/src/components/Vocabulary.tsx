@@ -7,6 +7,9 @@ interface Props {
   options: string[];
   selected: string | null;
   onSelect: (option: string) => void;
+  // Training.tsx에서 전달하는 props를 받기 위해 정의는 유지하되, 스타일에는 반영하지 않습니다.
+  correctAnswer?: string;
+  showFeedback?: boolean;
 }
 
 const Vocabulary: React.FC<Props> = ({
@@ -14,10 +17,10 @@ const Vocabulary: React.FC<Props> = ({
   options,
   selected,
   onSelect,
+  showFeedback = false,
 }) => {
   return (
     <div className="space-y-4 sm:space-y-5">
-      {/* 제목 및 설명 */}
       <div className="text-left">
         <h1 className="text-xl sm:text-2xl font-bold text-foreground">
           이 단어의 영어 뜻은?
@@ -27,7 +30,6 @@ const Vocabulary: React.FC<Props> = ({
         </p>
       </div>
 
-      {/* 문제 카드 (디자인 조화: bg-gray-50, border) */}
       <div className="w-full">
         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 sm:p-6 min-h-[120px] flex items-center justify-center">
           <span className="text-3xl sm:text-4xl font-bold text-foreground text-center">
@@ -36,28 +38,28 @@ const Vocabulary: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* 선택지 그리드 (디자인 조화: bg-white, border, shadow) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         {options.map((option, index) => {
-          // 'index'를 key로 사용할 것입니다.
           const isSelected = selected === option;
+
           return (
             <button
-              // --- [수정됨] ---
-              // key={option} 대신, 항상 고유함이 보장되는 index를 사용합니다.
-              // (혹은 ${option}-${index} 조합도 가능합니다)
               key={index}
-              // --- [수정 완료] ---
               type="button"
-              onClick={() => onSelect(option)}
-              className={`group w-full rounded-2xl text-left p-4 sm:p-5 transition-all duration-300 ${
+              onClick={() => !showFeedback && onSelect(option)}
+              disabled={showFeedback} // 채점 후에는 클릭 방지
+              className={`group w-full rounded-2xl text-left p-4 sm:p-5 transition-all duration-300 border relative overflow-hidden ${
                 isSelected
                   ? "bg-rose-500 border-rose-500 text-white shadow-xl shadow-rose-500/30 scale-[1.02]"
-                  : "bg-white border border-gray-200 hover:border-rose-400 hover:shadow-lg hover:scale-[1.02] active:scale-[.98]"
+                  : "bg-white border-gray-200 text-foreground hover:border-rose-300"
+              } ${
+                !showFeedback && !isSelected
+                  ? "hover:shadow-lg hover:scale-[1.02] active:scale-[.98]"
+                  : ""
               }`}
             >
-              <div className="flex items-center gap-3 sm:gap-4">
-                {/* 번호 또는 아이콘 (디자인 조화) */}
+              <div className="flex items-center gap-3 sm:gap-4 relative z-10">
+                {/* 아이콘/번호 */}
                 <div
                   className={`w-10 h-10 rounded-lg flex items-center justify-center text-base font-bold flex-shrink-0 transition-colors ${
                     isSelected
@@ -67,14 +69,9 @@ const Vocabulary: React.FC<Props> = ({
                 >
                   {isSelected ? <Check className="w-5 h-5" /> : index + 1}
                 </div>
+
                 {/* 텍스트 */}
-                <div
-                  className={`text-base font-medium ${
-                    isSelected ? "text-white" : "text-foreground"
-                  }`}
-                >
-                  {option}
-                </div>
+                <div className="text-base font-medium">{option}</div>
               </div>
             </button>
           );

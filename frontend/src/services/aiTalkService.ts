@@ -1,6 +1,8 @@
+// frontend/src/services/aiTalkService.ts
+
 import { apiClient, handleApiError } from "../api";
 
-// --- 타입 정의 ---
+// --- 1. 타입 정의 ---
 
 export interface AIScenario {
   scenario_id: number;
@@ -27,8 +29,19 @@ export interface AISession {
   session_id: number;
   scenario_id: number;
   user_id: number;
-  status: "ACTIVE" | "COMPLETED" | "ABANDONED";
   started_at: string;
+  ended_at: string | null;
+}
+
+export interface AIFeedback {
+  explanation: string;
+  suggestion: string;
+  errors: Array<{
+    index?: number;
+    word?: string;
+    type: "grammar" | "spelling" | "word" | "style";
+    message: string;
+  }>;
 }
 
 export interface AIMessage {
@@ -36,36 +49,20 @@ export interface AIMessage {
   session_id: number;
   sender_role: "user" | "ai";
   content: string;
-  audio_url?: string;
   created_at: string;
-  feedback?: AIFeedback;
+  feedback?: AIFeedback | null;
 }
 
-export interface AIFeedback {
-  feedback_id: number;
-  message_id: number;
-  feedback_data: {
-    explanation: string;
-    suggestion: string;
-    errors: Array<{
-      index?: number;
-      word?: string;
-      type: string;
-      message: string;
-    }>;
-  };
-}
-
+// ✅ 응답 타입 수정: ended 필드 추가
 export interface SendMessageResponse {
   userMessage: AIMessage;
   aiMessage: AIMessage;
+  audioData?: string | null; // Base64 audio string
+  ended?: boolean; // ✅ 대화 종료 여부 (Backend에서 is_finished가 true면 true)
 }
 
-// --- 개별 함수 (컴포넌트에서 직접 import 가능하도록 named export 추가) ---
+// --- 2. 개별 함수 Export ---
 
-/**
- * 나만의 시나리오 생성 (named export)
- */
 export async function createScenario(
   payload: CreateScenarioRequest
 ): Promise<AIScenario> {
@@ -80,9 +77,6 @@ export async function createScenario(
   }
 }
 
-/**
- * 나만의 시나리오 수정 (named export)
- */
 export async function updateScenario(
   scenarioId: number,
   payload: UpdateScenarioRequest
@@ -98,12 +92,10 @@ export async function updateScenario(
   }
 }
 
-// --- 서비스 객체 (기존 메서드명 유지 + 호환성 매핑) ---
+// --- 3. 메인 서비스 객체 Export ---
 
 export const aiTalkService = {
-  /**
-   * 모든 시나리오 목록 조회
-   */
+  // === 시나리오 관련 ===
   async getScenarios(): Promise<AIScenario[]> {
     try {
       const { data } = await apiClient.get<AIScenario[]>("/ai-talk/scenarios");
@@ -113,9 +105,6 @@ export const aiTalkService = {
     }
   },
 
-  /**
-   * 특정 시나리오 상세 조회
-   */
   async getScenarioById(scenarioId: number): Promise<AIScenario> {
     try {
       const { data } = await apiClient.get<AIScenario>(
@@ -127,44 +116,19 @@ export const aiTalkService = {
     }
   },
 
-  /**
-   * 나만의 시나리오 생성
-   */
   async createCustomScenario(
     payload: CreateScenarioRequest
   ): Promise<AIScenario> {
-    try {
-      const { data } = await apiClient.post<AIScenario>(
-        "/ai-talk/scenarios",
-        payload
-      );
-      return data;
-    } catch (error) {
-      return handleApiError(error, "시나리오 생성");
-    }
+    return createScenario(payload);
   },
 
-  /**
-   * 나만의 시나리오 수정
-   */
   async updateCustomScenario(
     scenarioId: number,
     payload: UpdateScenarioRequest
   ): Promise<AIScenario> {
-    try {
-      const { data } = await apiClient.put<AIScenario>(
-        `/ai-talk/scenarios/${scenarioId}`,
-        payload
-      );
-      return data;
-    } catch (error) {
-      return handleApiError(error, "시나리오 수정");
-    }
+    return updateScenario(scenarioId, payload);
   },
 
-  /**
-   * 나만의 시나리오 삭제
-   */
   async deleteCustomScenario(scenarioId: number): Promise<void> {
     try {
       await apiClient.delete(`/ai-talk/scenarios/${scenarioId}`);
@@ -173,19 +137,22 @@ export const aiTalkService = {
     }
   },
 
-  // --- 대화 세션 관련 ---
+  // === 대화 세션 관련 ===
 
   /**
    * 대화 세션 시작
+   * - AI의 첫 음성 메시지도 함께 반환될 수 있음
    */
   async startSession(scenarioId: number): Promise<{
     session: AISession;
     initialMessages: AIMessage[];
+    audioData?: string | null; // 첫 인사 오디오
   }> {
     try {
       const { data } = await apiClient.post<{
         session: AISession;
         initialMessages: AIMessage[];
+        audioData?: string | null;
       }>("/ai-talk/sessions", { scenario_id: scenarioId });
       return data;
     } catch (error) {
@@ -194,7 +161,7 @@ export const aiTalkService = {
   },
 
   /**
-   * 메시지 전송
+   * 텍스트 메시지 전송
    */
   async sendMessage(
     sessionId: number,
@@ -212,6 +179,31 @@ export const aiTalkService = {
   },
 
   /**
+   * ✅ 음성 메시지 전송 (Blob 업로드)
+   */
+  async sendAudioMessage(
+    sessionId: number,
+    audioBlob: Blob
+  ): Promise<SendMessageResponse> {
+    try {
+      const formData = new FormData();
+      // 파일명은 확장자를 webm으로 지정 (백엔드 STT가 처리)
+      formData.append("audio", audioBlob, "recording.webm");
+
+      const { data } = await apiClient.post<SendMessageResponse>(
+        `/ai-talk/sessions/${sessionId}/audio`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
+      return data;
+    } catch (error) {
+      return handleApiError(error, "음성 메시지 전송");
+    }
+  },
+
+  /**
    * 세션 종료
    */
   async endSession(sessionId: number): Promise<void> {
@@ -222,7 +214,6 @@ export const aiTalkService = {
     }
   },
 
-  // --- 호환성 별칭 ---
   createScenario,
   updateScenario,
 };

@@ -1,3 +1,4 @@
+// backend/src/controllers/aiTalkController.ts
 import { Request, Response } from "express";
 import { aiTalkService } from "../services/aiTalkService";
 
@@ -14,7 +15,22 @@ export const aiTalkController = {
     }
   },
 
-  // POST /api/scenarios (커스텀 생성)
+  // GET /api/scenarios/:id
+  getScenarioById: async (req: Request, res: Response) => {
+    try {
+      const scenarioId = Number(req.params.id);
+      const scenario = await aiTalkService.getScenarioById(scenarioId);
+      if (!scenario) {
+        return res.status(404).json({ message: "Scenario not found" });
+      }
+      res.json(scenario);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Server error" });
+    }
+  },
+
+  // POST /api/scenarios
   createScenario: async (req: Request, res: Response) => {
     try {
       const userId = req.user!.user_id;
@@ -66,19 +82,27 @@ export const aiTalkController = {
     }
   },
 
-  // POST /api/sessions (대화 시작)
+  // POST /api/sessions
   startSession: async (req: Request, res: Response) => {
     try {
       const userId = req.user!.user_id;
+      const level = req.user!.level || "A1";
       const { scenario_id } = req.body;
 
-      // 세션 시작 + 첫 AI 메시지 생성
-      const result = await aiTalkService.startSession(userId, scenario_id);
+      const result = await aiTalkService.startSession(
+        userId,
+        scenario_id,
+        level
+      );
 
-      // 프론트엔드 인터페이스(AISession, InitialMessages)에 맞게 반환
+      const audioBase64 = result.aiAudio
+        ? result.aiAudio.toString("base64")
+        : null;
+
       res.status(201).json({
         session: { session_id: result.session_id },
         initialMessages: result.initial_messages,
+        audioData: audioBase64,
       });
     } catch (error) {
       console.error(error);
@@ -86,22 +110,65 @@ export const aiTalkController = {
     }
   },
 
-  // POST /api/sessions/:id/messages (메시지 전송)
+  // POST /api/sessions/:id/messages
   sendMessage: async (req: Request, res: Response) => {
     try {
       const userId = req.user!.user_id;
+      const level = req.user!.level || "A1";
       const sessionId = Number(req.params.id);
       const { content } = req.body;
 
       const result = await aiTalkService.processUserMessage(
         sessionId,
         userId,
-        content
+        content,
+        level
       );
-      res.json(result);
+
+      const audioBase64 = result.aiAudio
+        ? result.aiAudio.toString("base64")
+        : null;
+
+      res.json({
+        ...result,
+        audioData: audioBase64,
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Failed to send message" });
+    }
+  },
+
+  // POST /api/sessions/:id/audio
+  sendAudio: async (req: Request, res: Response) => {
+    try {
+      const userId = req.user!.user_id;
+      const level = req.user!.level || "A1";
+      const sessionId = Number(req.params.id);
+      const audioFile = req.file;
+
+      if (!audioFile) {
+        return res.status(400).json({ message: "No audio file uploaded" });
+      }
+
+      const result = await aiTalkService.processUserAudio(
+        sessionId,
+        userId,
+        audioFile.buffer,
+        level
+      );
+
+      const audioBase64 = result.aiAudio
+        ? result.aiAudio.toString("base64")
+        : null;
+
+      res.json({
+        ...result,
+        audioData: audioBase64,
+      });
+    } catch (error) {
+      console.error("[Controller] sendAudio error:", error);
+      res.status(500).json({ message: "Failed to process audio message" });
     }
   },
 
@@ -114,6 +181,31 @@ export const aiTalkController = {
       res.json({ message: "Session ended" });
     } catch (error) {
       res.status(500).json({ message: "Failed to end session" });
+    }
+  },
+
+  // ✅ [신규 추가] 텍스트 분석/피드백 핸들러
+  analyzeText: async (req: Request, res: Response) => {
+    try {
+      const userId = req.user!.user_id;
+      const level = req.user!.level || "A1";
+      const { content, context } = req.body;
+
+      if (!content) {
+        return res.status(400).json({ message: "Content is required" });
+      }
+
+      const result = await aiTalkService.analyzeSentence(
+        userId,
+        content,
+        level,
+        context
+      );
+
+      res.json(result);
+    } catch (error) {
+      console.error("[Controller] analyzeText error:", error);
+      res.status(500).json({ message: "Failed to analyze text" });
     }
   },
 };

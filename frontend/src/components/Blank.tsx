@@ -1,4 +1,4 @@
-// src/components/Blank.tsx
+// frontend/src/components/Blank.tsx
 import React from "react";
 import { Check } from "lucide-react";
 
@@ -7,9 +7,17 @@ interface Props {
   options: string[];
   selected: string | null;
   onSelect: (option: string) => void;
+  correctAnswer?: string;
+  showFeedback?: boolean;
 }
 
-const Blank: React.FC<Props> = ({ question, options, selected, onSelect }) => {
+const Blank: React.FC<Props> = ({
+  question,
+  options,
+  selected,
+  onSelect,
+  showFeedback = false,
+}) => {
   return (
     <div className="space-y-4 sm:space-y-5">
       <div className="text-left">
@@ -33,18 +41,24 @@ const Blank: React.FC<Props> = ({ question, options, selected, onSelect }) => {
         {options.map((opt, idx) => {
           const isSelected = selected === opt;
           const indexLabel = String(idx + 1);
+
           return (
             <button
               key={opt}
               type="button"
-              onClick={() => onSelect(opt)}
-              className={`group w-full rounded-2xl text-left p-4 sm:p-5 transition-all duration-300 ${
+              onClick={() => !showFeedback && onSelect(opt)}
+              disabled={showFeedback}
+              className={`group w-full rounded-2xl text-left p-4 sm:p-5 transition-all duration-300 border relative overflow-hidden ${
                 isSelected
                   ? "bg-rose-500 border-rose-500 text-white shadow-xl shadow-rose-500/30 scale-[1.02]"
-                  : "bg-white border border-gray-200 hover:border-rose-400 hover:shadow-lg hover:scale-[1.02] active:scale-[.98]"
+                  : "bg-white border-gray-200 text-foreground hover:border-rose-300"
+              } ${
+                !showFeedback && !isSelected
+                  ? "hover:shadow-lg hover:scale-[1.02] active:scale-[.98]"
+                  : ""
               }`}
             >
-              <div className="flex items-center gap-3 sm:gap-4">
+              <div className="flex items-center gap-3 sm:gap-4 relative z-10">
                 <div
                   className={`w-10 h-10 rounded-lg flex items-center justify-center text-base font-bold flex-shrink-0 transition-colors ${
                     isSelected
@@ -56,13 +70,7 @@ const Blank: React.FC<Props> = ({ question, options, selected, onSelect }) => {
                   {isSelected ? <Check className="w-5 h-5" /> : indexLabel}
                 </div>
 
-                <div
-                  className={`text-base font-medium ${
-                    isSelected ? "text-white" : "text-foreground"
-                  }`}
-                >
-                  {opt}
-                </div>
+                <div className="text-base font-medium">{opt}</div>
               </div>
             </button>
           );

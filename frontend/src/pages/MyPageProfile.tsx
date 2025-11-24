@@ -1,9 +1,14 @@
+// frontend/src/pages/MyPageProfile.tsx
 import React, { useEffect, useRef, useState } from "react";
-import { X, Camera, AlertTriangle, Check } from "lucide-react";
+import { X, Camera, AlertTriangle, ShieldAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useProfile } from "../hooks/useProfile";
 import { useAuth } from "../hooks/useAuth";
-// import { updateUserProfile, deleteUser } from "../services/userService";
+import {
+  updateUserProfile,
+  deleteUser,
+  changePassword,
+} from "../services/userService";
 
 type ProfileState = {
   name: string;
@@ -17,14 +22,17 @@ type PasswordState = {
   confirm: string;
 };
 
+type PasswordErrors = {
+  current?: string;
+  new?: string;
+  confirm?: string;
+};
+
 const MyPageProfile: React.FC = () => {
   const navigate = useNavigate();
-
-  // [신규] 전역 상태에서 프로필 정보 및 갱신 함수 가져오기
   const { profile: globalProfile, refreshProfile } = useProfile();
   const { logout } = useAuth();
 
-  // 로컬 편집용 상태
   const [profile, setProfile] = useState<ProfileState>({
     name: "",
     email: "",
@@ -37,16 +45,20 @@ const MyPageProfile: React.FC = () => {
     confirm: "",
   });
 
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [pwdErrors, setPwdErrors] = useState<PasswordErrors>({});
 
+  // 탈퇴 모달 (중앙, 2단계)
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
+
+  // 로딩 상태
   const [loadingSave, setLoadingSave] = useState(false);
   const [loadingPwd, setLoadingPwd] = useState(false);
   const [loadingDelete, setLoadingDelete] = useState(false);
 
+  // 이미지 미리보기 URL
   const fileUrlRef = useRef<string | null>(null);
 
-  // [신규] 초기 로드 시 전역 프로필 데이터를 로컬 상태에 동기화
   useEffect(() => {
     if (globalProfile) {
       setProfile({
@@ -55,12 +67,10 @@ const MyPageProfile: React.FC = () => {
         profileImage: globalProfile.profile_img || null,
       });
     } else {
-      // 프로필이 없으면 로그인 페이지로 (혹은 AuthGuard가 처리)
       navigate("/");
     }
   }, [globalProfile, navigate]);
 
-  // 메모리 누수 방지: 컴포넌트 언마운트 시 Blob URL 해제
   useEffect(() => {
     return () => {
       if (fileUrlRef.current) {
@@ -78,100 +88,118 @@ const MyPageProfile: React.FC = () => {
       URL.revokeObjectURL(fileUrlRef.current);
     }
 
-    // 주의: 실제 프로덕션에서는 여기서 파일을 서버로 업로드하고 URL을 받아와야 합니다.
-    // 현재는 미리보기용 Blob URL을 생성합니다.
-    // (백엔드가 base64나 파일을 처리하도록 구현되어 있다고 가정하거나 추후 구현 필요)
     const objUrl = URL.createObjectURL(file);
     fileUrlRef.current = objUrl;
     setProfile((p) => ({ ...p, profileImage: objUrl }));
   };
 
-  // [수정] 실제 프로필 업데이트 API 호출
+  // 이름 저장 버튼 활성화 조건:
+  // - 이름이 비어있지 않고
+  // - 현재 글로벌 프로필의 이름과 달라야 함(변경사항 있을 때만 활성화)
+  const isProfileSavable =
+    profile.name.trim().length > 0 &&
+    profile.name.trim() !== (globalProfile?.name || "").trim();
+
   const handleSaveProfile = async () => {
-    if (loadingSave || !globalProfile) return;
+    if (loadingSave || !globalProfile || !isProfileSavable) return;
     setLoadingSave(true);
 
     try {
-      // 1. 백엔드 업데이트 요청
-      // (이미지 업로드는 별도 로직이 필요할 수 있으나, 여기서는 profileImage 문자열을 보냄)
-      await updateUserProfile(globalProfile.user_id, {
-        name: profile.name,
+      const updated = await updateUserProfile({
+        name: profile.name.trim(),
         profile_img: profile.profileImage,
       });
 
-      // 2. 전역 상태(Context) 갱신 (MyPage 등 다른 곳에도 즉시 반영되도록)
-      await refreshProfile();
+      if (!updated) throw new Error("Update failed");
 
-      setShowSuccessMessage(true);
-      setTimeout(() => setShowSuccessMessage(false), 3000);
+      // 최신 프로필 다시 불러오면 버튼은 자동 비활성화됨(변경사항가 없음 상태로 복귀)
+      await refreshProfile();
     } catch (err) {
       console.error("Failed to update profile:", err);
-      alert("프로필 저장에 실패했습니다.");
     } finally {
       setLoadingSave(false);
     }
   };
 
   const validateNewPassword = (): boolean => {
+    const errors: PasswordErrors = {};
+    if (!passwords.current.trim()) {
+      errors.current = "현재 비밀번호를 입력하세요.";
+    }
     if (passwords.new.length < 8) {
-      alert("새 비밀번호는 최소 8자 이상이어야 합니다.");
-      return false;
+      errors.new = "새 비밀번호는 최소 8자 이상이어야 합니다.";
     }
-    if (passwords.new !== passwords.confirm) {
-      alert("새 비밀번호가 일치하지 않습니다.");
-      return false;
+    if (!passwords.confirm.trim()) {
+      errors.confirm = "새 비밀번호를 다시 입력하세요.";
+    } else if (passwords.new !== passwords.confirm) {
+      errors.confirm = "새 비밀번호가 일치하지 않습니다.";
     }
-    return true;
+
+    setPwdErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
+  // 비밀번호 버튼 활성화 조건: 모든 입력창이 채워져 있어야 함
+  const isPwdFormFilled =
+    passwords.current.trim().length > 0 &&
+    passwords.new.trim().length > 0 &&
+    passwords.confirm.trim().length > 0;
+
   const handleChangePassword = async () => {
-    if (loadingPwd) return;
+    if (loadingPwd || !isPwdFormFilled) return;
     if (!validateNewPassword()) return;
+
     setLoadingPwd(true);
+    setPwdErrors({});
+
     try {
-      // TODO: 비밀번호 변경 API는 아직 userService에 구현되지 않았습니다.
-      // 추후 구현 시 여기에 await changePassword(...) 호출
-      // await changePassword(passwords.current, passwords.new);
+      const ok = await changePassword(passwords.current, passwords.new);
+      if (!ok) {
+        setPwdErrors({ current: "현재 비밀번호가 올바르지 않습니다." });
+        return;
+      }
 
-      // 임시 mock delay
-      await new Promise((res) => setTimeout(res, 1000));
-
+      // 성공 시 입력값 초기화 -> 버튼 자동 비활성화
       setPasswords({ current: "", new: "", confirm: "" });
-      setShowSuccessMessage(true);
-      setTimeout(() => setShowSuccessMessage(false), 3000);
-      alert("비밀번호가 변경되었습니다. (실제 API 연동 필요)");
     } catch (err) {
       console.error("Failed to change password:", err);
-      alert("비밀번호 변경 실패");
+      setPwdErrors({ current: "현재 비밀번호가 올바르지 않습니다." });
     } finally {
       setLoadingPwd(false);
     }
   };
 
-  // [수정] 실제 회원 탈퇴 API 호출
+  const openDeleteModal = () => {
+    setDeleteStep(1);
+    setShowDeleteModal(true);
+  };
+
+  const proceedDeleteStep = () => {
+    setDeleteStep(2);
+  };
+
+  const cancelDeleteFlow = () => {
+    setShowDeleteModal(false);
+    setDeleteStep(1);
+  };
+
   const handleDeleteAccount = async () => {
     if (loadingDelete || !globalProfile) return;
-
-    if (
-      !window.confirm("정말로 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.")
-    ) {
-      return;
-    }
-
     setLoadingDelete(true);
     try {
-      // 1. 백엔드 탈퇴 요청
-      await deleteUser(globalProfile.user_id);
+      const ok = await deleteUser();
+      if (!ok) throw new Error("Delete failed");
 
-      // 2. 로그아웃 처리 (토큰 삭제 및 상태 초기화)
       await logout();
-
       setShowDeleteModal(false);
-      alert("회원 탈퇴가 완료되었습니다.");
+      setDeleteStep(1);
+
       navigate("/", { replace: true });
+      setTimeout(() => {
+        window.location.replace("/");
+      }, 400);
     } catch (err) {
       console.error("Failed to delete account:", err);
-      alert("회원 탈퇴 처리에 실패했습니다.");
     } finally {
       setLoadingDelete(false);
     }
@@ -186,10 +214,9 @@ const MyPageProfile: React.FC = () => {
             <h1 className="text-2xl sm:text-3xl font-bold">개인정보 수정</h1>
             <p className="text-white/90 text-sm">프로필 정보를 관리하세요</p>
           </div>
-
           <button
             onClick={() => navigate(-1)}
-            className="flex-shrink-0 w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 rounded-lg transition"
+            className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 rounded-lg transition"
             aria-label="닫기"
             type="button"
           >
@@ -200,16 +227,6 @@ const MyPageProfile: React.FC = () => {
 
       {/* Content */}
       <main className="w-full flex-1 overflow-y-auto">
-        {/* Toast */}
-        {showSuccessMessage && (
-          <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50">
-            <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-md flex items-center gap-2 animate-fade-in-down">
-              <Check className="w-5 h-5" />
-              <span className="font-semibold">저장되었습니다!</span>
-            </div>
-          </div>
-        )}
-
         {/* Section: Profile Image */}
         <section className="w-full bg-white border-b border-gray-200">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -316,10 +333,10 @@ const MyPageProfile: React.FC = () => {
 
               <button
                 onClick={handleSaveProfile}
-                disabled={loadingSave}
+                disabled={!isProfileSavable || loadingSave}
                 className="w-full mt-4 rounded-lg bg-rose-500 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
                 type="button"
-                aria-disabled={loadingSave}
+                aria-disabled={!isProfileSavable || loadingSave}
               >
                 {loadingSave ? "저장 중..." : "저장하기"}
               </button>
@@ -327,7 +344,7 @@ const MyPageProfile: React.FC = () => {
           </div>
         </section>
 
-        {/* Section: Password */}
+        {/* Section: Password (필드별 에러, 버튼 활성/비활성 제어) */}
         <section className="w-full bg-white border-b border-gray-200">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
             <header className="mb-6">
@@ -340,6 +357,7 @@ const MyPageProfile: React.FC = () => {
             </header>
 
             <div className="space-y-4">
+              {/* 현재 비밀번호 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   현재 비밀번호
@@ -347,14 +365,27 @@ const MyPageProfile: React.FC = () => {
                 <input
                   type="password"
                   value={passwords.current}
-                  onChange={(e) =>
-                    setPasswords((s) => ({ ...s, current: e.target.value }))
-                  }
-                  className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+                  onChange={(e) => {
+                    setPasswords((s) => ({ ...s, current: e.target.value }));
+                    if (pwdErrors.current) {
+                      setPwdErrors((prev) => ({ ...prev, current: undefined }));
+                    }
+                  }}
+                  className={`mt-1 block w-full rounded-lg border px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 ${
+                    pwdErrors.current
+                      ? "border-red-400 focus:ring-red-300"
+                      : "border-gray-200 focus:ring-rose-300"
+                  }`}
                   placeholder="현재 비밀번호를 입력하세요"
                 />
+                {pwdErrors.current && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {pwdErrors.current}
+                  </p>
+                )}
               </div>
 
+              {/* 새 비밀번호 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   새 비밀번호
@@ -362,14 +393,25 @@ const MyPageProfile: React.FC = () => {
                 <input
                   type="password"
                   value={passwords.new}
-                  onChange={(e) =>
-                    setPasswords((s) => ({ ...s, new: e.target.value }))
-                  }
-                  className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+                  onChange={(e) => {
+                    setPasswords((s) => ({ ...s, new: e.target.value }));
+                    if (pwdErrors.new) {
+                      setPwdErrors((prev) => ({ ...prev, new: undefined }));
+                    }
+                  }}
+                  className={`mt-1 block w-full rounded-lg border px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 ${
+                    pwdErrors.new
+                      ? "border-red-400 focus:ring-red-300"
+                      : "border-gray-200 focus:ring-rose-300"
+                  }`}
                   placeholder="새 비밀번호를 입력하세요 (8자 이상)"
                 />
+                {pwdErrors.new && (
+                  <p className="mt-1 text-xs text-red-600">{pwdErrors.new}</p>
+                )}
               </div>
 
+              {/* 새 비밀번호 확인 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   새 비밀번호 확인
@@ -377,20 +419,35 @@ const MyPageProfile: React.FC = () => {
                 <input
                   type="password"
                   value={passwords.confirm}
-                  onChange={(e) =>
-                    setPasswords((s) => ({ ...s, confirm: e.target.value }))
-                  }
-                  className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+                  onChange={(e) => {
+                    setPasswords((s) => ({ ...s, confirm: e.target.value }));
+                    if (pwdErrors.confirm) {
+                      setPwdErrors((prev) => ({
+                        ...prev,
+                        confirm: undefined,
+                      }));
+                    }
+                  }}
+                  className={`mt-1 block w-full rounded-lg border px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 ${
+                    pwdErrors.confirm
+                      ? "border-red-400 focus:ring-red-300"
+                      : "border-gray-200 focus:ring-rose-300"
+                  }`}
                   placeholder="새 비밀번호를 다시 입력하세요"
                 />
+                {pwdErrors.confirm && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {pwdErrors.confirm}
+                  </p>
+                )}
               </div>
 
               <button
                 onClick={handleChangePassword}
-                disabled={loadingPwd}
+                disabled={!isPwdFormFilled || loadingPwd}
                 className="w-full mt-4 rounded-lg bg-rose-500 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
                 type="button"
-                aria-disabled={loadingPwd}
+                aria-disabled={!isPwdFormFilled || loadingPwd}
               >
                 {loadingPwd ? "변경 중..." : "비밀번호 변경"}
               </button>
@@ -413,7 +470,7 @@ const MyPageProfile: React.FC = () => {
             </p>
 
             <button
-              onClick={() => setShowDeleteModal(true)}
+              onClick={openDeleteModal}
               className="w-full rounded-lg border border-rose-500 px-4 py-3 bg-white text-sm font-semibold text-rose-600 hover:bg-rose-50 transition"
               type="button"
             >
@@ -423,48 +480,79 @@ const MyPageProfile: React.FC = () => {
         </section>
       </main>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal: 중앙 배치 + 2단계 확인 */}
       {showDeleteModal && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="delete-title"
         >
-          <div className="bg-white rounded-lg p-6 sm:p-8 max-w-md w-full shadow-2xl">
-            <div className="flex items-center justify-center w-16 h-16 bg-rose-100 rounded-full mx-auto mb-4">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl">
+            <div className="flex items-center justify-center w-16 h-16 rounded-full mx-auto mb-4 bg-rose-100">
               <AlertTriangle className="w-8 h-8 text-rose-600" />
             </div>
 
-            <h3
-              id="delete-title"
-              className="text-xl sm:text-2xl font-bold text-gray-900 text-center mb-2"
-            >
-              정말 탈퇴하시겠습니까?
-            </h3>
-            <p className="text-sm text-gray-600 text-center mb-6">
-              모든 학습 데이터가 영구적으로 삭제되며 복구할 수 없습니다.
-            </p>
+            {deleteStep === 1 && (
+              <>
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 text-center mb-2">
+                  회원 탈퇴 안내
+                </h3>
+                <p className="text-sm text-gray-600 text-center mb-6">
+                  모든 학습 데이터가 영구적으로 삭제되며 복구할 수 없습니다.
+                </p>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="flex-1 rounded-lg border border-gray-300 px-4 py-3 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
-                type="button"
-                autoFocus
-              >
-                취소
-              </button>
-              <button
-                onClick={handleDeleteAccount}
-                disabled={loadingDelete}
-                className="flex-1 rounded-lg bg-rose-500 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                type="button"
-                aria-disabled={loadingDelete}
-              >
-                {loadingDelete ? "탈퇴 진행중..." : "탈퇴하기"}
-              </button>
-            </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={cancelDeleteFlow}
+                    className="flex-1 rounded-lg border border-gray-300 px-4 py-3 bg-white text-sm font-semibold text-gray-800 hover:bg-gray-50 transition"
+                    type="button"
+                    autoFocus
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={proceedDeleteStep}
+                    className="flex-1 rounded-lg bg-rose-600 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-700 transition"
+                    type="button"
+                  >
+                    계속
+                  </button>
+                </div>
+              </>
+            )}
+
+            {deleteStep === 2 && (
+              <>
+                <div className="flex items-center justify-center w-16 h-16 rounded-full mx-auto mb-4 bg-rose-100">
+                  <ShieldAlert className="w-8 h-8 text-rose-600" />
+                </div>
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 text-center mb-2">
+                  정말로 탈퇴하시겠습니까?
+                </h3>
+                <p className="text-sm text-gray-600 text-center mb-6">
+                  이 작업은 되돌릴 수 없습니다.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={cancelDeleteFlow}
+                    className="flex-1 rounded-lg border border-gray-300 px-4 py-3 bg-white text-sm font-semibold text-gray-800 hover:bg-gray-50 transition"
+                    type="button"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={loadingDelete}
+                    className="flex-1 rounded-lg bg-rose-600 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    type="button"
+                    aria-disabled={loadingDelete}
+                  >
+                    {loadingDelete ? "탈퇴 진행중..." : "최종 탈퇴"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

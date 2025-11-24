@@ -1,4 +1,3 @@
-// backend/src/models/voiceroomModel.ts
 import { Pool } from "mysql2/promise";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
 
@@ -16,6 +15,7 @@ export type VoiceRoomRow = {
   description: string;
   level: VoiceRoomLevel;
   max_participants: number;
+  current_participants: number;
   created_at: string | null;
 };
 
@@ -31,8 +31,8 @@ export async function insertVoiceRoom(
   const conn = await pool.getConnection();
   try {
     const [result] = (await conn.execute(
-      `INSERT INTO voice_room (name, description, level, max_participants)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT INTO voice_room (name, description, level, max_participants, current_participants)
+       VALUES (?, ?, ?, ?, 0)`,
       [
         payload.name,
         payload.description,
@@ -53,7 +53,7 @@ export async function findVoiceRoomById(
   const conn = await pool.getConnection();
   try {
     const [rows] = (await conn.execute(
-      `SELECT room_id, name, description, level, max_participants, created_at
+      `SELECT room_id, name, description, level, max_participants, current_participants, created_at
        FROM voice_room WHERE room_id = ?`,
       [roomId]
     )) as unknown as [RowDataPacket[] & VoiceRoomRow[], any];
@@ -63,11 +63,12 @@ export async function findVoiceRoomById(
   }
 }
 
+// ✅ [수정] LIMIT/OFFSET 파라미터 바인딩 문제 해결
 export async function selectVoiceRooms(
   pool: Pool,
   options?: { page?: number; size?: number; level?: VoiceRoomLevel }
 ): Promise<VoiceRoomRow[]> {
-  // 기본값 및 정수화
+  // 입력값 정수 변환 및 안전성 확보
   const page = Math.max(1, Math.floor(Number(options?.page || 1)));
   const size = Math.min(
     100,
@@ -77,51 +78,27 @@ export async function selectVoiceRooms(
 
   const conn = await pool.getConnection();
   try {
-    // level이 배열로 들어오는 경우 방어 처리: 첫 번째 값 사용하거나 에러 처리
-    const rawLevel = options?.level;
-    if (rawLevel !== undefined && rawLevel !== null) {
-      if (Array.isArray(rawLevel)) {
-        // 여러 값이 들어오면 첫 번째 값만 사용 (원하면 400 에러로 바꿀 수 있음)
-        console.warn(
-          "[selectVoiceRooms] level is array, using first element:",
-          rawLevel
-        );
-      }
-      const level = String(Array.isArray(rawLevel) ? rawLevel[0] : rawLevel);
-
-      // SQL에 LIMIT/OFFSET은 직접 삽입 (숫자이므로 안전), level만 바인딩
-      const sql = `
-        SELECT room_id, name, description, level, max_participants, created_at
+    let sql = `
+        SELECT room_id, name, description, level, max_participants, current_participants, created_at
         FROM voice_room
-        WHERE level = ?
-        ORDER BY created_at DESC
-        LIMIT ${size} OFFSET ${offset}
       `;
-      console.debug("[selectVoiceRooms] SQL:", sql.trim());
-      console.debug("[selectVoiceRooms] params:", [level]);
+    const params: any[] = [];
 
-      const [rows] = (await conn.execute(sql, [level])) as unknown as [
-        RowDataPacket[] & VoiceRoomRow[],
-        any
-      ];
-      return rows;
-    } else {
-      // level 미지정: LIMIT/OFFSET 직접 삽입, 파라미터 없음
-      const sql = `
-        SELECT room_id, name, description, level, max_participants, created_at
-        FROM voice_room
-        ORDER BY created_at DESC
-        LIMIT ${size} OFFSET ${offset}
-      `;
-      console.debug("[selectVoiceRooms] SQL:", sql.trim());
-      console.debug("[selectVoiceRooms] params: none");
-
-      const [rows] = (await conn.execute(sql)) as unknown as [
-        RowDataPacket[] & VoiceRoomRow[],
-        any
-      ];
-      return rows;
+    // 레벨 필터링 (ANY가 아닐 때만 조건 추가)
+    if (options?.level && options.level !== "ANY") {
+      sql += ` WHERE level = ? `;
+      params.push(options.level);
     }
+
+    // [Critical Fix] LIMIT와 OFFSET은 ? 대신 직접 정수를 주입합니다.
+    // execute() 사용 시 LIMIT ? 문법에서 타입 에러가 빈번하게 발생하기 때문입니다.
+    sql += ` ORDER BY created_at DESC LIMIT ${size} OFFSET ${offset}`;
+
+    const [rows] = (await conn.execute(sql, params)) as unknown as [
+      RowDataPacket[] & VoiceRoomRow[],
+      any
+    ];
+    return rows;
   } catch (err: unknown) {
     const stackOrMessage =
       err instanceof Error ? err.stack ?? err.message : String(err);
@@ -192,6 +169,48 @@ export async function deleteVoiceRoomRow(
       [roomId]
     )) as unknown as [ResultSetHeader, any];
     return result.affectedRows;
+  } finally {
+    conn.release();
+  }
+}
+
+export async function incrementParticipants(
+  pool: Pool,
+  roomId: number
+): Promise<void> {
+  const conn = await pool.getConnection();
+  try {
+    await conn.execute(
+      `UPDATE voice_room SET current_participants = current_participants + 1 WHERE room_id = ?`,
+      [roomId]
+    );
+  } finally {
+    conn.release();
+  }
+}
+
+export async function decrementParticipants(
+  pool: Pool,
+  roomId: number
+): Promise<number> {
+  const conn = await pool.getConnection();
+  try {
+    // 인원 감소 (음수 방지)
+    await conn.execute(
+      `UPDATE voice_room SET current_participants = GREATEST(current_participants - 1, 0) WHERE room_id = ?`,
+      [roomId]
+    );
+
+    // 현재 인원 확인 후 반환
+    const [rows] = (await conn.execute(
+      `SELECT current_participants FROM voice_room WHERE room_id = ?`,
+      [roomId]
+    )) as unknown as [
+      RowDataPacket[] & { current_participants: number }[],
+      any
+    ];
+
+    return rows[0]?.current_participants ?? 0;
   } finally {
     conn.release();
   }

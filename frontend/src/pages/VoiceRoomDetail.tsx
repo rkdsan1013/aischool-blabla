@@ -214,9 +214,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
   const participantAnalyzers = useRef<Map<string, AnalyserNode>>(new Map());
   const lastSpeakingTimeRef = useRef<Map<string, number>>(new Map());
 
-  // [API 연동 대기] 주석 처리
+  // [API 연동 대기] 주석 처리된 Recorder
   // const recorderRef = useRef<MediaRecorder | null>(null);
-  // const recorderMimeRef = useRef<string | null>(null);
 
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
   const interimIdRef = useRef<string | null>(null);
@@ -529,24 +528,12 @@ export default function VoiceRoomDetail(): React.ReactElement {
             return [...filtered, finalItem];
           });
 
-          // 1. 소켓으로 자막 전송 (실시간 공유)
           socketRef.current?.emit("local_transcript", {
             id: finalItem.id,
             speaker: profileRef.current ? profileRef.current.name : "나",
             text: finalItem.text,
             timestamp: new Date().toISOString(),
           });
-
-          /*
-          // [API 연동 대기]
-          sendTranscriptToServer({
-            id: finalItem.id,
-            speaker: finalItem.speaker,
-            text: finalItem.text,
-            timestamp: finalItem.timestamp,
-            feedback: finalItem.feedback || null,
-          });
-          */
         }
       };
 
@@ -562,7 +549,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
       console.warn("Failed to initialize SpeechRecognition", e);
       recognitionRef.current = null;
     }
-  }, []);
+  }, []); // [Fix] Empty dependency array (stable logic)
 
   const stopLocalRecognition = useCallback(() => {
     const rec = recognitionRef.current;
@@ -902,7 +889,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
     navigate,
     startAudioAnalysis,
     startLocalRecognition,
-    stopLocalRecognition, // cleaned up deps
+    stopLocalRecognition,
     addOrUpdateTranscript,
   ]);
 
@@ -947,6 +934,9 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
   /* ------------------ Handlers ------------------ */
   const handleLeaveRoom = () => {
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
     stopLocalRecognition();
     navigate("/voiceroom");
   };

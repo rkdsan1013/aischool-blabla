@@ -1,7 +1,12 @@
 // backend/src/socket/voiceRoomSocket.ts
 import { Server, Socket } from "socket.io";
-// import { transcribeAudio } from "../ai/audio";
-// import { generateFeedbackOnly } from "../ai/generators/feedback";
+import { pool } from "../config/db";
+import {
+  incrementParticipants,
+  decrementParticipants,
+  deleteVoiceRoomRow,
+  findVoiceRoomById, // ✅ [추가] 방 정보 조회용
+} from "../models/voiceroomModel";
 
 interface User {
   socketId: string;
@@ -13,27 +18,46 @@ interface User {
 const users: Record<string, User[]> = {};
 const socketToRoom: Record<string, string> = {};
 
-// Helper: ID 생성
-function makeId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
 export default function voiceRoomSocket(io: Server) {
   io.on("connection", (socket: Socket) => {
     console.log(`✅ [Socket] New Client Connected: ${socket.id}`);
 
     // 1. 방 입장
-    socket.on("join_room", (data) => {
+    socket.on("join_room", async (data) => {
       console.log(`📩 [Socket] join_room 요청:`, data);
 
-      const { roomId, userId, name, userLevel = "A1" } = data; // userLevel 받기 (없으면 A1)
+      const { roomId, userId, name, userLevel = "A1" } = data;
+      const rId = Number(roomId);
 
-      // 사용자 정보 저장
+      // ✅ [Critical Fix] DB에서 방 정보 및 현재 인원 확인 (임의 접속 차단)
+      try {
+        const roomData = await findVoiceRoomById(pool, rId);
+
+        if (!roomData) {
+          // 방이 없는 경우
+          socket.emit("error_message", "존재하지 않는 방입니다.");
+          return;
+        }
+
+        // 방이 꽉 찼는지 DB 기준 체크
+        if (roomData.current_participants >= roomData.max_participants) {
+          console.warn(
+            `⛔ Room ${roomId} is full (DB check). Rejecting ${socket.id}`
+          );
+          socket.emit("room_full");
+          return;
+        }
+      } catch (err) {
+        console.error("DB Error checking room capacity:", err);
+        return;
+      }
+
+      // 메모리 상의 유저 관리
       const newUser = { socketId: socket.id, userId, name, level: userLevel };
-
       if (users[roomId]) {
-        const length = users[roomId].length;
-        if (length >= 8) {
+        // 메모리상 이중 체크 (Socket Room 기준)
+        if (users[roomId].length >= 8) {
+          // 하드 리미트
           socket.emit("room_full");
           return;
         }
@@ -44,6 +68,16 @@ export default function voiceRoomSocket(io: Server) {
 
       socketToRoom[socket.id] = roomId;
       socket.join(roomId);
+
+      // DB Update: 참여자 수 증가
+      try {
+        await incrementParticipants(pool, rId);
+      } catch (err) {
+        console.error(
+          `⚠️ Failed to increment participants for room ${roomId}:`,
+          err
+        );
+      }
 
       const usersInThisRoom = users[roomId].filter(
         (user) => user.socketId !== socket.id
@@ -56,7 +90,7 @@ export default function voiceRoomSocket(io: Server) {
       );
     });
 
-    // ... (기존 Signaling, Mute 로직 생략 - 그대로 유지) ...
+    // Signaling - Offer
     socket.on("sending_signal", (payload) => {
       io.to(payload.userToSignal).emit("user_joined", {
         signal: payload.signal,
@@ -65,6 +99,7 @@ export default function voiceRoomSocket(io: Server) {
       });
     });
 
+    // Signaling - Answer
     socket.on("returning_signal", (payload) => {
       io.to(payload.callerID).emit("receiving_returned_signal", {
         signal: payload.signal,
@@ -72,6 +107,7 @@ export default function voiceRoomSocket(io: Server) {
       });
     });
 
+    // Mute Toggle
     socket.on("toggle_mute", (isMuted: boolean) => {
       const roomId = socketToRoom[socket.id];
       if (roomId) {
@@ -81,58 +117,46 @@ export default function voiceRoomSocket(io: Server) {
       }
     });
 
-    // ✅ [변경] 로컬 텍스트 단순 중계 (API 미사용 모드)
-    socket.on(
-      "local_transcript",
-      (payload: {
-        id: string;
-        speaker: string;
-        text: string;
-        timestamp: string;
-      }) => {
-        const roomId = socketToRoom[socket.id];
-        if (!roomId) return;
-
-        console.log(
-          `📝 [Transcript Relay] ${payload.speaker}: ${payload.text}`
-        );
-
-        // 1. 나를 포함한 방 전체에 자막 전송
-        // (발화자 본인은 이미 로컬에 텍스트가 있지만, 타임스탬프 동기화 등을 위해 덮어씌워도 무방)
-        io.to(roomId).emit("transcript_item", payload);
-
-        /* // 2. AI 피드백 생성 (현재 주석 처리됨)
-      try {
-        const user = users[roomId]?.find((u) => u.socketId === socket.id);
-        const userLevel = user?.level || "A1";
-        
-        // const feedback = await generateFeedbackOnly(payload.text, userLevel);
-        // socket.emit("feedback_update", { id: payload.id, feedback });
-      } catch (e) {
-        console.error(e);
-      }
-      */
-      }
-    );
-
-    /* // ❌ [주석 처리] 오디오 처리 로직 비활성화
-    socket.on("process_audio", async (audioBuffer: Buffer) => {
-       // ... 기존 Whisper 로직 주석 ...
+    // Local Transcript Relay
+    socket.on("local_transcript", (payload) => {
+      const roomId = socketToRoom[socket.id];
+      if (!roomId) return;
+      io.to(roomId).emit("transcript_item", payload);
     });
-    */
 
-    // Disconnect
-    socket.on("disconnect", () => {
+    // 5. Disconnect (퇴장 및 방 삭제)
+    socket.on("disconnect", async () => {
       console.log(`❌ [Socket] Disconnected: ${socket.id}`);
       const roomId = socketToRoom[socket.id];
+
       if (roomId) {
+        // 메모리 정리
         let room = users[roomId];
         if (room) {
           room = room.filter((user) => user.socketId !== socket.id);
           users[roomId] = room;
         }
+
         socket.to(roomId).emit("user_left", socket.id);
         delete socketToRoom[socket.id];
+
+        // DB Update
+        try {
+          const rId = Number(roomId);
+          const currentCount = await decrementParticipants(pool, rId);
+
+          // 0명이면 방 삭제
+          if (
+            currentCount <= 0 &&
+            (!users[roomId] || users[roomId].length === 0)
+          ) {
+            console.log(`🧹 Room ${roomId} is empty. Deleting from DB...`);
+            await deleteVoiceRoomRow(pool, rId);
+            delete users[roomId];
+          }
+        } catch (err) {
+          console.error("Failed to update/delete room on disconnect:", err);
+        }
       }
     });
   });

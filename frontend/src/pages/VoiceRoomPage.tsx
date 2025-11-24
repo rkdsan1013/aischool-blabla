@@ -14,9 +14,6 @@ import VoiceRoomService from "../services/voiceroomService";
 import type { VoiceRoom } from "../services/voiceroomService";
 import { useProfile } from "../hooks/useProfile";
 
-/**
- * UI에서 사용하는 Room 타입 (서비스에 없는 필드는 null 허용)
- */
 interface Room {
   id: string;
   name: string | null;
@@ -30,11 +27,9 @@ interface Room {
 
 export default function VoiceRoomPage() {
   const navigate = useNavigate();
-
-  // 전역 상태에서 유저 정보 가져오기
   const { profile, isProfileLoading } = useProfile();
 
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [query, setQuery] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -46,48 +41,64 @@ export default function VoiceRoomPage() {
     }
   }, [profile, isProfileLoading, navigate]);
 
-  // 방 목록 조회
-  useEffect(() => {
-    let mounted = true;
+  // 방 목록 조회 함수
+  const fetchRooms = async (isBackground = false) => {
+    try {
+      if (!isBackground) setIsLoading(true);
 
-    async function fetchRooms() {
-      setIsLoading(true);
-      setErrorMessage(null);
-      try {
-        const data: VoiceRoom[] = await VoiceRoomService.getRooms();
-        if (!mounted) return;
+      const data: VoiceRoom[] = await VoiceRoomService.getRooms();
 
-        const mapped: Room[] = data.map((v) => ({
-          id: String(v.room_id),
-          name: v.name ?? null,
-          topic: v.description ?? null,
-          host: null,
-          participants: null,
-          maxParticipants:
-            v.max_participants !== undefined && v.max_participants !== null
-              ? Number(v.max_participants)
-              : null,
-          level: v.level ?? null,
-          isPrivate: null,
-        }));
+      const mapped: Room[] = data.map((v) => ({
+        id: String(v.room_id),
+        name: v.name ?? null,
+        topic: v.description ?? null,
+        host: null,
+        participants: v.current_participants ?? 0,
+        maxParticipants:
+          v.max_participants !== undefined && v.max_participants !== null
+            ? Number(v.max_participants)
+            : null,
+        level: v.level ?? null,
+        isPrivate: null,
+      }));
 
-        // 최신순 정렬
-        mapped.sort((a, b) => parseInt(b.id, 10) - parseInt(a.id, 10));
-        setRooms(mapped);
-      } catch (err: unknown) {
-        console.error("보이스룸 목록 로드 실패:", err);
+      // 최신순 정렬
+      mapped.sort((a, b) => parseInt(b.id, 10) - parseInt(a.id, 10));
+      setRooms(mapped);
+      if (!isBackground) setErrorMessage(null);
+    } catch (err: unknown) {
+      console.error("보이스룸 목록 로드 실패:", err);
+      if (!isBackground) {
         setErrorMessage(
           "보이스룸을 불러오는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요."
         );
         setRooms([]);
-      } finally {
-        if (mounted) setIsLoading(false);
       }
+    } finally {
+      if (!isBackground) setIsLoading(false);
     }
+  };
 
+  useEffect(() => {
+    let mounted = true;
+
+    // 1. 즉시 조회 (빠른 렌더링)
     fetchRooms();
+
+    // 2. [Fix] 300ms 후 한 번 더 조회 (방금 퇴장한 방의 DB 삭제 반영)
+    const refreshTimeout = setTimeout(() => {
+      if (mounted) fetchRooms(true);
+    }, 300);
+
+    // 3. 주기적 갱신 (3초마다)
+    const intervalId = setInterval(() => {
+      if (mounted) fetchRooms(true);
+    }, 3000);
+
     return () => {
       mounted = false;
+      clearTimeout(refreshTimeout);
+      clearInterval(intervalId);
     };
   }, []);
 
@@ -99,7 +110,6 @@ export default function VoiceRoomPage() {
     navigate("/voiceroom/create");
   };
 
-  // 검색 및 정렬
   const filteredRooms = useMemo(() => {
     const q = query.trim().toLowerCase();
     const baseList = !q
@@ -118,7 +128,6 @@ export default function VoiceRoomPage() {
     );
   }, [rooms, query]);
 
-  // 렌더링
   return (
     <div className="min-h-screen bg-white pb-20">
       {/* Hero Section */}
@@ -187,21 +196,18 @@ export default function VoiceRoomPage() {
           </div>
         </div>
 
-        {/* 로딩 상태 표시 */}
-        {isLoading && (
+        {isLoading && rooms.length === 0 && (
           <div className="min-h-[200px] flex items-center justify-center">
             <Loader2 className="w-10 h-10 animate-spin text-rose-500" />
           </div>
         )}
 
-        {/* 에러 메시지 */}
         {errorMessage && (
           <div className="text-center text-sm text-red-600 mb-4">
             {errorMessage}
           </div>
         )}
 
-        {/* 방 목록 그리드 */}
         {!isLoading && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {filteredRooms.map((room, index) => {

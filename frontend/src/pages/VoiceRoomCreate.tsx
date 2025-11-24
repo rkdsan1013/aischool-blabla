@@ -4,17 +4,15 @@ import { useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
 import VoiceRoomService from "../services/voiceroomService";
 
-// 레벨 타입 정의
 type VoiceRoomLevel = "ANY" | "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 
 type FormState = {
   name: string;
   description: string;
   maxParticipants: string;
-  level: VoiceRoomLevel; // string -> 구체적인 타입으로 변경
+  level: VoiceRoomLevel;
 };
 
-// API 에러 응답 타입 정의 (Axios 구조 가정)
 interface ApiErrorResponse {
   response?: {
     data?: {
@@ -24,8 +22,10 @@ interface ApiErrorResponse {
   message?: string;
 }
 
+// Mock Auth (실제로는 Context 등 사용)
 function useAuth() {
   const [isLoading] = useState<boolean>(false);
+  // 로그인 상태라고 가정 (실제 구현에 맞춰 수정 필요)
   const [user] = useState<{ id: string; name: string } | null>({
     id: "1",
     name: "TestUser",
@@ -47,53 +47,32 @@ const VoiceRoomCreate: React.FC = () => {
   const [submitting, setSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!isLoading && !user) navigate("/login");
+    // 실제 앱에서는 로그인 안되어 있으면 리다이렉트
+    // if (!isLoading && !user) navigate("/login");
   }, [user, isLoading, navigate]);
-
-  if (isLoading || !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
-      </div>
-    );
-  }
 
   // 폼 제출 처리
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-
     if (submitting) return;
-
-    console.log("Form Data:", formData);
 
     const payload = {
       name: formData.name.trim(),
       description: formData.description.trim(),
-      level: formData.level, // 더 이상 as any 불필요
+      level: formData.level,
       max_participants: Number(formData.maxParticipants),
     };
 
     try {
-      // 유효성 검사
-      VoiceRoomService.validateCreatePayload({
-        name: payload.name,
-        description: payload.description,
-        level: payload.level,
-        max_participants: payload.max_participants,
-      });
-
+      VoiceRoomService.validateCreatePayload(payload);
       setSubmitting(true);
-      console.log("Sending POST /voice-room with:", payload);
 
       const created = await VoiceRoomService.createRoom(payload);
 
-      console.log("Created room:", created);
-
-      navigate("/voiceroom");
+      // ✅ [수정] 방 생성 완료 후 목록이 아닌 해당 방으로 바로 이동
+      navigate(`/voiceroom/${created.room_id}`);
     } catch (err: unknown) {
-      // [수정] any 대신 unknown 사용 및 타입 좁히기(Type Narrowing)
       console.error("방 생성 실패:", err);
-
       let message = "방 생성 중 오류가 발생했습니다.";
       const apiError = err as ApiErrorResponse;
 
@@ -104,7 +83,6 @@ const VoiceRoomCreate: React.FC = () => {
       } else if (err instanceof Error) {
         message = err.message;
       }
-
       alert(message);
     } finally {
       setSubmitting(false);

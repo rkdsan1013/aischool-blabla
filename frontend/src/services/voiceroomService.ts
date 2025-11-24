@@ -1,20 +1,6 @@
 // frontend/src/services/voiceroomService.ts
 import type { AxiosResponse } from "axios";
-// api 클라이언트와 에러 헬퍼를 가져옵니다. (경로: frontend/src/api/index.ts)
 import { apiClient, handleApiError, ServiceError } from "../api";
-
-/**
- * DB 스키마 참고:
- * CREATE TABLE voice_room (
- *   room_id int NOT NULL AUTO_INCREMENT,
- *   name varchar(255) NOT NULL,
- *   description varchar(255) NOT NULL,
- *   level enum('ANY','A1','A2','B1','B2','C1','C2') NOT NULL DEFAULT 'ANY',
- *   max_participants int DEFAULT '8',
- *   created_at timestamp NULL DEFAULT CURRENT_TIMESTAMP,
- *   PRIMARY KEY (room_id)
- * );
- */
 
 /** 프론트에서 사용할 타입 정의 */
 export type VoiceRoomLevel = "ANY" | "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
@@ -25,6 +11,7 @@ export type VoiceRoom = {
   description: string;
   level: VoiceRoomLevel;
   max_participants: number;
+  current_participants: number; // ✅ [추가] 현재 인원
   created_at?: string | null;
 };
 
@@ -58,9 +45,7 @@ export async function createRoom(
     );
     return res.data;
   } catch (error) {
-    // handleApiError는 내부에서 ServiceError를 던집니다.
     handleApiError(error, "보이스룸 생성");
-    // 타입 검사 통과를 위해 명시적 반환(실제로는 위에서 예외가 던져짐)
     return Promise.reject();
   }
 }
@@ -165,7 +150,7 @@ export async function deleteRoom(roomId: number): Promise<void> {
 }
 
 /**
- * 간단한 유효성 검사 헬퍼 (프론트에서 서버 호출 전에 사용)
+ * 유효성 검사
  */
 export function validateCreatePayload(payload: CreateVoiceRoomPayload) {
   if (!payload.name || payload.name.trim().length === 0) {
@@ -192,9 +177,6 @@ export function validateCreatePayload(payload: CreateVoiceRoomPayload) {
   }
 }
 
-/**
- * 기본 export: 서비스 객체
- */
 const VoiceRoomService = {
   createRoom,
   getRooms,

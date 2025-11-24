@@ -28,6 +28,19 @@ export type UserWithProfile = User & {
   last_study_date: Date | null;
 };
 
+// [추가] 통합 히스토리 아이템 타입
+export interface UserHistoryItem {
+  id: string;
+  type: "TRAINING" | "CONVERSATION";
+  subType: string;
+  title: string;
+  date: string;
+  score?: number;
+  durationSeconds?: number;
+  messageCount?: number;
+  preview?: string;
+}
+
 export async function findUserByEmail(email: string): Promise<User | null> {
   const [rows] = await pool.execute<User[] & RowDataPacket[]>(
     "SELECT * FROM users WHERE email = ?",
@@ -184,7 +197,7 @@ export async function deleteUserTransaction(userId: number): Promise<void> {
   }
 }
 
-// [수정] 사용자의 최근 1년간 일별 학습 횟수 조회 (컬럼명 수정: completed_at -> created_at)
+// 사용자의 최근 1년간 일별 학습 횟수 조회 (컬럼명 수정: completed_at -> created_at)
 export async function getUserAttendanceStats(
   userId: number
 ): Promise<{ date: string; count: number }[]> {
@@ -201,4 +214,69 @@ export async function getUserAttendanceStats(
   );
 
   return rows as { date: string; count: number }[];
+}
+
+// [추가] 사용자의 모든 학습/회화 이력을 통합 조회
+export async function getUserHistoryStats(
+  userId: number
+): Promise<UserHistoryItem[]> {
+  // 1. Training 기록 조회
+  const [trainRows] = await pool.execute<RowDataPacket[]>(
+    `SELECT 
+       CONCAT('train-', session_id) as id,
+       'TRAINING' as type,
+       CASE type 
+         WHEN 'vocabulary' THEN '단어'
+         WHEN 'sentence' THEN '문장'
+         WHEN 'blank' THEN '빈칸'
+         WHEN 'writing' THEN '작문'
+         WHEN 'speaking' THEN '스피킹'
+         ELSE type 
+       END as subType,
+       CASE type 
+         WHEN 'vocabulary' THEN '단어 학습'
+         WHEN 'sentence' THEN '문장 배열 연습'
+         WHEN 'blank' THEN '빈칸 채우기'
+         WHEN 'writing' THEN '작문 연습'
+         WHEN 'speaking' THEN '스피킹 훈련'
+         ELSE '학습 세션'
+       END as title,
+       created_at as date,
+       score,
+       duration_seconds as durationSeconds,
+       NULL as messageCount,
+       NULL as preview
+     FROM training_sessions
+     WHERE user_id = ?`,
+    [userId]
+  );
+
+  // 2. AI Conversation 기록 조회
+  const [convRows] = await pool.execute<RowDataPacket[]>(
+    `SELECT 
+       CONCAT('conv-', s.session_id) as id,
+       'CONVERSATION' as type,
+       IFNULL(sc.title, '자유 대화') as title,
+       '회화' as subType, 
+       s.started_at as date,
+       NULL as score,
+       NULL as durationSeconds,
+       (SELECT COUNT(*) FROM ai_messages m WHERE m.session_id = s.session_id) as messageCount,
+       (SELECT content FROM ai_messages m WHERE m.session_id = s.session_id ORDER BY created_at ASC LIMIT 1) as preview
+     FROM ai_sessions s
+     LEFT JOIN ai_scenarios sc ON s.scenario_id = sc.scenario_id
+     WHERE s.user_id = ?`,
+    [userId]
+  );
+
+  // 3. 병합 및 정렬
+  const combined = [
+    ...(trainRows as UserHistoryItem[]),
+    ...(convRows as UserHistoryItem[]),
+  ];
+  combined.sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+
+  return combined;
 }

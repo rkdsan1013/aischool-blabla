@@ -22,6 +22,22 @@ export interface AttendanceStat {
   count: number;
 }
 
+// [추가] 통합 히스토리 타입
+export interface HistoryRecord {
+  id: string;
+  type: "TRAINING" | "CONVERSATION";
+  subType: string;
+  title: string;
+  date: string; // JSON 응답은 string
+  score?: number;
+  durationSeconds?: number;
+  messageCount?: number;
+  preview?: string;
+}
+
+/**
+ * 내 프로필 조회
+ */
 export async function getMyProfile(): Promise<UserProfileResponse | null> {
   try {
     const res = await apiClient.get<UserProfileResponse>("/user/me");
@@ -39,6 +55,9 @@ export async function getMyProfile(): Promise<UserProfileResponse | null> {
   }
 }
 
+/**
+ * 사용자 프로필 업데이트
+ */
 export async function updateUserProfile(
   data: Partial<UserProfileResponse>
 ): Promise<UserProfileResponse | null> {
@@ -51,6 +70,9 @@ export async function updateUserProfile(
   }
 }
 
+/**
+ * 사용자 비밀번호 변경
+ */
 export async function changePassword(
   current: string,
   next: string
@@ -67,6 +89,9 @@ export async function changePassword(
   }
 }
 
+/**
+ * 사용자 계정 삭제
+ */
 export async function deleteUser(): Promise<boolean> {
   try {
     await apiClient.delete("/user/me");
@@ -77,13 +102,28 @@ export async function deleteUser(): Promise<boolean> {
   }
 }
 
-// [추가] 내 출석(학습) 기록 조회
+/**
+ * [추가] 내 출석(학습) 기록 조회
+ */
 export async function getMyAttendance(): Promise<AttendanceStat[]> {
   try {
     const res = await apiClient.get<AttendanceStat[]>("/user/me/attendance");
     return res.data;
   } catch (error) {
     handleApiError(error, "출석 기록 조회");
+    return [];
+  }
+}
+
+/**
+ * [추가] 통합 히스토리 조회
+ */
+export async function getMyHistory(): Promise<HistoryRecord[]> {
+  try {
+    const res = await apiClient.get<HistoryRecord[]>("/user/me/history");
+    return res.data;
+  } catch (error) {
+    handleApiError(error, "히스토리 조회");
     return [];
   }
 }

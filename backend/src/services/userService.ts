@@ -1,4 +1,3 @@
-// backend/src/services/userService.ts
 import {
   findUserByEmail as findUserByEmailModel,
   findUserWithProfileById,
@@ -6,12 +5,12 @@ import {
   updateUserProfileInDB,
   deleteUserTransaction,
   updateUserPasswordInDB,
+  getUserAttendanceStats as getUserAttendanceStatsModel, // [추가] 모델 import
 } from "../models/userModel";
 import bcrypt from "bcrypt";
 
 /**
  * 서비스 레이어의 User 타입
- * (DB Model 타입과 거의 같지만, 비즈니스 로직에 맞게 가공될 수 있음)
  */
 export type UserRow = {
   user_id: number;
@@ -47,7 +46,6 @@ export async function getUserById(userId: number): Promise<UserRow | null> {
   const result: UserRow = {
     user_id: row.user_id,
     email: row.email,
-    // created_at / updated_at는 존재할 때만 추가 (exactOptionalPropertyTypes 대응)
     ...(typeof row.created_at === "string"
       ? { created_at: row.created_at }
       : {}),
@@ -68,10 +66,6 @@ export async function getUserById(userId: number): Promise<UserRow | null> {
   return result;
 }
 
-/**
- * 비밀번호 변경을 위해 패스워드까지 포함한 조회가 필요할 때 사용
- * - exactOptionalPropertyTypes: true 환경에서 password는 존재할 때만 추가
- */
 export async function getUserWithPasswordById(
   userId: number
 ): Promise<{ user_id: number; email: string; password?: string } | null> {
@@ -98,9 +92,6 @@ export async function createUserAndProfile(user: {
   return await createUserAndProfileTransaction(user);
 }
 
-/**
- * 전달된 payload에서 undefined 필드를 제거하여 부분 업데이트만 수행되도록 보장
- */
 function sanitizePayload<T extends Record<string, unknown>>(
   payload: T
 ): Partial<T> {
@@ -136,17 +127,10 @@ export async function deleteUser(userId: number): Promise<void> {
   await deleteUserTransaction(userId);
 }
 
-/**
- * 컨트롤러에서 명확한 의미 전달을 위해 deleteUserById 별칭 제공
- */
 export async function deleteUserById(userId: number): Promise<void> {
   await deleteUserTransaction(userId);
 }
 
-/**
- * 비밀번호 변경 서비스
- * - 현재 비밀번호 검증 후, 새 비밀번호로 업데이트
- */
 export async function changeUserPassword(
   userId: number,
   currentPassword: string,
@@ -164,4 +148,11 @@ export async function changeUserPassword(
 
   const hashed = await bcrypt.hash(newPassword, 10);
   await updateUserPasswordInDB(userId, hashed);
+}
+
+// [추가] 출석 데이터 조회 서비스
+export async function getUserAttendanceStats(
+  userId: number
+): Promise<{ date: string; count: number }[]> {
+  return await getUserAttendanceStatsModel(userId);
 }

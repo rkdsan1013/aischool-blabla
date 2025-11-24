@@ -12,6 +12,20 @@ import {
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfile } from "../hooks/useProfile";
+import { getMyAttendance, type AttendanceStat } from "../services/userService";
+
+// --- Helper: 시간 포맷팅 ---
+const formatStudyTime = (totalSeconds: number) => {
+  if (totalSeconds < 60) {
+    return "<1분";
+  }
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  if (totalMinutes < 60) {
+    return `${totalMinutes}분`;
+  }
+  const hours = (totalMinutes / 60).toFixed(1);
+  return hours.endsWith(".0") ? `${parseInt(hours)}시간` : `${hours}시간`;
+};
 
 // --- Components ---
 
@@ -71,55 +85,43 @@ const AttendanceGrid: React.FC<{
   data: { date: string; attended: boolean; count?: number }[];
 }> = ({ data }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [numWeeks, setNumWeeks] = useState(20); // 기본값
+  const [numWeeks, setNumWeeks] = useState(20);
+  const [selectedInfo, setSelectedInfo] = useState<string | null>(null);
 
-  // 반응형 주(Week) 개수 계산
   useEffect(() => {
     if (!containerRef.current) return;
 
     const calculateWeeks = () => {
       if (containerRef.current) {
         const width = containerRef.current.offsetWidth;
-        // 라벨 영역(약 20px) + 패딩 등을 고려
-        const availableWidth = width - 30;
-        // 셀 너비(14px) + 갭(3px) = 약 17px (모바일 기준 12px+3px=15px)
-        // 미디어쿼리 분기점(sm: 640px)을 고려하여 대략적인 값 설정
-        const itemSize = window.innerWidth >= 640 ? 17.5 : 15.5;
+        const availableWidth = width - 34; // 라벨 + 패딩 공간
+
+        // 아이템 사이즈 (Size + Gap)
+        const itemSize = window.innerWidth >= 640 ? 26 : 20;
+
         const calculated = Math.floor(availableWidth / itemSize);
-        setNumWeeks(Math.max(5, calculated)); // 최소 5주는 보여줌
+        setNumWeeks(Math.max(5, calculated));
       }
     };
 
     calculateWeeks();
-
-    const resizeObserver = new ResizeObserver(() => {
-      calculateWeeks();
-    });
-
+    const resizeObserver = new ResizeObserver(() => calculateWeeks());
     resizeObserver.observe(containerRef.current);
     return () => resizeObserver.disconnect();
   }, []);
 
-  // 그리드 데이터 생성 (우측이 최신이 되도록 계산)
   const gridData = useMemo(() => {
     const dataMap = new Map(data.map((item) => [item.date, item]));
+
     const today = new Date();
-    // 오늘이 포함된 주의 토요일을 끝점으로 잡음 (일~토 주간 기준)
     const endOfWeek = new Date(today);
-    const dayOfWeek = endOfWeek.getDay(); // 0(일) ~ 6(토)
-    // 토요일까지 며칠 남았는지 더함 (미래 날짜는 비활성 처리하면 됨)
-    // 혹은 오늘까지만 딱 맞추려면 로직 조정 가능. 여기서는 꽉 찬 그리드를 위해 주 단위 계산
+    const dayOfWeek = endOfWeek.getDay();
     endOfWeek.setDate(today.getDate() + (6 - dayOfWeek));
 
     const weeks = [];
-    // numWeeks 만큼 과거로 가면서 주 생성
-    // 생성 순서는 과거 -> 미래 (왼쪽 -> 오른쪽)
-
-    // 시작일 계산: (numWeeks - 1)주 전의 일요일
     const startDate = new Date(endOfWeek);
     startDate.setDate(endOfWeek.getDate() - numWeeks * 7 + 1);
 
-    // [수정] let -> const (Date 객체의 내부 상태만 변경되므로 재할당이 아님)
     const current = new Date(startDate);
 
     for (let w = 0; w < numWeeks; w++) {
@@ -130,7 +132,6 @@ const AttendanceGrid: React.FC<{
         const dd = String(current.getDate()).padStart(2, "0");
         const dateStr = `${y}-${m}-${dd}`;
 
-        // 미래 날짜 체크
         const isFuture = current > today;
 
         weekDays.push({
@@ -147,17 +148,24 @@ const AttendanceGrid: React.FC<{
     return weeks;
   }, [data, numWeeks]);
 
+  // [수정] 모든 셀에 border를 부여하여 레이아웃 깜빡임/검은 테두리 방지
   const getColor = (
     item?: { attended: boolean; count?: number },
     isFuture?: boolean
   ) => {
-    if (isFuture) return "bg-transparent border border-gray-100"; // 미래 날짜는 투명 혹은 흐릿하게
-    if (!item || !item.attended) return "bg-gray-100"; // 미출석 (gray-200보다 연하게 변경하여 깔끔함 유지)
+    // 미래 날짜: 회색 테두리
+    if (isFuture) return "bg-transparent border border-gray-100";
+
+    // 기본 클래스: 테두리는 있지만 투명하게 (공간 차지)
+    const base = "border border-transparent";
+
+    if (!item || !item.attended) return `bg-gray-100 ${base}`;
+
     const c = item.count ?? 1;
-    if (c >= 4) return "bg-rose-700";
-    if (c === 3) return "bg-rose-600";
-    if (c === 2) return "bg-rose-500";
-    return "bg-rose-400";
+    if (c >= 4) return `bg-rose-700 ${base}`;
+    if (c === 3) return `bg-rose-600 ${base}`;
+    if (c === 2) return `bg-rose-500 ${base}`;
+    return `bg-rose-400 ${base}`;
   };
 
   const dayLabels = ["일", "월", "화", "수", "목", "금", "토"];
@@ -171,32 +179,18 @@ const AttendanceGrid: React.FC<{
             출석 그리드
           </span>
         </div>
-        {/* 범례 */}
-        <div className="hidden sm:flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded-sm bg-gray-100" />
-            <span className="text-xs text-gray-500">미출석</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded-sm bg-rose-400" />
-            <span className="text-xs text-gray-500">1회</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded-sm bg-rose-600" />
-            <span className="text-xs text-gray-500">3회+</span>
-          </div>
-        </div>
       </div>
 
-      {/* 그리드 컨테이너 */}
-      <div ref={containerRef} className="flex gap-2 w-full overflow-hidden">
-        {/* 요일 라벨 (왼쪽 고정) */}
-        {/* 그리드 셀과 정확히 같은 높이/간격을 사용해 정렬 보장 */}
-        <div className="flex flex-col gap-[3px] pt-[0px]">
+      <div
+        ref={containerRef}
+        className="flex gap-1 sm:gap-1.5 w-full overflow-hidden"
+      >
+        {/* 요일 라벨 */}
+        <div className="flex flex-col gap-1 sm:gap-1.5 pt-[0px]">
           {dayLabels.map((d) => (
             <div
               key={d}
-              className="h-3 sm:h-3.5 flex items-center justify-end pr-1"
+              className="h-4 sm:h-5 flex items-center justify-end pr-1"
             >
               <span className="text-[10px] sm:text-[11px] text-gray-400 font-medium">
                 {d}
@@ -205,17 +199,25 @@ const AttendanceGrid: React.FC<{
           ))}
         </div>
 
-        {/* 메인 히트맵 */}
-        <div className="flex gap-[3px] flex-1">
+        {/* 메인 그리드 (가운데 정렬) */}
+        <div className="flex gap-1 sm:gap-1.5 flex-1 justify-center">
           {gridData.map((week, wi) => (
-            <div key={wi} className="flex flex-col gap-[3px]">
+            <div key={wi} className="flex flex-col gap-1 sm:gap-1.5">
               {week.map((day, di) => (
                 <div
                   key={`${wi}-${di}`}
+                  onClick={() => {
+                    if (day.isFuture) return;
+                    const count = day.item?.count ?? 0;
+                    const text = day.item?.attended
+                      ? `${day.dateStr}: ${count}회 학습 완료`
+                      : `${day.dateStr}: 학습 기록 없음`;
+                    setSelectedInfo(text);
+                  }}
                   className={`
-                    w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-[2px] sm:rounded-sm 
+                    w-4 h-4 sm:w-5 sm:h-5 rounded-[3px] sm:rounded 
                     ${getColor(day.item, day.isFuture)} 
-                    transition-colors duration-200
+                    transition-colors duration-200 cursor-pointer
                   `}
                   title={`${day.dateStr}${
                     day.isFuture
@@ -230,6 +232,18 @@ const AttendanceGrid: React.FC<{
           ))}
         </div>
       </div>
+
+      <div className="mt-2 h-4 text-right">
+        {selectedInfo ? (
+          <span className="text-xs text-rose-600 font-medium animate-fade-in">
+            {selectedInfo}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-300">
+            날짜를 클릭하여 확인하세요
+          </span>
+        )}
+      </div>
     </div>
   );
 };
@@ -241,6 +255,9 @@ const MyPage: React.FC = () => {
   const { isAuthLoading, logout } = useAuth();
   const { profile, isProfileLoading } = useProfile();
 
+  const [attendanceStats, setAttendanceStats] = useState<AttendanceStat[]>([]);
+  const [isAttendanceLoading, setIsAttendanceLoading] = useState(true);
+
   const isLoading = isAuthLoading || isProfileLoading;
 
   useEffect(() => {
@@ -249,31 +266,28 @@ const MyPage: React.FC = () => {
     }
   }, [profile, isLoading, navigate]);
 
-  // 더미 출석 데이터 생성 (약 1년치 생성해서 잘리는지 확인)
-  const attendanceData = useMemo(() => {
-    const today = new Date();
-    const days = 365; // 넉넉하게 생성
-    const arr: { date: string; attended: boolean; count?: number }[] = [];
-
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      const dateStr = `${y}-${m}-${dd}`;
-
-      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-      // 주말은 조금 덜 하고, 평일은 더 열심히 하는 더미 데이터
-      const attended = isWeekend ? Math.random() < 0.3 : Math.random() < 0.7;
-      const count = attended ? Math.ceil(Math.random() * 5) : undefined;
-
-      arr.push({ date: dateStr, attended, count });
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      if (profile) {
+        const data = await getMyAttendance();
+        setAttendanceStats(data);
+        setIsAttendanceLoading(false);
+      }
+    };
+    if (!isProfileLoading && profile) {
+      fetchAttendance();
     }
-    return arr;
-  }, []);
+  }, [isProfileLoading, profile]);
 
-  if (isLoading) {
+  const gridInputData = useMemo(() => {
+    return attendanceStats.map((stat) => ({
+      date: stat.date,
+      attended: stat.count > 0,
+      count: stat.count,
+    }));
+  }, [attendanceStats]);
+
+  if (isLoading || isAttendanceLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-rose-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
@@ -377,13 +391,12 @@ const MyPage: React.FC = () => {
             출석 현황
           </h2>
           <p className="text-sm sm:text-base text-gray-600">
-            매일의 학습 기록을 확인하세요 (우측이 오늘입니다)
+            매일의 학습 기록을 확인하세요
           </p>
         </div>
 
-        {/* 수정된 AttendanceGrid 컴포넌트 배치 */}
         <div className="mb-6 sm:mb-8">
-          <AttendanceGrid data={attendanceData} />
+          <AttendanceGrid data={gridInputData} />
         </div>
 
         <div className="mb-6 sm:mb-8">
@@ -403,7 +416,7 @@ const MyPage: React.FC = () => {
           />
           <StatCard
             icon={<Clock className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
-            value={stats.totalStudyTime}
+            value={formatStudyTime(stats.totalStudyTime)}
             label="총 학습 시간"
           />
           <StatCard

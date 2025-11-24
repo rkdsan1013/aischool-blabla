@@ -24,7 +24,6 @@ const TrainingResult: React.FC = () => {
 
   const state = location.state as ResultState;
 
-  // 1. 유효성 검사 및 리다이렉트
   useEffect(() => {
     if (!state || typeof state.correctCount !== "number") {
       navigate("/home", { replace: true });
@@ -54,7 +53,6 @@ const TrainingResult: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6">
-      {/* 커스텀 애니메이션 정의 */}
       <style>{`
         @keyframes soft-glow {
           0%, 100% {
@@ -69,10 +67,8 @@ const TrainingResult: React.FC = () => {
       `}</style>
 
       <div className="max-w-md w-full space-y-8 text-center">
-        {/* 1. 아이콘 및 헤더 */}
         <div className="space-y-4">
           <div className="relative inline-block z-0">
-            {/* 배경 빛 효과 */}
             <div
               className="absolute inset-0 rounded-full"
               style={{
@@ -83,8 +79,6 @@ const TrainingResult: React.FC = () => {
                 filter: "blur(12px)",
               }}
             />
-
-            {/* 트로피 아이콘 */}
             <div className="relative bg-yellow-50 p-6 rounded-full border-4 border-yellow-100 z-10">
               <Trophy className="w-16 h-16 text-yellow-500" />
             </div>
@@ -100,7 +94,6 @@ const TrainingResult: React.FC = () => {
           </div>
         </div>
 
-        {/* 2. 결과 카드 */}
         <div className="bg-gray-50 border border-gray-200 rounded-3xl p-8 space-y-6 shadow-sm">
           <div className="space-y-2">
             <div className="text-sm font-medium text-gray-500 uppercase tracking-wider">
@@ -134,7 +127,6 @@ const TrainingResult: React.FC = () => {
           </div>
         </div>
 
-        {/* 3. 하단 버튼 */}
         <div className="grid grid-cols-2 gap-3 pt-4">
           <button
             onClick={() => navigate("/home")}

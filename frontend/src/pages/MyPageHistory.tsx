@@ -1,19 +1,20 @@
-// src/pages/MyPageHistory.tsx
+// frontend/src/pages/MyPageHistory.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, Calendar, MessageCircle, X } from "lucide-react";
+import {
+  ChevronDown,
+  Calendar,
+  MessageCircle,
+  X,
+  BookOpen,
+  Clock,
+  Trophy,
+} from "lucide-react";
+import { getMyHistory, type HistoryRecord } from "../services/userService";
 
-type ConversationRecord = {
-  id: string;
-  scenarioTitle: string;
-  category: string;
-  type: "학습" | "회화" | "기타";
-  date: Date;
-  messageCount: number;
-  preview: string;
-};
+// --- Components ---
 
-/* CustomDropdown (downward-opening, keyboard accessible, outside-click/ESC close) */
+/* CustomDropdown: 필터 선택을 위한 드롭다운 컴포넌트 */
 const CustomDropdown: React.FC<{
   value: string;
   onChange: (v: string) => void;
@@ -34,34 +35,35 @@ const CustomDropdown: React.FC<{
     setActiveIndex(options.findIndex((o) => o.value === value));
   }, [value, options]);
 
+  // [수정] 외부 클릭 감지 로직 개선
+  // 1. open 상태일 때만 리스너 부착 (불필요한 이벤트 감지 방지)
+  // 2. 외부 클릭 시 focus() 호출 제거 (스크롤 튐 방지)
   useEffect(() => {
+    if (!open) return;
+
     function onDocClick(e: Event) {
       if (!btnRef.current || !panelRef.current) return;
       const target = e.target as Node | null;
       if (
         target &&
         (btnRef.current.contains(target) || panelRef.current.contains(target))
-      )
+      ) {
         return;
-      setOpen(false);
-      btnRef.current?.focus();
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setOpen(false);
-        btnRef.current?.focus();
       }
+      setOpen(false);
+      // [중요] btnRef.current?.focus(); <-- 이 코드가 스크롤 튐의 원인이었으므로 삭제함
     }
+
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("touchstart", onDocClick);
-    document.addEventListener("keydown", onKey);
+
     return () => {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("touchstart", onDocClick);
-      document.removeEventListener("keydown", onKey);
     };
-  }, []);
+  }, [open]); // open 상태가 변할 때만 이펙트 재실행
 
+  // 드롭다운 열릴 때 포커스 이동 (키보드 접근성)
   useEffect(() => {
     if (open && panelRef.current) {
       const el = panelRef.current.querySelector<HTMLElement>(
@@ -90,12 +92,6 @@ const CustomDropdown: React.FC<{
       e.preventDefault();
       setOpen(true);
       setActiveIndex((i) => Math.max(0, i === -1 ? 0 : i - 1));
-    } else if (e.key === "Home") {
-      e.preventDefault();
-      setActiveIndex(0);
-    } else if (e.key === "End") {
-      e.preventDefault();
-      setActiveIndex(options.length - 1);
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       if (!open) {
@@ -103,29 +99,19 @@ const CustomDropdown: React.FC<{
       } else if (activeIndex >= 0) {
         onChange(options[activeIndex].value);
         setOpen(false);
-        btnRef.current?.focus();
+        btnRef.current?.focus(); // 키보드로 선택했을 때는 포커스 복귀 유지
       }
     } else if (e.key === "Escape") {
       setOpen(false);
-      btnRef.current?.focus();
+      btnRef.current?.focus(); // ESC 닫기는 포커스 복귀 유지
     }
   };
-
-  useEffect(() => {
-    if (!open || !panelRef.current) return;
-    const items =
-      panelRef.current.querySelectorAll<HTMLElement>('li[role="option"]');
-    const el = items[activeIndex];
-    if (el) el.scrollIntoView({ block: "nearest" });
-  }, [activeIndex, open]);
 
   const onOptionClick = (index: number) => {
     onChange(options[index].value);
     setOpen(false);
-    btnRef.current?.focus();
+    // 마우스 클릭 시에는 포커스를 강제로 버튼으로 옮기지 않음 (자연스러운 흐름 유지)
   };
-
-  const openUpwards = false; // 아래로 열림
 
   return (
     <div className="relative inline-block w-full">
@@ -160,15 +146,8 @@ const CustomDropdown: React.FC<{
           open
             ? "opacity-100 scale-y-100 pointer-events-auto"
             : "opacity-0 scale-y-75 pointer-events-none"
-        } ${
-          openUpwards
-            ? "bottom-full mb-2 mt-0 origin-bottom"
-            : "top-full mt-2 origin-top"
-        }`}
-        style={{
-          transformOrigin: openUpwards ? "bottom center" : "top center",
-          maxHeight: "14rem",
-        }}
+        } top-full mt-2 origin-top`}
+        style={{ maxHeight: "14rem" }}
         onKeyDown={onKeyDown}
       >
         <ul className="max-h-56 overflow-auto py-1">
@@ -202,224 +181,159 @@ const CustomDropdown: React.FC<{
   );
 };
 
-/* 더미 대화 데이터 (학습 + 회화 포함) */
-const conversationsSeed: ConversationRecord[] = [
-  {
-    id: "cafe-20250114-1",
-    scenarioTitle: "카페에서 주문하기",
-    category: "카페",
-    type: "회화",
-    date: new Date(2025, 0, 14, 14, 30),
-    messageCount: 12,
-    preview: "Hello! Welcome to our coffee shop...",
-  },
-  {
-    id: "shopping-20250113-1",
-    scenarioTitle: "쇼핑하기",
-    category: "쇼핑",
-    type: "회화",
-    date: new Date(2025, 0, 13, 16, 20),
-    messageCount: 18,
-    preview: "Hi there! Are you looking for something...",
-  },
-  {
-    id: "vocab-20250112-1",
-    scenarioTitle: "단어 학습",
-    category: "단어",
-    type: "학습",
-    date: new Date(2025, 0, 12, 10, 15),
-    messageCount: 30,
-    preview: "오늘의 단어: apple, run, beautiful...",
-  },
-  {
-    id: "sentence-20250111-1",
-    scenarioTitle: "문장 연습",
-    category: "문장",
-    type: "학습",
-    date: new Date(2025, 0, 11, 19, 0),
-    messageCount: 20,
-    preview: "I went to the store yesterday...",
-  },
-  {
-    id: "fill-20250110-1",
-    scenarioTitle: "빈칸 채우기",
-    category: "빈칸",
-    type: "학습",
-    date: new Date(2025, 0, 10, 13, 45),
-    messageCount: 15,
-    preview: "She ___ to the market every Sunday...",
-  },
-  {
-    id: "writing-20250109-1",
-    scenarioTitle: "작문 연습",
-    category: "작문",
-    type: "학습",
-    date: new Date(2025, 0, 9, 11, 0),
-    messageCount: 8,
-    preview: "Write a short paragraph about your hometown...",
-  },
-  {
-    id: "speaking-20250108-1",
-    scenarioTitle: "스피킹 연습",
-    category: "스피킹",
-    type: "학습",
-    date: new Date(2025, 0, 8, 18, 30),
-    messageCount: 25,
-    preview: "Let's practice pronunciation and fluency...",
-  },
-  {
-    id: "interview-20250107-1",
-    scenarioTitle: "면접 연습",
-    category: "면접",
-    type: "회화",
-    date: new Date(2025, 0, 7, 9, 30),
-    messageCount: 22,
-    preview: "Good morning! Thank you for coming...",
-  },
-  {
-    id: "travel-20250106-1",
-    scenarioTitle: "여행 대화",
-    category: "여행",
-    type: "회화",
-    date: new Date(2025, 0, 6, 20, 0),
-    messageCount: 15,
-    preview: "Welcome! How can I help you with...",
-  },
-  {
-    id: "free-20250105-1",
-    scenarioTitle: "자유 대화",
-    category: "자유",
-    type: "회화",
-    date: new Date(2025, 0, 5, 14, 0),
-    messageCount: 12,
-    preview: "Hello! I'm your AI conversation partner...",
-  },
-  {
-    id: "custom-20250104-1",
-    scenarioTitle: "사용자 시나리오 - 면접 질문 확장",
-    category: "나만의 시나리오",
-    type: "회화",
-    date: new Date(2025, 0, 4, 15, 0),
-    messageCount: 10,
-    preview: "Custom scenario: practice specific interview questions...",
-  },
-];
-
-const formatDate = (date: Date) =>
-  date.toLocaleDateString("ko-KR", {
+// --- Helpers ---
+const formatDate = (dateStr: string) => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("ko-KR", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
-const formatTime = (date: Date) =>
-  date.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+};
 
+const formatTime = (dateStr: string) => {
+  const date = new Date(dateStr);
+  return date.toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const formatDuration = (seconds?: number) => {
+  if (seconds === undefined) return "";
+  if (seconds < 60) return "<1분";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}분 ${s}초`;
+};
+
+// --- Main Page Component ---
 const MyPageHistory: React.FC = () => {
   const navigate = useNavigate();
+
+  // 데이터 상태
+  const [historyData, setHistoryData] = useState<HistoryRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // 필터 상태
   const [startDate, setStartDate] = useState<string>(""); // yyyy-mm-dd
   const [endDate, setEndDate] = useState<string>(""); // yyyy-mm-dd
-  const [typeFilter, setTypeFilter] = useState<string>("all"); // all | 학습 | 회화
+  const [typeFilter, setTypeFilter] = useState<string>("all"); // all | CONVERSATION | TRAINING
   const [subCategoryFilter, setSubCategoryFilter] = useState<string>("all");
 
-  // 서브 카테고리 목록
-  const studySubCategories = ["단어", "문장", "빈칸", "작문", "스피킹"];
-  const convoSubCategories = [
-    "카페",
-    "쇼핑",
-    "면접",
-    "여행",
-    "자유",
-    "나만의 시나리오",
-  ];
+  // 데이터 로드
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const data = await getMyHistory();
+        setHistoryData(data);
+      } catch (error) {
+        console.error("Failed to load history:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
 
-  // 날짜 범위 계산 (문자열을 Date로 변환해 비교)
-  const toDayStart = (d?: string) => (d ? new Date(d + "T00:00:00") : null);
-  const toDayEnd = (d?: string) => (d ? new Date(d + "T23:59:59.999") : null);
+  // 서브 카테고리 목록 (동적 생성)
+  const allSubTypes = Array.from(new Set(historyData.map((r) => r.subType)));
+  const trainingSubTypes = Array.from(
+    new Set(
+      historyData.filter((r) => r.type === "TRAINING").map((r) => r.subType)
+    )
+  );
+  const conversationSubTypes = Array.from(
+    new Set(
+      historyData.filter((r) => r.type === "CONVERSATION").map((r) => r.subType)
+    )
+  );
 
-  const filterByDateRange = (list: ConversationRecord[]) => {
+  // 날짜 범위 계산
+  const toDayStart = (d?: string) =>
+    d ? new Date(d + "T00:00:00").getTime() : null;
+  const toDayEnd = (d?: string) =>
+    d ? new Date(d + "T23:59:59.999").getTime() : null;
+
+  // 필터링 로직
+  const filteredHistory = historyData.filter((item) => {
+    const itemTime = new Date(item.date).getTime();
     const s = toDayStart(startDate);
     const e = toDayEnd(endDate);
-    if (!s && !e) return list;
-    return list.filter((c) => {
-      if (s && c.date < s) return false;
-      if (e && c.date > e) return false;
-      return true;
-    });
-  };
 
-  const filterByTypeAndSub = (list: ConversationRecord[]) => {
-    let res = list;
-    if (typeFilter !== "all")
-      res = res.filter((c) => c.type === (typeFilter as "학습" | "회화"));
-    if (subCategoryFilter !== "all")
-      res = res.filter((c) => c.category === subCategoryFilter);
-    return res;
-  };
+    // 1. 날짜 필터
+    if (s && itemTime < s) return false;
+    if (e && itemTime > e) return false;
 
-  // 적용된 필터 결과
-  const filteredConversations = filterByTypeAndSub(
-    filterByDateRange(conversationsSeed)
-  );
-  const categories = Array.from(
-    new Set(conversationsSeed.map((c) => c.category))
-  );
+    // 2. 타입 필터
+    if (typeFilter !== "all" && item.type !== typeFilter) return false;
 
-  // 드롭다운 옵션
+    // 3. 서브 카테고리 필터
+    if (subCategoryFilter !== "all" && item.subType !== subCategoryFilter)
+      return false;
+
+    return true;
+  });
+
+  // 드롭다운 옵션 - 대분류
   const typeOptions = [
     { value: "all", label: "전체" },
-    { value: "학습", label: "학습" },
-    { value: "회화", label: "회화" },
+    { value: "CONVERSATION", label: "회화" },
+    { value: "TRAINING", label: "학습" },
   ];
 
-  // 변경: typeFilter가 'all'일 때에도 '나만의 시나리오'를 포함하도록 함
-  const subCategoryOptions =
-    typeFilter === "학습"
-      ? [
-          { value: "all", label: "전체" },
-          ...studySubCategories.map((s) => ({ value: s, label: s })),
-        ]
-      : typeFilter === "회화"
-      ? [
-          { value: "all", label: "전체" },
-          ...convoSubCategories.map((s) => ({ value: s, label: s })),
-        ]
-      : (() => {
-          const base = [
-            { value: "all", label: "전체" },
-            ...categories.map((c) => ({ value: c, label: c })),
-          ];
-          if (!base.some((b) => b.value === "나만의 시나리오")) {
-            base.push({
-              value: "나만의 시나리오",
-              label: "나만의 시나리오",
-            });
-          }
-          return base;
-        })();
+  // 드롭다운 옵션 - 소분류 (대분류 선택에 따라 동적 변경)
+  const subCategoryOptions = (() => {
+    let list: string[] = [];
+    if (typeFilter === "CONVERSATION") {
+      list = conversationSubTypes;
+    } else if (typeFilter === "TRAINING") {
+      list = trainingSubTypes;
+    } else {
+      list = allSubTypes;
+    }
 
-  // type 변경 시 subCategory 초기화
+    return [
+      { value: "all", label: "전체" },
+      ...list.map((s) => ({ value: s, label: s })),
+    ];
+  })();
+
+  // typeFilter 변경 시 subCategory 초기화
   useEffect(() => {
     setSubCategoryFilter("all");
   }, [typeFilter]);
 
+  // 클릭 핸들러 (상세 페이지 이동)
+  const handleItemClick = (item: HistoryRecord) => {
+    if (item.type === "CONVERSATION") {
+      const sessionId = item.id.replace("conv-", "");
+      navigate(`/ai-talk/chat/${sessionId}`);
+    } else {
+      alert(`학습 상세 보기: ${item.title} (준비 중)`);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-white pb-20">
-      {/* header 전체 폭 배경 유지, 내부 컨테이너에 콘텐츠 패딩을 맞춰서 좌우 여백(콘텐츠와 동일) 정렬 */}
       <header className="bg-rose-500 text-white py-4 shadow-md">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 flex items-center justify-between">
-          {/* 좌측: 헤더 멘트 */}
           <div className="min-w-0">
             <h1 className="text-2xl sm:text-3xl font-bold mb-0 leading-tight truncate">
               학습 히스토리
             </h1>
             <p className="text-white/80 text-sm sm:text-base truncate">
-              지금까지의 학습 기록을 확인하세요
+              회화 및 트레이닝 기록을 확인하세요
             </p>
           </div>
-
-          {/* 우측: X 버튼 */}
           <button
             type="button"
             onClick={() => navigate(-1)}
@@ -432,10 +346,10 @@ const MyPageHistory: React.FC = () => {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-        {/* 필터 행: type+subcategory는 한 줄(인라인), 날짜 범위 입력 */}
+        {/* 필터 영역 */}
         <div className="flex flex-col sm:flex-row gap-3 mb-6 items-end">
           <div className="flex gap-2 w-full sm:w-auto flex-1">
-            <div className="w-40">
+            <div className="w-36 sm:w-40">
               <label className="text-xs font-medium text-gray-600 mb-1 block">
                 구분
               </label>
@@ -444,7 +358,6 @@ const MyPageHistory: React.FC = () => {
                 value={typeFilter}
                 onChange={setTypeFilter}
                 options={typeOptions}
-                label={null}
               />
             </div>
 
@@ -457,7 +370,6 @@ const MyPageHistory: React.FC = () => {
                 value={subCategoryFilter}
                 onChange={setSubCategoryFilter}
                 options={subCategoryOptions}
-                label={null}
               />
             </div>
           </div>
@@ -471,10 +383,9 @@ const MyPageHistory: React.FC = () => {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 w-full"
               />
             </div>
-
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">
                 종료일
@@ -483,11 +394,10 @@ const MyPageHistory: React.FC = () => {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 w-full"
               />
             </div>
-
-            <div className="flex items-center">
+            <div className="flex items-center pb-1">
               <button
                 type="button"
                 onClick={() => {
@@ -496,7 +406,7 @@ const MyPageHistory: React.FC = () => {
                   setTypeFilter("all");
                   setSubCategoryFilter("all");
                 }}
-                className="ml-2 text-sm text-gray-600 underline"
+                className="ml-2 text-sm text-gray-600 underline whitespace-nowrap"
               >
                 초기화
               </button>
@@ -504,77 +414,108 @@ const MyPageHistory: React.FC = () => {
           </div>
         </div>
 
-        {/* 대화 목록 */}
-        {filteredConversations.length > 0 && (
+        {/* 결과 요약 */}
+        {filteredHistory.length > 0 && (
           <p className="text-sm text-gray-600 mb-4">
-            총 {filteredConversations.length}개의 대화
+            총 {filteredHistory.length}개의 기록
           </p>
         )}
 
+        {/* 리스트 영역 */}
         <div className="space-y-3">
-          {filteredConversations.map((conv) => (
-            <div
-              key={conv.id}
-              onClick={() => navigate(`/my/conversation-history/${conv.id}`)}
-              className="bg-white border-2 border-gray-200 rounded-xl p-4 sm:p-5 cursor-pointer hover:border-rose-300 hover:shadow-md transition group"
-            >
-              <div className="flex items-start gap-4">
-                {/* 변경: 그라데이션 제거, 단색 배경으로 교체, 아이콘 수직 중앙 정렬 보장 */}
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-rose-500 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300">
-                  <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7 text-rose-100" />
-                </div>
+          {filteredHistory.map((item) => {
+            const isTraining = item.type === "TRAINING";
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-base sm:text-lg font-bold text-gray-900 truncate">
-                      {conv.scenarioTitle}
-                    </h3>
-                    <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-600 text-xs font-medium whitespace-nowrap">
-                      {conv.category}
-                    </span>
+            return (
+              <div
+                key={item.id}
+                onClick={() => handleItemClick(item)}
+                className="bg-white border-2 border-gray-200 rounded-xl p-4 sm:p-5 cursor-pointer hover:border-rose-300 hover:shadow-md transition group"
+              >
+                <div className="flex items-start gap-4">
+                  {/* 아이콘 */}
+                  <div
+                    className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300 ${
+                      isTraining ? "bg-indigo-500" : "bg-rose-500"
+                    }`}
+                  >
+                    {isTraining ? (
+                      <BookOpen className="w-6 h-6 sm:w-7 sm:h-7 text-indigo-100" />
+                    ) : (
+                      <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7 text-rose-100" />
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500 mb-2">
-                    <Calendar className="w-4 h-4" />
-                    <span>{formatDate(conv.date)}</span>
-                    <span className="text-gray-300">|</span>
-                    <span>{formatTime(conv.date)}</span>
-                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-base sm:text-lg font-bold text-gray-900 truncate">
+                        {item.title}
+                      </h3>
+                      {/* 카테고리 뱃지 */}
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${
+                          isTraining
+                            ? "bg-indigo-100 text-indigo-700"
+                            : "bg-rose-100 text-rose-600"
+                        }`}
+                      >
+                        {item.subType}
+                      </span>
+                    </div>
 
-                  <p className="text-xs sm:text-sm text-gray-600 line-clamp-1 mb-2">
-                    {conv.preview}
-                  </p>
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500 mb-2">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>{formatDate(item.date)}</span>
+                      <span className="text-gray-300">|</span>
+                      <span>{formatTime(item.date)}</span>
+                    </div>
 
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-600 text-xs font-medium">
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span>{conv.messageCount}개의 메시지</span>
+                    {/* 내용 요약 */}
+                    {isTraining ? (
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-gray-700">
+                          <Trophy className="w-4 h-4 text-yellow-500" />
+                          <span>{item.score}점</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-500">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{formatDuration(item.durationSeconds)}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs sm:text-sm text-gray-600 line-clamp-1 mb-2">
+                          {item.preview || "대화 내용 없음"}
+                        </p>
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span>{item.messageCount}개의 메시지</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {filteredConversations.length === 0 && (
+        {/* Empty State */}
+        {filteredHistory.length === 0 && (
           <div className="text-center py-16">
             <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-              <MessageCircle className="w-10 h-10 text-gray-400" />
+              <BookOpen className="w-10 h-10 text-gray-400" />
             </div>
             <p className="text-gray-600 text-sm sm:text-base">
               {startDate ||
               endDate ||
               typeFilter !== "all" ||
               subCategoryFilter !== "all"
-                ? "선택한 조건에 맞는 대화가 없습니다"
-                : "아직 저장된 대화가 없습니다"}
+                ? "조건에 맞는 기록이 없습니다."
+                : "아직 학습 기록이 없습니다."}
             </p>
             <p className="text-gray-400 text-xs sm:text-sm mt-1">
-              {startDate ||
-              endDate ||
-              typeFilter !== "all" ||
-              subCategoryFilter !== "all"
-                ? "다른 필터를 선택해보세요"
-                : "AI Talk에서 대화를 시작해보세요!"}
+              새로운 학습이나 대화를 시작해보세요!
             </p>
           </div>
         )}

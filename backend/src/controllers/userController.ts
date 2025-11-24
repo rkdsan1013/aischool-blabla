@@ -1,4 +1,3 @@
-// backend/src/controllers/userController.ts
 import { Request, Response } from "express";
 import {
   getUserById,
@@ -6,6 +5,11 @@ import {
   deleteUserById,
   changeUserPassword,
 } from "../services/userService";
+// [수정] getUserHistoryStats 추가 import
+import {
+  getUserAttendanceStats,
+  getUserHistoryStats,
+} from "../models/userModel";
 
 /**
  * GET /api/user/me
@@ -155,5 +159,43 @@ export async function deleteMyAccountHandler(req: Request, res: Response) {
   } catch (err) {
     console.error("[USER CONTROLLER] deleteMyAccount error:", err);
     return res.status(500).json({ error: "Failed to delete account" });
+  }
+}
+
+/**
+ * GET /api/user/me/attendance
+ * 내 출석(학습) 통계 조회
+ */
+export async function getMyAttendanceHandler(req: Request, res: Response) {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const stats = await getUserAttendanceStats(userId);
+    return res.json(stats);
+  } catch (err) {
+    console.error("[User Controller] Attendance fetch error:", err);
+    return res.status(500).json({ error: "Failed to fetch attendance data" });
+  }
+}
+
+/**
+ * GET /api/user/me/history
+ * [신규] 통합 히스토리 조회 핸들러
+ */
+export async function getMyHistoryHandler(req: Request, res: Response) {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const history = await getUserHistoryStats(userId);
+    return res.json(history);
+  } catch (err) {
+    console.error("[User Controller] History fetch error:", err);
+    return res.status(500).json({ error: "Failed to fetch history" });
   }
 }

@@ -18,6 +18,7 @@ import AITalkPageDetail from "../pages/AITalkPageDetail";
 import AITalkCustomScenario from "../pages/AITalkCustomScenario";
 import MyPageHistory from "../pages/MyPageHistory";
 import MyPageProfile from "../pages/MyPageProfile";
+import HomeLeaderBoard from "../pages/HomeLeaderBoard";
 
 import PublicOnlyRoute from "./PublicOnlyRoute";
 import ProtectedRoute from "./ProtectedRoute";
@@ -106,6 +107,14 @@ export const routes: RouteObject[] = [
         element: (
           <ProtectedRoute redirectTo="/auth">
             <MyPageProfile />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/leaderboard",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <HomeLeaderBoard />
           </ProtectedRoute>
         ),
       },

@@ -182,6 +182,38 @@ const HomePage: React.FC = () => {
 
   const chosen = tierStyles[tier] ?? tierStyles.Bronze;
 
+  // --- Leaderboard preview data (간단한 프리뷰) ---
+  // 실제는 /api/leaderboard/top 같은 엔드포인트에서 받아오면 됩니다.
+  const [leaderPreview, setLeaderPreview] = useState<
+    { id: string; name: string; score: number; tier?: string }[] | null
+  >(null);
+  const [leaderLoading, setLeaderLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchPreview = async () => {
+      setLeaderLoading(true);
+      try {
+        const res = await fetch("/api/leaderboard?limit=3");
+        if (!mounted) return;
+        if (res.ok) {
+          const json = await res.json();
+          setLeaderPreview(json?.data ?? json ?? []);
+        } else {
+          setLeaderPreview([]);
+        }
+      } catch {
+        if (mounted) setLeaderPreview([]);
+      } finally {
+        if (mounted) setLeaderLoading(false);
+      }
+    };
+    fetchPreview();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-white pb-20">
       <header className="bg-rose-500 text-white">
@@ -280,6 +312,64 @@ const HomePage: React.FC = () => {
             </li>
           ))}
         </ul>
+
+        {/* --- Leaderboard 섹션 추가 --- */}
+        <section className="mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base sm:text-xl font-bold">리더보드</h2>
+            <button
+              type="button"
+              onClick={() => navigate("/leaderboard")}
+              className="text-sm text-rose-600 font-semibold hover:underline"
+            >
+              전체 보기
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* 간단한 탑3 프리뷰 카드 */}
+            {leaderLoading ? (
+              <div className="col-span-1 sm:col-span-3 flex items-center justify-center p-6 border rounded-2xl">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500" />
+              </div>
+            ) : (
+              <>
+                {leaderPreview && leaderPreview.length > 0 ? (
+                  leaderPreview.map((u, idx) => (
+                    <button
+                      key={u.id}
+                      onClick={() => navigate(`/leaderboard/${u.id}`)}
+                      className="text-left border-2 border-gray-100 rounded-2xl p-3 hover:shadow-md transition"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 font-bold">
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <div className="font-semibold truncate">
+                              {u.name}
+                            </div>
+                            <div className="text-sm text-foreground/60">
+                              {u.tier ?? ""}
+                            </div>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {u.score}pt
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="col-span-1 sm:col-span-3 p-4 border rounded-2xl text-sm text-muted-foreground">
+                    리더보드 정보를 불러올 수 없습니다.
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </section>
       </main>
     </div>
   );

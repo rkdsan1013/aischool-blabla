@@ -1,3 +1,4 @@
+// frontend/src/pages/AITalkPageDetail.tsx
 import React, {
   useCallback,
   useEffect,

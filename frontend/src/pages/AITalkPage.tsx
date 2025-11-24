@@ -33,6 +33,15 @@ interface DisplayScenario {
   context?: string;
 }
 
+/* API 응답 데이터 타입 정의 (any 대체용) */
+interface ApiScenario {
+  scenario_id: number;
+  user_id: number | null;
+  title: string;
+  description: string;
+  context?: string;
+}
+
 const AITalkPage: React.FC = () => {
   const navigate = useNavigate();
 
@@ -47,9 +56,7 @@ const AITalkPage: React.FC = () => {
   const [confirmScenario, setConfirmScenario] =
     useState<DisplayScenario | null>(null);
 
-  const titleRef = useRef<HTMLInputElement | null>(null);
-  const descRef = useRef<HTMLInputElement | null>(null);
-  const ctxRef = useRef<HTMLTextAreaElement | null>(null);
+  // 불필요한 ref 제거됨 (titleRef, descRef, ctxRef)
 
   const getScenarioStyle = (title: string) => {
     if (title.includes("카페")) {
@@ -116,7 +123,8 @@ const AITalkPage: React.FC = () => {
         const official: DisplayScenario[] = [];
         const custom: DisplayScenario[] = [];
 
-        data.forEach((item: any) => {
+        // any 타입 제거 및 ApiScenario 인터페이스 적용
+        data.forEach((item: ApiScenario) => {
           const style = getScenarioStyle(item.title);
 
           if (item.user_id === null) {
@@ -167,9 +175,7 @@ const AITalkPage: React.FC = () => {
     };
   }, [modalScenario, confirmScenario]);
 
-  const handleScenarioClick = (id: number) => {
-    navigate("/ai-talk/chat", { state: { scenarioId: id } });
-  };
+  // 불필요한 handleScenarioClick 제거됨
 
   const handleCreateNavigate = () => navigate("/ai-talk/custom-scenario");
 
@@ -177,9 +183,7 @@ const AITalkPage: React.FC = () => {
     setModalScenario(s);
   };
 
-  const closeModal = () => {
-    setModalScenario(null);
-  };
+  // 불필요한 closeModal 제거됨 (인라인 함수로 대체되어 사용 중이거나 불필요)
 
   const startConversation = (s: DisplayScenario) => {
     setModalScenario(null);

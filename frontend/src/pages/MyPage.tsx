@@ -12,22 +12,18 @@ import {
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfile } from "../hooks/useProfile";
+import { getMyAttendance, type AttendanceStat } from "../services/userService";
 
 // --- Helper: 시간 포맷팅 ---
 const formatStudyTime = (totalSeconds: number) => {
   if (totalSeconds < 60) {
-    return "1분 미만";
+    return "<1분";
   }
-
   const totalMinutes = Math.floor(totalSeconds / 60);
-
   if (totalMinutes < 60) {
     return `${totalMinutes}분`;
   }
-
-  // 1시간 이상은 소수점 1자리까지 시간 단위로 표시 (예: 1.5시간)
   const hours = (totalMinutes / 60).toFixed(1);
-  // 정수로 딱 떨어지면 .0 제거
   return hours.endsWith(".0") ? `${parseInt(hours)}시간` : `${hours}시간`;
 };
 
@@ -90,6 +86,8 @@ const AttendanceGrid: React.FC<{
 }> = ({ data }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [numWeeks, setNumWeeks] = useState(20);
+  // [수정] 클릭 시 정보를 보여주기 위한 상태 추가
+  const [selectedInfo, setSelectedInfo] = useState<string | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -105,17 +103,14 @@ const AttendanceGrid: React.FC<{
     };
 
     calculateWeeks();
-
-    const resizeObserver = new ResizeObserver(() => {
-      calculateWeeks();
-    });
-
+    const resizeObserver = new ResizeObserver(() => calculateWeeks());
     resizeObserver.observe(containerRef.current);
     return () => resizeObserver.disconnect();
   }, []);
 
   const gridData = useMemo(() => {
     const dataMap = new Map(data.map((item) => [item.date, item]));
+
     const today = new Date();
     const endOfWeek = new Date(today);
     const dayOfWeek = endOfWeek.getDay();
@@ -175,20 +170,8 @@ const AttendanceGrid: React.FC<{
             출석 그리드
           </span>
         </div>
-        <div className="hidden sm:flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded-sm bg-gray-100" />
-            <span className="text-xs text-gray-500">미출석</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded-sm bg-rose-400" />
-            <span className="text-xs text-gray-500">1회</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded-sm bg-rose-600" />
-            <span className="text-xs text-gray-500">3회+</span>
-          </div>
-        </div>
+
+        {/* [수정] 웹에서 색상 범례 설명 div 제거됨 */}
       </div>
 
       <div ref={containerRef} className="flex gap-2 w-full overflow-hidden">
@@ -211,11 +194,21 @@ const AttendanceGrid: React.FC<{
               {week.map((day, di) => (
                 <div
                   key={`${wi}-${di}`}
+                  // [수정] 모바일 터치 지원을 위한 onClick 추가
+                  onClick={() => {
+                    if (day.isFuture) return;
+                    const count = day.item?.count ?? 0;
+                    const text = day.item?.attended
+                      ? `${day.dateStr}: ${count}회 학습 완료`
+                      : `${day.dateStr}: 학습 기록 없음`;
+                    setSelectedInfo(text);
+                  }}
                   className={`
                     w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-[2px] sm:rounded-sm 
                     ${getColor(day.item, day.isFuture)} 
-                    transition-colors duration-200
+                    transition-colors duration-200 cursor-pointer
                   `}
+                  // title 속성은 PC 호버용으로 유지
                   title={`${day.dateStr}${
                     day.isFuture
                       ? ""
@@ -229,6 +222,19 @@ const AttendanceGrid: React.FC<{
           ))}
         </div>
       </div>
+
+      {/* [수정] 선택된 날짜 정보 표시 (모바일용) */}
+      <div className="mt-2 h-4 text-right">
+        {selectedInfo ? (
+          <span className="text-xs text-rose-600 font-medium animate-fade-in">
+            {selectedInfo}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-300">
+            날짜를 클릭하여 확인하세요
+          </span>
+        )}
+      </div>
     </div>
   );
 };
@@ -240,6 +246,9 @@ const MyPage: React.FC = () => {
   const { isAuthLoading, logout } = useAuth();
   const { profile, isProfileLoading } = useProfile();
 
+  const [attendanceStats, setAttendanceStats] = useState<AttendanceStat[]>([]);
+  const [isAttendanceLoading, setIsAttendanceLoading] = useState(true);
+
   const isLoading = isAuthLoading || isProfileLoading;
 
   useEffect(() => {
@@ -248,29 +257,28 @@ const MyPage: React.FC = () => {
     }
   }, [profile, isLoading, navigate]);
 
-  const attendanceData = useMemo(() => {
-    const today = new Date();
-    const days = 365;
-    const arr: { date: string; attended: boolean; count?: number }[] = [];
-
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      const dateStr = `${y}-${m}-${dd}`;
-
-      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-      const attended = isWeekend ? Math.random() < 0.3 : Math.random() < 0.7;
-      const count = attended ? Math.ceil(Math.random() * 5) : undefined;
-
-      arr.push({ date: dateStr, attended, count });
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      if (profile) {
+        const data = await getMyAttendance();
+        setAttendanceStats(data);
+        setIsAttendanceLoading(false);
+      }
+    };
+    if (!isProfileLoading && profile) {
+      fetchAttendance();
     }
-    return arr;
-  }, []);
+  }, [isProfileLoading, profile]);
 
-  if (isLoading) {
+  const gridInputData = useMemo(() => {
+    return attendanceStats.map((stat) => ({
+      date: stat.date,
+      attended: stat.count > 0,
+      count: stat.count,
+    }));
+  }, [attendanceStats]);
+
+  if (isLoading || isAttendanceLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-rose-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
@@ -284,7 +292,7 @@ const MyPage: React.FC = () => {
 
   const stats = {
     streak: profile.streak_count ?? 0,
-    totalStudyTime: profile.total_study_time ?? 0, // 초 단위
+    totalStudyTime: profile.total_study_time ?? 0,
     completedLessons: profile.completed_lessons ?? 0,
     currentLevel: profile.level ?? "A1",
     nextLevelProgress: profile.level_progress ?? 0,
@@ -373,13 +381,14 @@ const MyPage: React.FC = () => {
           <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
             출석 현황
           </h2>
+          {/* [수정] '우측이 오늘입니다' 설명 제거 */}
           <p className="text-sm sm:text-base text-gray-600">
-            매일의 학습 기록을 확인하세요 (우측이 오늘입니다)
+            매일의 학습 기록을 확인하세요
           </p>
         </div>
 
         <div className="mb-6 sm:mb-8">
-          <AttendanceGrid data={attendanceData} />
+          <AttendanceGrid data={gridInputData} />
         </div>
 
         <div className="mb-6 sm:mb-8">
@@ -399,7 +408,6 @@ const MyPage: React.FC = () => {
           />
           <StatCard
             icon={<Clock className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
-            // [수정] 초 단위를 포맷팅하여 표시
             value={formatStudyTime(stats.totalStudyTime)}
             label="총 학습 시간"
           />

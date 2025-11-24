@@ -6,11 +6,8 @@ import {
   deleteUserById,
   changeUserPassword,
 } from "../services/userService";
+import { getUserAttendanceStats } from "../models/userModel"; // [추가]
 
-/**
- * GET /api/user/me
- * 현재 로그인한 사용자의 프로필 조회
- */
 export async function getMyProfileHandler(req: Request, res: Response) {
   try {
     const userId = req.user?.user_id;
@@ -23,7 +20,6 @@ export async function getMyProfileHandler(req: Request, res: Response) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // 필요한 필드만 깔끔하게 반환
     return res.json({
       user_id: userProfile.user_id,
       email: userProfile.email,
@@ -43,10 +39,6 @@ export async function getMyProfileHandler(req: Request, res: Response) {
   }
 }
 
-/**
- * PUT /api/user/me
- * 현재 로그인한 사용자의 프로필 수정
- */
 export async function updateMyProfileHandler(req: Request, res: Response) {
   try {
     const userId = req.user?.user_id;
@@ -54,13 +46,11 @@ export async function updateMyProfileHandler(req: Request, res: Response) {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // 업데이트 가능한 필드만 추출
     const { name, profile_img } = req.body as {
       name?: string;
       profile_img?: string | null;
     };
 
-    // 간단한 유효성 체크
     const payload: { name?: string; profile_img?: string | null } = {};
     if (typeof name === "string") payload.name = name.trim();
     if (profile_img === null || typeof profile_img === "string") {
@@ -69,7 +59,6 @@ export async function updateMyProfileHandler(req: Request, res: Response) {
 
     await updateUserProfile(userId, payload);
 
-    // 변경 후 최신 프로필 반환 (프론트가 갱신하기 편하도록)
     const updated = await getUserById(userId);
     return res.json({
       message: "Profile updated successfully",
@@ -95,10 +84,6 @@ export async function updateMyProfileHandler(req: Request, res: Response) {
   }
 }
 
-/**
- * PUT /api/user/me/password
- * 현재 로그인한 사용자의 비밀번호 변경
- */
 export async function changePasswordHandler(req: Request, res: Response) {
   try {
     const userId = req.user?.user_id;
@@ -111,7 +96,6 @@ export async function changePasswordHandler(req: Request, res: Response) {
       newPassword?: string;
     };
 
-    // 간단한 유효성 검증
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ message: "Missing password fields" });
     }
@@ -126,7 +110,6 @@ export async function changePasswordHandler(req: Request, res: Response) {
     return res.json({ message: "Password changed successfully" });
   } catch (err: any) {
     console.error("[USER CONTROLLER] changePassword error:", err);
-    // 서비스 레이어에서 던진 에러 메시지 기준으로 400 처리
     const msg =
       typeof err?.message === "string"
         ? err.message
@@ -139,10 +122,6 @@ export async function changePasswordHandler(req: Request, res: Response) {
   }
 }
 
-/**
- * DELETE /api/user/me
- * 현재 로그인한 사용자의 계정 삭제
- */
 export async function deleteMyAccountHandler(req: Request, res: Response) {
   try {
     const userId = req.user?.user_id;
@@ -155,5 +134,21 @@ export async function deleteMyAccountHandler(req: Request, res: Response) {
   } catch (err) {
     console.error("[USER CONTROLLER] deleteMyAccount error:", err);
     return res.status(500).json({ error: "Failed to delete account" });
+  }
+}
+
+// [추가] 출석 통계 조회 핸들러
+export async function getMyAttendanceHandler(req: Request, res: Response) {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const stats = await getUserAttendanceStats(userId);
+    return res.json(stats);
+  } catch (err) {
+    console.error("[User Controller] Attendance fetch error:", err);
+    return res.status(500).json({ error: "Failed to fetch attendance data" });
   }
 }

@@ -16,6 +16,7 @@ import {
 import type { TrainingType } from "../services/trainingService";
 import { useProfile } from "../hooks/useProfile";
 import type { UserProfileResponse } from "../services/userService";
+import { getLeaderboard } from "../services/leaderboardService";
 
 interface TrainingStep {
   id: string;
@@ -35,7 +36,7 @@ type LocalProfileContext = {
 };
 
 type LeaderPreviewItem = {
-  id: string;
+  id?: string;
   name: string;
   score: number;
   tier?: string;
@@ -198,23 +199,22 @@ const HomePage: React.FC = () => {
     const fetchPreview = async () => {
       setLeaderLoading(true);
       try {
-        const res = await fetch("/api/leaderboard?limit=5");
+        const data = await getLeaderboard({ limit: 5 });
         if (!mounted) return;
-        if (res.ok) {
-          const json = await res.json();
-          const data: LeaderPreviewItem[] = Array.isArray(json?.data ?? json)
-            ? json?.data ?? json
-            : [];
-          data.sort((a, b) => {
-            if (typeof a.rank === "number" && typeof b.rank === "number") {
-              return a.rank - b.rank;
-            }
-            return (b.score ?? 0) - (a.score ?? 0);
-          });
-          setLeaderPreview(data);
-        } else {
-          setLeaderPreview([]);
-        }
+        const arr: LeaderPreviewItem[] = Array.isArray(data)
+          ? data
+          : data?.data ?? [];
+        arr.sort((a, b) => {
+          if (typeof a.rank === "number" && typeof b.rank === "number") {
+            return a.rank - b.rank;
+          }
+          return (b.score ?? 0) - (a.score ?? 0);
+        });
+        const normalized = arr.map((it, idx) => ({
+          ...it,
+          rank: it.rank ?? idx + 1,
+        }));
+        setLeaderPreview(normalized);
       } catch {
         if (mounted) setLeaderPreview([]);
       } finally {
@@ -238,7 +238,7 @@ const HomePage: React.FC = () => {
   }> = ({ name, size = 36, className = "" }) => {
     const initials = (name || "익명")
       .split(" ")
-      .map((s) => s[0])
+      .map((s) => (s ? s[0] : ""))
       .join("")
       .slice(0, 2)
       .toUpperCase();
@@ -251,6 +251,9 @@ const HomePage: React.FC = () => {
       </div>
     );
   };
+
+  // 상위 3명만 사용
+  const top3 = leaderPreview ? leaderPreview.slice(0, 3) : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 pb-20">
@@ -349,107 +352,117 @@ const HomePage: React.FC = () => {
           ))}
         </ul>
 
-        {/* 듀오링고 스타일 리더보드 카드 (상위 3명: 실제 rank/score 반영) */}
+        {/* 리더보드 섹션 — 카드 효과 유지, 배경색 제거(투명), 2-1-3 레이아웃 유지 */}
         <section className="mt-8">
           <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4">
             리더보드
           </h2>
 
           <div className="bg-gradient-to-br from-white via-rose-50 to-rose-100 border border-rose-100 rounded-2xl p-4 shadow-sm">
-            {/* 상위 3명 강조 영역 */}
-            <div className="flex items-end gap-4 justify-center mb-3">
-              {/* 2위 */}
-              <div className="flex flex-col items-center transform translate-y-3">
-                <div className="w-14 h-14 rounded-full bg-white shadow-md flex items-center justify-center">
-                  <Avatar name={leaderPreview?.[1]?.name} size={56} />
-                </div>
-                <div className="mt-2 text-xs text-muted-foreground">
-                  {leaderPreview?.[1]?.rank ?? 2}
-                </div>
-                <div className="text-sm font-semibold truncate max-w-[90px] text-center">
-                  {leaderPreview?.[1]?.name ?? "—"}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {leaderPreview?.[1]?.score ?? 0}pt
-                </div>
-              </div>
-
-              {/* 1위 (중앙, 강조) */}
-              <div className="flex flex-col items-center">
-                <div className="relative">
-                  <div className="absolute -top-3 -left-3 w-10 h-10 rounded-full bg-yellow-400 blur-sm opacity-30" />
-                  <div className="w-20 h-20 rounded-full bg-white shadow-2xl flex items-center justify-center transform scale-105">
-                    <Avatar name={leaderPreview?.[0]?.name} size={80} />
-                  </div>
-                  <div className="absolute -bottom-2 -right-2 bg-yellow-400 text-white rounded-full px-2 py-0.5 text-xs font-semibold shadow">
-                    {leaderPreview?.[0]?.rank ?? 1}
-                  </div>
-                </div>
-                <div className="mt-3 text-sm font-semibold truncate max-w-[120px] text-center">
-                  {leaderPreview?.[0]?.name ?? "—"}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {leaderPreview?.[0]?.score ?? 0}pt
-                </div>
-              </div>
-
-              {/* 3위 */}
-              <div className="flex flex-col items-center transform translate-y-6">
-                <div className="w-12 h-12 rounded-full bg-white shadow-md flex items-center justify-center">
-                  <Avatar name={leaderPreview?.[2]?.name} size={48} />
-                </div>
-                <div className="mt-2 text-xs text-muted-foreground">
-                  {leaderPreview?.[2]?.rank ?? 3}
-                </div>
-                <div className="text-sm font-semibold truncate max-w-[90px] text-center">
-                  {leaderPreview?.[2]?.name ?? "—"}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {leaderPreview?.[2]?.score ?? 0}pt
-                </div>
-              </div>
-            </div>
-
-            {/* 리스트 미리보기 (4~5위) */}
-            <div className="mt-2 grid grid-cols-1 gap-2">
-              {leaderLoading ? (
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-rose-500" />
-                  <span className="text-sm text-muted-foreground">
-                    로딩 중...
-                  </span>
-                </div>
-              ) : leaderPreview && leaderPreview.length > 0 ? (
-                leaderPreview.slice(3, 5).map((p) => (
+            <div className="relative">
+              <div className="flex items-end justify-between gap-4">
+                {/* 2위 (왼쪽) */}
+                <div className="flex-1 flex justify-start">
                   <div
-                    key={p.id}
-                    className="flex items-center justify-between p-2 rounded-md bg-white/80"
+                    className="w-full max-w-[160px] md:max-w-[180px] bg-transparent border border-white/10 rounded-2xl p-3 flex flex-col items-center gap-2
+                      transform transition-transform duration-300 hover:scale-105 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    role="group"
+                    aria-label="2위"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-md bg-rose-50 flex items-center justify-center font-semibold text-rose-600">
-                        {p.rank ?? "—"}
+                    <div className="flex items-center gap-2">
+                      <div className="p-1 rounded-full bg-transparent">
+                        <Award className="w-4 h-4 text-slate-500" />
                       </div>
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">{p.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {p.tier ?? ""} · {p.score}pt
-                        </div>
+                      <div className="text-xs text-muted-foreground font-medium">
+                        2위
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/leaderboard/${p.id}`)}
-                      className="text-xs text-foreground/60"
-                    >
-                      상세
-                    </button>
+                    <div className="mt-1">
+                      <div className="w-14 h-14 rounded-full bg-white shadow-md flex items-center justify-center">
+                        <Avatar name={top3[1]?.name} size={56} />
+                      </div>
+                    </div>
+
+                    <div className="mt-2 text-sm font-semibold text-center truncate">
+                      {top3[1]?.name ?? "—"}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      <span className="font-medium">{top3[1]?.score ?? 0}</span>{" "}
+                      pt
+                    </div>
                   </div>
-                ))
-              ) : null}
+                </div>
+
+                {/* 1위 (중앙) */}
+                <div className="flex-1 flex justify-center -mt-4 md:-mt-6">
+                  <div
+                    className="w-full max-w-[220px] md:max-w-[260px] bg-transparent border border-white/10 rounded-3xl p-4 flex flex-col items-center gap-3
+                      transform transition-transform duration-300 hover:scale-105 hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-yellow-100"
+                    role="group"
+                    aria-label="1위"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="p-1 rounded-full bg-transparent">
+                        <Award className="w-4 h-4 text-yellow-500" />
+                      </div>
+                      <div className="text-sm font-semibold">1위</div>
+                    </div>
+
+                    <div className="mt-1">
+                      <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-white shadow-2xl flex items-center justify-center">
+                        <Avatar name={top3[0]?.name} size={96} />
+                      </div>
+                    </div>
+
+                    <div className="mt-2 text-lg font-bold text-center truncate">
+                      {top3[0]?.name ?? "—"}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      <span className="font-semibold">
+                        {top3[0]?.score ?? 0}
+                      </span>{" "}
+                      pt
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3위 (오른쪽) */}
+                <div className="flex-1 flex justify-end">
+                  <div
+                    className="w-full max-w-[140px] md:max-w-[160px] bg-transparent border border-white/10 rounded-2xl p-3 flex flex-col items-center gap-2
+                      transform transition-transform duration-300 hover:scale-105 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    role="group"
+                    aria-label="3위"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="p-1 rounded-full bg-transparent">
+                        <Award className="w-4 h-4 text-slate-500" />
+                      </div>
+                      <div className="text-xs text-muted-foreground font-medium">
+                        3위
+                      </div>
+                    </div>
+
+                    <div className="mt-1">
+                      <div className="w-12 h-12 rounded-full bg-white shadow-md flex items-center justify-center">
+                        <Avatar name={top3[2]?.name} size={48} />
+                      </div>
+                    </div>
+
+                    <div className="mt-2 text-sm font-semibold text-center truncate">
+                      {top3[2]?.name ?? "—"}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      <span className="font-medium">{top3[2]?.score ?? 0}</span>{" "}
+                      pt
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* 하단 CTA (카드 내부에 남김) */}
+            {/* CTA */}
             <div className="mt-4 flex items-center justify-center">
               <button
                 onClick={goToLeaderboard}
@@ -459,6 +472,18 @@ const HomePage: React.FC = () => {
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
+
+            {/* 로딩/빈 상태 처리 */}
+            {leaderLoading && (
+              <div className="mt-3 text-center text-xs text-muted-foreground">
+                로딩 중...
+              </div>
+            )}
+            {!leaderLoading && leaderPreview && leaderPreview.length === 0 && (
+              <div className="mt-3 text-center text-xs text-muted-foreground">
+                아직 순위가 없습니다.
+              </div>
+            )}
           </div>
         </section>
       </main>

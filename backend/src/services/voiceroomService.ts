@@ -28,7 +28,6 @@ function isValidLevel(level: any): level is VoiceRoomLevel {
 
 function parseMaxParticipants(value: any): number {
   const n = Number(value);
-  // ✅ 수정: 2 ~ 8명으로 제한
   if (!Number.isFinite(n) || n < 2 || n > 8) {
     throw new Error("최대 참여 인원은 2명 이상 8명 이하의 숫자여야 합니다.");
   }
@@ -43,9 +42,16 @@ export async function createVoiceRoom(
     description?: any;
     level?: any;
     max_participants?: any;
+    host_name: string; // ✅ [추가]
   }
 ): Promise<VoiceRoom> {
-  const { name, description, level = "ANY", max_participants } = payload;
+  const {
+    name,
+    description,
+    level = "ANY",
+    max_participants,
+    host_name,
+  } = payload;
 
   if (!name || typeof name !== "string" || name.trim().length === 0) {
     throw new ServiceError(400, "방 이름을 입력해주세요.");
@@ -76,6 +82,7 @@ export async function createVoiceRoom(
     description: description.trim(),
     level,
     max_participants: maxParticipantsNum,
+    host_name: host_name || "Anonymous", // ✅
   });
 
   const created = await findVoiceRoomById(pool, insertId);

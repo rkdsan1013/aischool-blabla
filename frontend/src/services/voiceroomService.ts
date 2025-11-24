@@ -2,7 +2,6 @@
 import type { AxiosResponse } from "axios";
 import { apiClient, handleApiError, ServiceError } from "../api";
 
-/** 프론트에서 사용할 타입 정의 */
 export type VoiceRoomLevel = "ANY" | "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 
 export type VoiceRoom = {
@@ -12,7 +11,9 @@ export type VoiceRoom = {
   level: VoiceRoomLevel;
   max_participants: number;
   current_participants: number;
+  host_name?: string;
   created_at?: string | null;
+  preview_users?: string; // ✅ [추가]
 };
 
 export type CreateVoiceRoomPayload = {
@@ -24,9 +25,6 @@ export type CreateVoiceRoomPayload = {
 
 export type UpdateVoiceRoomPayload = Partial<CreateVoiceRoomPayload>;
 
-/**
- * 방 생성
- */
 export async function createRoom(
   payload: CreateVoiceRoomPayload
 ): Promise<VoiceRoom> {
@@ -50,9 +48,6 @@ export async function createRoom(
   }
 }
 
-/**
- * 방 목록 조회
- */
 export async function getRooms(params?: {
   page?: number;
   size?: number;
@@ -69,9 +64,6 @@ export async function getRooms(params?: {
   }
 }
 
-/**
- * 단일 방 조회
- */
 export async function getRoomById(roomId: number): Promise<VoiceRoom> {
   try {
     const res: AxiosResponse<VoiceRoom> = await apiClient.get(
@@ -84,9 +76,6 @@ export async function getRoomById(roomId: number): Promise<VoiceRoom> {
   }
 }
 
-/**
- * 방 전체 수정 (PUT)
- */
 export async function updateRoom(
   roomId: number,
   payload: UpdateVoiceRoomPayload
@@ -110,9 +99,6 @@ export async function updateRoom(
   }
 }
 
-/**
- * 방 부분 수정 (PATCH)
- */
 export async function patchRoom(
   roomId: number,
   payload: UpdateVoiceRoomPayload
@@ -136,9 +122,6 @@ export async function patchRoom(
   }
 }
 
-/**
- * 방 삭제
- */
 export async function deleteRoom(roomId: number): Promise<void> {
   try {
     await apiClient.delete(`/voice-room/${roomId}`);
@@ -149,9 +132,6 @@ export async function deleteRoom(roomId: number): Promise<void> {
   }
 }
 
-/**
- * 유효성 검사
- */
 export function validateCreatePayload(payload: CreateVoiceRoomPayload) {
   if (!payload.name || payload.name.trim().length === 0) {
     throw new ServiceError("방 이름을 입력해주세요.");
@@ -159,7 +139,6 @@ export function validateCreatePayload(payload: CreateVoiceRoomPayload) {
   if (!payload.description || payload.description.trim().length === 0) {
     throw new ServiceError("방 설명을 입력해주세요.");
   }
-  // ✅ 수정: 2 ~ 8명으로 제한
   if (
     payload.max_participants !== undefined &&
     (!Number.isFinite(payload.max_participants) ||

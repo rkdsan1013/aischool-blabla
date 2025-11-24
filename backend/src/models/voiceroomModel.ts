@@ -1,11 +1,6 @@
+// backend/src/models/voiceroomModel.ts
 import { Pool } from "mysql2/promise";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
-
-/**
- * DB 레이어: SQL 실행만 담당
- * - pool을 주입받아 쿼리 실행 후 결과를 반환합니다.
- * - 비즈니스 유효성 검사는 서비스 레이어에서 수행하세요.
- */
 
 export type VoiceRoomLevel = "ANY" | "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 
@@ -16,7 +11,9 @@ export type VoiceRoomRow = {
   level: VoiceRoomLevel;
   max_participants: number;
   current_participants: number;
+  host_name: string;
   created_at: string | null;
+  preview_users?: string; // "userId|name|profileImg" 형태의 문자열
 };
 
 export async function insertVoiceRoom(
@@ -26,18 +23,20 @@ export async function insertVoiceRoom(
     description: string;
     level: VoiceRoomLevel;
     max_participants: number;
+    host_name: string;
   }
 ): Promise<number> {
   const conn = await pool.getConnection();
   try {
     const [result] = (await conn.execute(
-      `INSERT INTO voice_room (name, description, level, max_participants, current_participants)
-       VALUES (?, ?, ?, ?, 0)`,
+      `INSERT INTO voice_room (name, description, level, max_participants, current_participants, host_name)
+       VALUES (?, ?, ?, ?, 0, ?)`,
       [
         payload.name,
         payload.description,
         payload.level,
         payload.max_participants,
+        payload.host_name,
       ]
     )) as unknown as [ResultSetHeader, any];
     return result.insertId;
@@ -53,7 +52,7 @@ export async function findVoiceRoomById(
   const conn = await pool.getConnection();
   try {
     const [rows] = (await conn.execute(
-      `SELECT room_id, name, description, level, max_participants, current_participants, created_at
+      `SELECT room_id, name, description, level, max_participants, current_participants, host_name, created_at
        FROM voice_room WHERE room_id = ?`,
       [roomId]
     )) as unknown as [RowDataPacket[] & VoiceRoomRow[], any];
@@ -63,12 +62,10 @@ export async function findVoiceRoomById(
   }
 }
 
-// ✅ [수정] LIMIT/OFFSET 파라미터 바인딩 문제 해결
 export async function selectVoiceRooms(
   pool: Pool,
   options?: { page?: number; size?: number; level?: VoiceRoomLevel }
 ): Promise<VoiceRoomRow[]> {
-  // 입력값 정수 변환 및 안전성 확보
   const page = Math.max(1, Math.floor(Number(options?.page || 1)));
   const size = Math.min(
     100,
@@ -78,21 +75,30 @@ export async function selectVoiceRooms(
 
   const conn = await pool.getConnection();
   try {
+    // ✅ [핵심 수정] user_profiles 테이블과 조인하여 정보 가져오기
+    // GROUP_CONCAT을 사용해 "ID|이름|이미지" 형태의 문자열로 합침
+    // IFNULL(up.profile_img, 'null') : 이미지가 없으면 문자열 'null'로 처리
     let sql = `
-        SELECT room_id, name, description, level, max_participants, current_participants, created_at
-        FROM voice_room
-      `;
+      SELECT 
+        r.*,
+        (
+          SELECT GROUP_CONCAT(CONCAT(vrp.user_id, '|', up.name, '|', IFNULL(up.profile_img, 'null')) SEPARATOR ',')
+          FROM voice_room_participants vrp
+          JOIN user_profiles up ON vrp.user_id = up.user_id
+          WHERE vrp.room_id = r.room_id
+        ) as preview_users
+      FROM voice_room r
+    `;
+
     const params: any[] = [];
 
-    // 레벨 필터링 (ANY가 아닐 때만 조건 추가)
     if (options?.level && options.level !== "ANY") {
-      sql += ` WHERE level = ? `;
+      sql += ` WHERE r.level = ? `;
       params.push(options.level);
     }
 
-    // [Critical Fix] LIMIT와 OFFSET은 ? 대신 직접 정수를 주입합니다.
-    // execute() 사용 시 LIMIT ? 문법에서 타입 에러가 빈번하게 발생하기 때문입니다.
-    sql += ` ORDER BY created_at DESC LIMIT ${size} OFFSET ${offset}`;
+    // LIMIT, OFFSET은 직접 주입 (타입 에러 방지)
+    sql += ` ORDER BY r.created_at DESC LIMIT ${size} OFFSET ${offset}`;
 
     const [rows] = (await conn.execute(sql, params)) as unknown as [
       RowDataPacket[] & VoiceRoomRow[],
@@ -174,44 +180,91 @@ export async function deleteVoiceRoomRow(
   }
 }
 
-export async function incrementParticipants(
+// ✅ [변경] 참여자 등록 (INSERT) 및 카운트 갱신
+export async function addRoomParticipant(
   pool: Pool,
-  roomId: number
+  roomId: number,
+  userId: number
 ): Promise<void> {
   const conn = await pool.getConnection();
   try {
+    await conn.beginTransaction();
+
+    // 1. 관계 테이블에 추가 (중복 무시)
     await conn.execute(
-      `UPDATE voice_room SET current_participants = current_participants + 1 WHERE room_id = ?`,
-      [roomId]
+      `INSERT IGNORE INTO voice_room_participants (room_id, user_id) VALUES (?, ?)`,
+      [roomId, userId]
     );
+
+    // 2. 카운트 업데이트 (정합성 보장)
+    await conn.execute(
+      `UPDATE voice_room 
+       SET current_participants = (SELECT COUNT(*) FROM voice_room_participants WHERE room_id = ?)
+       WHERE room_id = ?`,
+      [roomId, roomId]
+    );
+
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
   } finally {
     conn.release();
   }
 }
 
+// ✅ [변경] 참여자 제거 (DELETE) 및 카운트 갱신
+export async function removeRoomParticipant(
+  pool: Pool,
+  roomId: number,
+  userId: number
+): Promise<number> {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // 1. 관계 테이블에서 삭제
+    await conn.execute(
+      `DELETE FROM voice_room_participants WHERE room_id = ? AND user_id = ?`,
+      [roomId, userId]
+    );
+
+    // 2. 카운트 업데이트
+    await conn.execute(
+      `UPDATE voice_room 
+       SET current_participants = (SELECT COUNT(*) FROM voice_room_participants WHERE room_id = ?)
+       WHERE room_id = ?`,
+      [roomId, roomId]
+    );
+
+    // 3. 현재 인원 조회 (방 삭제 여부 판단용)
+    const [rows] = (await conn.execute(
+      `SELECT current_participants FROM voice_room WHERE room_id = ?`,
+      [roomId]
+    )) as unknown as [RowDataPacket[], any];
+
+    await conn.commit();
+    return rows[0]?.current_participants ?? 0;
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+// Deprecated but kept for interface compatibility if needed elsewhere (but effectively replaced)
+export async function incrementParticipants(
+  pool: Pool,
+  roomId: number
+): Promise<void> {
+  // Placeholder to avoid breaking imports if any
+  // Logic is moved to addRoomParticipant
+}
 export async function decrementParticipants(
   pool: Pool,
   roomId: number
 ): Promise<number> {
-  const conn = await pool.getConnection();
-  try {
-    // 인원 감소 (음수 방지)
-    await conn.execute(
-      `UPDATE voice_room SET current_participants = GREATEST(current_participants - 1, 0) WHERE room_id = ?`,
-      [roomId]
-    );
-
-    // 현재 인원 확인 후 반환
-    const [rows] = (await conn.execute(
-      `SELECT current_participants FROM voice_room WHERE room_id = ?`,
-      [roomId]
-    )) as unknown as [
-      RowDataPacket[] & { current_participants: number }[],
-      any
-    ];
-
-    return rows[0]?.current_participants ?? 0;
-  } finally {
-    conn.release();
-  }
+  // Logic is moved to removeRoomParticipant
+  return 0;
 }

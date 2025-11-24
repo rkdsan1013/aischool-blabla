@@ -1,6 +1,7 @@
 // backend/src/routes/voiceroomRouter.ts
 import express, { Request, Response, NextFunction } from "express";
 import { pool } from "../config/db";
+import { requireAuth } from "../middlewares/auth"; // ✅ 인증 미들웨어
 import {
   createRoom as controllerCreateRoom,
   listRooms as controllerListRooms,
@@ -12,9 +13,6 @@ import {
 
 const router = express.Router();
 
-/**
- * async 에러 핸들러 래퍼
- */
 function asyncHandler(
   fn: (req: Request, res: Response, next: NextFunction) => Promise<any>
 ) {
@@ -28,21 +26,25 @@ function asyncHandler(
       next(err);
     });
 }
+
 /**
  * POST /voice-room
- * 방 생성
+ * 방 생성 (로그인 필수)
  */
 router.post(
   "/",
+  requireAuth, // ✅ 인증 필요
   asyncHandler(async (req: Request, res: Response) => {
-    const created = await controllerCreateRoom(pool, req.body);
+    // req.user에서 이름 추출 (requireAuth가 토큰 파싱 후 넣어줌)
+    const user = req.user as { name: string } | undefined;
+    const created = await controllerCreateRoom(pool, req.body, user);
     res.status(201).json(created);
   })
 );
 
 /**
  * GET /voice-room
- * 방 목록 조회 (page, size, level)
+ * 방 목록 조회
  */
 router.get(
   "/",
@@ -69,10 +71,11 @@ router.get(
 
 /**
  * PUT /voice-room/:id
- * 전체 수정
+ * 전체 수정 (로그인 필수)
  */
 router.put(
   "/:id",
+  requireAuth,
   asyncHandler(async (req: Request, res: Response) => {
     const updated = await controllerUpdateRoom(pool, req.params.id, req.body);
     res.json(updated);
@@ -81,10 +84,11 @@ router.put(
 
 /**
  * PATCH /voice-room/:id
- * 부분 수정
+ * 부분 수정 (로그인 필수)
  */
 router.patch(
   "/:id",
+  requireAuth,
   asyncHandler(async (req: Request, res: Response) => {
     const patched = await controllerPatchRoom(pool, req.params.id, req.body);
     res.json(patched);
@@ -93,10 +97,11 @@ router.patch(
 
 /**
  * DELETE /voice-room/:id
- * 삭제
+ * 삭제 (로그인 필수)
  */
 router.delete(
   "/:id",
+  requireAuth,
   asyncHandler(async (req: Request, res: Response) => {
     await controllerDeleteRoom(pool, req.params.id);
     res.status(204).send();

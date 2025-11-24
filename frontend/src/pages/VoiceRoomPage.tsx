@@ -1,4 +1,6 @@
 // frontend/src/pages/VoiceRoomPage.tsx
+// cspell:ignore voiceroom
+
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -14,6 +16,15 @@ import VoiceRoomService from "../services/voiceroomService";
 import type { VoiceRoom } from "../services/voiceroomService";
 import { useProfile } from "../hooks/useProfile";
 
+/**
+ * UI에서 사용하는 Room 타입
+ */
+interface PreviewUser {
+  id: number;
+  name: string;
+  image: string | null;
+}
+
 interface Room {
   id: string;
   name: string | null;
@@ -23,10 +34,13 @@ interface Room {
   maxParticipants: number | null;
   level: string | null;
   isPrivate: boolean | null;
+  previewUsers: PreviewUser[];
 }
 
 export default function VoiceRoomPage() {
   const navigate = useNavigate();
+
+  // 전역 상태에서 유저 정보 가져오기
   const { profile, isProfileLoading } = useProfile();
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -41,26 +55,44 @@ export default function VoiceRoomPage() {
     }
   }, [profile, isProfileLoading, navigate]);
 
-  // 방 목록 조회 함수
+  // 방 목록 조회
   const fetchRooms = async (isBackground = false) => {
     try {
       if (!isBackground) setIsLoading(true);
 
       const data: VoiceRoom[] = await VoiceRoomService.getRooms();
 
-      const mapped: Room[] = data.map((v) => ({
-        id: String(v.room_id),
-        name: v.name ?? null,
-        topic: v.description ?? null,
-        host: null,
-        participants: v.current_participants ?? 0,
-        maxParticipants:
-          v.max_participants !== undefined && v.max_participants !== null
-            ? Number(v.max_participants)
-            : null,
-        level: v.level ?? null,
-        isPrivate: null,
-      }));
+      const mapped: Room[] = data.map((v) => {
+        // 참여자 미리보기 정보 파싱
+        // Format: "id|name|img, ..."
+        let previews: PreviewUser[] = [];
+        if (v.preview_users) {
+          previews = v.preview_users.split(",").map((str) => {
+            // [수정] 변수명 변경 (uimg -> userImage) 하여 스펠링 체크 경고 회피
+            const [userIdStr, userName, userImage] = str.split("|");
+            return {
+              id: Number(userIdStr),
+              name: userName || "User",
+              image: userImage !== "null" && userImage ? userImage : null,
+            };
+          });
+        }
+
+        return {
+          id: String(v.room_id),
+          name: v.name ?? null,
+          topic: v.description ?? null,
+          host: v.host_name ?? "알 수 없음",
+          participants: v.current_participants ?? 0,
+          maxParticipants:
+            v.max_participants !== undefined && v.max_participants !== null
+              ? Number(v.max_participants)
+              : null,
+          level: v.level ?? null,
+          isPrivate: null,
+          previewUsers: previews,
+        };
+      });
 
       // 최신순 정렬
       mapped.sort((a, b) => parseInt(b.id, 10) - parseInt(a.id, 10));
@@ -79,13 +111,14 @@ export default function VoiceRoomPage() {
     }
   };
 
+  // 초기 로드 및 폴링
   useEffect(() => {
     let mounted = true;
 
-    // 1. 즉시 조회 (빠른 렌더링)
+    // 1. 최초 실행
     fetchRooms();
 
-    // 2. [Fix] 300ms 후 한 번 더 조회 (방금 퇴장한 방의 DB 삭제 반영)
+    // 2. 방금 나간 방 업데이트를 위한 빠른 재조회
     const refreshTimeout = setTimeout(() => {
       if (mounted) fetchRooms(true);
     }, 300);
@@ -110,6 +143,7 @@ export default function VoiceRoomPage() {
     navigate("/voiceroom/create");
   };
 
+  // 검색 필터링
   const filteredRooms = useMemo(() => {
     const q = query.trim().toLowerCase();
     const baseList = !q
@@ -128,6 +162,7 @@ export default function VoiceRoomPage() {
     );
   }, [rooms, query]);
 
+  // 렌더링
   return (
     <div className="min-h-screen bg-white pb-20">
       {/* Hero Section */}
@@ -196,18 +231,21 @@ export default function VoiceRoomPage() {
           </div>
         </div>
 
+        {/* 로딩 상태 표시 */}
         {isLoading && rooms.length === 0 && (
           <div className="min-h-[200px] flex items-center justify-center">
             <Loader2 className="w-10 h-10 animate-spin text-rose-500" />
           </div>
         )}
 
+        {/* 에러 메시지 */}
         {errorMessage && (
           <div className="text-center text-sm text-red-600 mb-4">
             {errorMessage}
           </div>
         )}
 
+        {/* 방 목록 그리드 */}
         {!isLoading && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {filteredRooms.map((room, index) => {
@@ -248,14 +286,39 @@ export default function VoiceRoomPage() {
                   <div className="flex items-center gap-4 sm:gap-6 mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-100">
                     <div className="flex items-center gap-2">
                       <div className="flex -space-x-2">
-                        {[...Array(Math.min(participants, 3))].map((_, i) => (
+                        {/* 참여자 프로필 표시 */}
+                        {room.previewUsers.map((user) => (
                           <div
-                            key={i}
-                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 border-2 border-white flex items-center justify-center text-white text-xs font-semibold"
+                            key={user.id}
+                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-white bg-gray-200 overflow-hidden"
+                            title={user.name}
                           >
-                            {i + 1}
+                            {user.image ? (
+                              <img
+                                src={user.image}
+                                alt={user.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-rose-400 text-white text-xs font-bold">
+                                {user.name.charAt(0)}
+                              </div>
+                            )}
                           </div>
                         ))}
+                        {/* 빈 슬롯 플레이스홀더 (옵션) */}
+                        {room.previewUsers.length < Math.min(participants, 3) &&
+                          [
+                            ...Array(
+                              Math.min(participants, 3) -
+                                room.previewUsers.length
+                            ),
+                          ].map((_, i) => (
+                            <div
+                              key={`placeholder-${i}`}
+                              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gray-100 border-2 border-white animate-pulse"
+                            />
+                          ))}
                       </div>
                       <div className="text-xs sm:text-sm">
                         <span className="font-semibold text-gray-900">

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
 import VoiceRoomService from "../services/voiceroomService";
 
+// 레벨 타입 정의
 type VoiceRoomLevel = "ANY" | "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 
 type FormState = {
@@ -13,6 +14,7 @@ type FormState = {
   level: VoiceRoomLevel;
 };
 
+// API 에러 응답 타입 정의
 interface ApiErrorResponse {
   response?: {
     data?: {
@@ -22,10 +24,9 @@ interface ApiErrorResponse {
   message?: string;
 }
 
-// Mock Auth (실제로는 Context 등 사용)
+// Mock Auth
 function useAuth() {
   const [isLoading] = useState<boolean>(false);
-  // 로그인 상태라고 가정 (실제 구현에 맞춰 수정 필요)
   const [user] = useState<{ id: string; name: string } | null>({
     id: "1",
     name: "TestUser",
@@ -40,14 +41,13 @@ const VoiceRoomCreate: React.FC = () => {
   const [formData, setFormData] = useState<FormState>({
     name: "",
     description: "",
-    maxParticipants: "8",
+    maxParticipants: "8", // 기본값 8
     level: "ANY",
   });
 
   const [submitting, setSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
-    // 실제 앱에서는 로그인 안되어 있으면 리다이렉트
     // if (!isLoading && !user) navigate("/login");
   }, [user, isLoading, navigate]);
 
@@ -64,15 +64,16 @@ const VoiceRoomCreate: React.FC = () => {
     };
 
     try {
+      // 유효성 검사
       VoiceRoomService.validateCreatePayload(payload);
+
       setSubmitting(true);
-
       const created = await VoiceRoomService.createRoom(payload);
-
-      // ✅ [수정] 방 생성 완료 후 목록이 아닌 해당 방으로 바로 이동
+      // 방 생성 후 해당 방으로 이동
       navigate(`/voiceroom/${created.room_id}`);
     } catch (err: unknown) {
       console.error("방 생성 실패:", err);
+
       let message = "방 생성 중 오류가 발생했습니다.";
       const apiError = err as ApiErrorResponse;
 
@@ -83,6 +84,7 @@ const VoiceRoomCreate: React.FC = () => {
       } else if (err instanceof Error) {
         message = err.message;
       }
+
       alert(message);
     } finally {
       setSubmitting(false);
@@ -102,6 +104,14 @@ const VoiceRoomCreate: React.FC = () => {
     { value: "C1", label: "C1" },
     { value: "C2", label: "C2" },
   ];
+
+  if (isLoading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-[100dvh] bg-white flex flex-col">
@@ -181,15 +191,15 @@ const VoiceRoomCreate: React.FC = () => {
                   htmlFor="maxParticipants"
                   className="block text-sm font-medium text-gray-900"
                 >
-                  최대 참여 인원
+                  최대 참여 인원 (2~8명)
                 </label>
                 <div className="mt-1">
                   <input
                     id="maxParticipants"
                     name="maxParticipants"
                     type="number"
-                    min={1}
-                    max={100}
+                    min={2} // ✅ 수정: 최소 2명
+                    max={8} // ✅ 수정: 최대 8명
                     value={formData.maxParticipants}
                     onChange={(e) =>
                       setFormData((p) => ({

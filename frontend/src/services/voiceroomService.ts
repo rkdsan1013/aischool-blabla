@@ -11,7 +11,7 @@ export type VoiceRoom = {
   description: string;
   level: VoiceRoomLevel;
   max_participants: number;
-  current_participants: number; // ✅ [추가] 현재 인원
+  current_participants: number;
   created_at?: string | null;
 };
 
@@ -159,14 +159,15 @@ export function validateCreatePayload(payload: CreateVoiceRoomPayload) {
   if (!payload.description || payload.description.trim().length === 0) {
     throw new ServiceError("방 설명을 입력해주세요.");
   }
+  // ✅ 수정: 2 ~ 8명으로 제한
   if (
     payload.max_participants !== undefined &&
     (!Number.isFinite(payload.max_participants) ||
-      payload.max_participants < 1 ||
-      payload.max_participants > 100)
+      payload.max_participants < 2 ||
+      payload.max_participants > 8)
   ) {
     throw new ServiceError(
-      "최대 참여 인원은 1 이상 100 이하의 숫자여야 합니다."
+      "최대 참여 인원은 2명 이상 8명 이하의 숫자여야 합니다."
     );
   }
   if (

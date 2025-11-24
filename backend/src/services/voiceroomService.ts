@@ -10,14 +10,7 @@ import {
   deleteVoiceRoomRow,
 } from "../models/voiceroomModel";
 
-/**
- * 서비스 레이어
- * - 비즈니스 유효성 검사 및 모델 호출
- * - 컨트롤러는 이 서비스의 예외를 HTTP 응답으로 변환합니다.
- */
-
 export type VoiceRoomLevel = "ANY" | "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
-
 export type VoiceRoom = VoiceRoomRow;
 
 export class ServiceError extends Error {
@@ -35,8 +28,9 @@ function isValidLevel(level: any): level is VoiceRoomLevel {
 
 function parseMaxParticipants(value: any): number {
   const n = Number(value);
-  if (!Number.isFinite(n) || n < 1 || n > 100) {
-    throw new Error("최대 참여 인원은 1 이상 100 이하의 숫자여야 합니다.");
+  // ✅ 수정: 2 ~ 8명으로 제한
+  if (!Number.isFinite(n) || n < 2 || n > 8) {
+    throw new Error("최대 참여 인원은 2명 이상 8명 이하의 숫자여야 합니다.");
   }
   return Math.floor(n);
 }
@@ -101,7 +95,6 @@ export async function listVoiceRooms(
     throw new ServiceError(400, "권장 레벨이 유효하지 않습니다.");
   }
 
-  // Build options object without undefined properties to satisfy exactOptionalPropertyTypes
   const opts: { page?: number; size?: number; level?: VoiceRoomLevel } = {};
   if (options?.page !== undefined) opts.page = options.page;
   if (options?.size !== undefined) opts.size = options.size;

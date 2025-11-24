@@ -119,7 +119,8 @@ const AttendanceGrid: React.FC<{
     const startDate = new Date(endOfWeek);
     startDate.setDate(endOfWeek.getDate() - numWeeks * 7 + 1);
 
-    let current = new Date(startDate);
+    // [수정] let -> const (Date 객체의 내부 상태만 변경되므로 재할당이 아님)
+    const current = new Date(startDate);
 
     for (let w = 0; w < numWeeks; w++) {
       const weekDays = [];

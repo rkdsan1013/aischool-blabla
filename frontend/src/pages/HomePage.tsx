@@ -1,3 +1,4 @@
+// src/pages/HomePage.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -26,7 +27,6 @@ interface TrainingStep {
   startType: TrainingType;
 }
 
-// [수정됨] 실제 프로필 타입 정의 확장
 type LocalProfileContext = {
   profile: (UserProfileResponse & { tier?: string; score?: number }) | null;
   isLoading?: boolean;
@@ -133,11 +133,8 @@ const HomePage: React.FC = () => {
   const displayLevel = profile.level ?? "대기중";
   const streak = profile.streak_count ?? 0;
 
-  // --- [수정됨] 실제 프로필 데이터 사용 ---
-  // 값이 없으면 기본값("Bronze", 0) 사용
   const tier = profile.tier ?? "Bronze";
   const score = profile.score ?? 0;
-  // --- [수정 완료] ---
 
   const tierStyles: Record<
     string,
@@ -182,8 +179,6 @@ const HomePage: React.FC = () => {
 
   const chosen = tierStyles[tier] ?? tierStyles.Bronze;
 
-  // --- Leaderboard preview data (간단한 프리뷰) ---
-  // 실제는 /api/leaderboard/top 같은 엔드포인트에서 받아오면 됩니다.
   const [leaderPreview, setLeaderPreview] = useState<
     { id: string; name: string; score: number; tier?: string }[] | null
   >(null);
@@ -194,7 +189,7 @@ const HomePage: React.FC = () => {
     const fetchPreview = async () => {
       setLeaderLoading(true);
       try {
-        const res = await fetch("/api/leaderboard?limit=3");
+        const res = await fetch("/api/leaderboard?limit=5");
         if (!mounted) return;
         if (res.ok) {
           const json = await res.json();
@@ -214,8 +209,33 @@ const HomePage: React.FC = () => {
     };
   }, []);
 
+  const goToLeaderboard = () => {
+    navigate("/leaderboard");
+  };
+
+  const Avatar: React.FC<{
+    name?: string;
+    size?: number;
+    className?: string;
+  }> = ({ name, size = 36, className = "" }) => {
+    const initials = (name || "익명")
+      .split(" ")
+      .map((s) => s[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+    return (
+      <div
+        className={`flex items-center justify-center rounded-full bg-white/90 text-rose-600 font-semibold ${className}`}
+        style={{ width: size, height: size }}
+      >
+        {initials}
+      </div>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-white pb-20">
+    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 pb-20">
       <header className="bg-rose-500 text-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -223,7 +243,7 @@ const HomePage: React.FC = () => {
               <h1 className="text-base sm:text-2xl font-bold mb-0.5 truncate">
                 안녕하세요, {displayName}님!
               </h1>
-              <p className="text-white/80 text-xs sm:text-sm">
+              <p className="text-white/90 text-xs sm:text-sm">
                 오늘도 영어 학습을 시작해볼까요?
               </p>
             </div>
@@ -267,7 +287,7 @@ const HomePage: React.FC = () => {
                 type="button"
                 onClick={() => handleNavigateToTraining(s.startType)}
                 onMouseEnter={() => prefetchQuestions(s.startType)}
-                className="border-2 border-gray-200 group relative bg-card rounded-2xl p-3 sm:p-4 text-left cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1 w-full"
+                className="border-2 border-gray-200 group relative bg-white rounded-2xl p-3 sm:p-4 text-left cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1 w-full"
               >
                 <div className="flex items-center gap-3 sm:gap-4">
                   <div
@@ -291,83 +311,136 @@ const HomePage: React.FC = () => {
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">
-                            <Repeat className="w-3.5 h-3.5 text-rose-600" />
-                            <span className="font-semibold">
-                              {s.repeatsToday}
-                            </span>
-                            <span className="text-foreground/60">회</span>
+                            {s.repeatsToday > 0
+                              ? `${s.repeatsToday}회 남음`
+                              : "시작"}
                           </span>
                         )}
                       </div>
                     </div>
 
-                    <p className="text-xs sm:text-sm text-muted-foreground truncate whitespace-nowrap overflow-hidden">
+                    <p className="text-xs text-muted-foreground truncate">
                       {s.description}
                     </p>
                   </div>
 
-                  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground flex-shrink-0 self-start mt-1 group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
+                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
                 </div>
               </button>
             </li>
           ))}
         </ul>
 
-        {/* --- Leaderboard 섹션 추가 --- */}
+        {/* --- 듀오링고 스타일 리더보드 카드 (상단의 전체보기 버튼 제거) --- */}
         <section className="mt-8">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base sm:text-xl font-bold">리더보드</h2>
-            <button
-              type="button"
-              onClick={() => navigate("/leaderboard")}
-              className="text-sm text-rose-600 font-semibold hover:underline"
-            >
-              전체 보기
-            </button>
-          </div>
+          <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4">
+            리더보드
+          </h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* 간단한 탑3 프리뷰 카드 */}
-            {leaderLoading ? (
-              <div className="col-span-1 sm:col-span-3 flex items-center justify-center p-6 border rounded-2xl">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500" />
+          <div className="bg-gradient-to-br from-white via-rose-50 to-rose-100 border border-rose-100 rounded-2xl p-4 shadow-sm">
+            {/* 상위 3명 강조 영역 */}
+            <div className="flex items-end gap-4 justify-center mb-3">
+              {/* 2위 */}
+              <div className="flex flex-col items-center transform translate-y-3">
+                <div className="w-14 h-14 rounded-full bg-white shadow-md flex items-center justify-center">
+                  <Avatar name={leaderPreview?.[1]?.name} size={56} />
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">2</div>
+                <div className="text-sm font-semibold truncate max-w-[90px] text-center">
+                  {leaderPreview?.[1]?.name ?? "—"}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {leaderPreview?.[1]?.score ?? 0}pt
+                </div>
               </div>
-            ) : (
-              <>
-                {leaderPreview && leaderPreview.length > 0 ? (
-                  leaderPreview.map((u, idx) => (
-                    <button
-                      key={u.id}
-                      onClick={() => navigate(`/leaderboard/${u.id}`)}
-                      className="text-left border-2 border-gray-100 rounded-2xl p-3 hover:shadow-md transition"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 font-bold">
-                          {idx + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <div className="font-semibold truncate">
-                              {u.name}
-                            </div>
-                            <div className="text-sm text-foreground/60">
-                              {u.tier ?? ""}
-                            </div>
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {u.score}pt
-                          </div>
+
+              {/* 1위 (중앙, 강조) */}
+              <div className="flex flex-col items-center">
+                <div className="relative">
+                  <div className="absolute -top-3 -left-3 w-10 h-10 rounded-full bg-yellow-400 blur-sm opacity-30" />
+                  <div className="w-20 h-20 rounded-full bg-white shadow-2xl flex items-center justify-center transform scale-105">
+                    <Avatar name={leaderPreview?.[0]?.name} size={80} />
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 bg-yellow-400 text-white rounded-full px-2 py-0.5 text-xs font-semibold shadow">
+                    1
+                  </div>
+                </div>
+                <div className="mt-3 text-sm font-semibold truncate max-w-[120px] text-center">
+                  {leaderPreview?.[0]?.name ?? "—"}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {leaderPreview?.[0]?.score ?? 0}pt
+                </div>
+              </div>
+
+              {/* 3위 */}
+              <div className="flex flex-col items-center transform translate-y-6">
+                <div className="w-12 h-12 rounded-full bg-white shadow-md flex items-center justify-center">
+                  <Avatar name={leaderPreview?.[2]?.name} size={48} />
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">3</div>
+                <div className="text-sm font-semibold truncate max-w-[90px] text-center">
+                  {leaderPreview?.[2]?.name ?? "—"}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {leaderPreview?.[2]?.score ?? 0}pt
+                </div>
+              </div>
+            </div>
+
+            {/* 리스트 미리보기 (4~5위) */}
+            <div className="mt-2 grid grid-cols-1 gap-2">
+              {leaderLoading ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-rose-500" />
+                  <span className="text-sm text-muted-foreground">
+                    로딩 중...
+                  </span>
+                </div>
+              ) : leaderPreview && leaderPreview.length > 0 ? (
+                leaderPreview.slice(3, 5).map((p, idx) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between p-2 rounded-md bg-white/80"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-md bg-rose-50 flex items-center justify-center font-semibold text-rose-600">
+                        {idx + 4}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{p.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {p.tier ?? ""} · {p.score}pt
                         </div>
                       </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/leaderboard/${p.id}`)}
+                      className="text-xs text-foreground/60"
+                    >
+                      상세
                     </button>
-                  ))
-                ) : (
-                  <div className="col-span-1 sm:col-span-3 p-4 border rounded-2xl text-sm text-muted-foreground">
-                    리더보드 정보를 불러올 수 없습니다.
                   </div>
-                )}
-              </>
-            )}
+                ))
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  순위 정보를 불러올 수 없습니다.
+                </div>
+              )}
+            </div>
+
+            {/* 하단 CTA (카드 내부에 남김) */}
+            <div className="mt-4 flex items-center justify-center">
+              <button
+                onClick={goToLeaderboard}
+                className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg"
+              >
+                전체 순위 보기
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </section>
       </main>

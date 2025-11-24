@@ -12,6 +12,7 @@ import aiTalkRoutes from "./routes/aiTalkRouter";
 import llmRouter from "./ai/router";
 import voiceroomRouter from "./routes/voiceroomRouter";
 import voiceRoomSocket from "./socket/voiceRoomSocket";
+import leaderboardRouter from "./routes/leaderboardRouter";
 
 dotenv.config();
 
@@ -53,6 +54,7 @@ app.use("/api/training", trainingRouter);
 app.use("/api/ai-talk", aiTalkRoutes);
 app.use("/api/llm", llmRouter);
 app.use("/api/voice-room", voiceroomRouter);
+app.use("/api/leaderboard", leaderboardRouter);
 
 app.use((err: any, req: any, res: any, next: any) => {
   console.error("[global error]", err && err.stack ? err.stack : err);

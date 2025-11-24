@@ -1,4 +1,3 @@
-// backend/src/controllers/trainingController.ts
 import { Request, Response } from "express";
 import {
   getQuestionsByType,
@@ -7,8 +6,8 @@ import {
   TrainingType,
   QuestionItem,
 } from "../services/trainingService";
+import { completeTrainingSessionInDB } from "../models/trainingModel";
 import { calculatePoints } from "../utils/gamification";
-import { updateUserScoreAndTier } from "../models/trainingModel";
 import { verifySpeakingWithAudio } from "../ai/generators/speaking";
 import { normalizeForCompare } from "../utils/normalization";
 
@@ -67,9 +66,8 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
     }
 
     let isCorrect = false;
-    let feedbackTranscript = ""; // 프론트엔드에 보여줄 텍스트 (주로 사용자 입력)
+    let feedbackTranscript = "";
 
-    // --- 유형별 검증 로직 ---
     if (type === "writing") {
       const intendedAnswer = Array.isArray(correctAnswer)
         ? correctAnswer[0]
@@ -83,13 +81,11 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
       );
 
       isCorrect = result.isCorrect;
-      // [수정] 불필요한 reasoning은 제거하고, 사용자가 입력한 텍스트만 돌려줌 (UI 표시용)
       feedbackTranscript = userText;
     } else if (type === "speaking") {
       const base64String = String(userAnswer);
       if (base64String.startsWith("data:audio")) {
         let fileExtension = "webm";
-        // ... (확장자 추출 로직 생략 없이 유지)
         const mimeEndIndex = base64String.indexOf(";");
         if (mimeEndIndex > 0) {
           const mimeType = base64String.substring(5, mimeEndIndex);
@@ -115,7 +111,6 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
           isCorrect = false;
         }
       } else {
-        // Fallback
         const userText = base64String.trim();
         const targetText = String(correctAnswer).trim();
         const normUser = normalizeForCompare(userText);
@@ -124,7 +119,6 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
         feedbackTranscript = userText;
       }
     } else {
-      // Vocabulary, Sentence, Blank
       isCorrect = verifyUserAnswer(
         type as TrainingType,
         userAnswer,
@@ -133,26 +127,47 @@ export async function verifyAnswerHandler(req: Request, res: Response) {
     }
 
     let earnedPoints = 0;
-    let newTotalScore = 0;
-    let newTier = "";
-
     if (isCorrect) {
       earnedPoints = calculatePoints(user.level);
-      const result = await updateUserScoreAndTier(user.user_id, earnedPoints);
-      newTotalScore = result.newScore;
-      newTier = result.newTier;
     }
 
-    // [최종 응답] reasoning 없이 깔끔한 JSON 리턴
     return res.json({
       isCorrect,
       points: earnedPoints,
-      totalScore: newTotalScore,
-      tier: newTier,
       transcript: feedbackTranscript,
     });
   } catch (err) {
     console.error("[TRAINING CONTROLLER] verify error:", err);
     return res.status(500).json({ error: "Verification failed" });
+  }
+}
+
+export async function completeTrainingHandler(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    const { type, score, durationSeconds, sessionData } = req.body;
+
+    if (!type || score === undefined || durationSeconds === undefined) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const result = await completeTrainingSessionInDB(user.user_id, {
+      type,
+      score: Number(score),
+      durationSeconds: Number(durationSeconds),
+      sessionData: sessionData,
+    });
+
+    return res.json({
+      message: "Training saved successfully",
+      stats: result,
+    });
+  } catch (err) {
+    console.error("[Controller] Complete Training Error:", err);
+    return res.status(500).json({ error: "Failed to save training session" });
   }
 }

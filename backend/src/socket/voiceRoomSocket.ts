@@ -6,6 +6,8 @@ import {
   removeRoomParticipant,
   deleteVoiceRoomRow,
   findVoiceRoomById,
+  checkIsBanned,
+  banUser,
 } from "../models/voiceroomModel";
 
 interface User {
@@ -13,6 +15,7 @@ interface User {
   userId: number;
   name: string;
   level?: string;
+  isMuted: boolean;
 }
 
 const users: Record<string, User[]> = {};
@@ -20,56 +23,72 @@ const socketToRoom: Record<string, string> = {};
 
 export default function voiceRoomSocket(io: Server) {
   io.on("connection", (socket: Socket) => {
-    console.log(`✅ [Socket] New Client Connected: ${socket.id}`);
+    console.log(`✅ [Socket] Connected: ${socket.id}`);
 
     // 1. 방 입장
     socket.on("join_room", async (data) => {
-      console.log(`📩 [Socket] join_room 요청:`, data);
-
-      const { roomId, userId, name, userLevel = "A1" } = data;
+      const { roomId, userId, name, userLevel = "A1", isMuted = false } = data;
       const rId = Number(roomId);
 
-      // DB 상태 확인 (방 존재 여부, 인원수 체크)
+      // ✅ [Critical] 강퇴 여부 최우선 확인
+      try {
+        const isBanned = await checkIsBanned(pool, rId, userId);
+        if (isBanned) {
+          console.warn(
+            `🚫 Banned user attempted entry: ${userId} in room ${roomId}`
+          );
+          socket.emit("error_message", "강퇴당한 방에는 재입장할 수 없습니다.");
+          socket.disconnect(true); // 서버 측에서 즉시 연결 끊기
+          return; // 로직 중단
+        }
+      } catch (err) {
+        console.error("Ban check error:", err);
+        return;
+      }
+
       try {
         const roomData = await findVoiceRoomById(pool, rId);
         if (!roomData) {
           socket.emit("error_message", "존재하지 않는 방입니다.");
+          socket.disconnect(true);
           return;
         }
+        // DB상 인원 마감 체크
         if (roomData.current_participants >= roomData.max_participants) {
-          // 이미 내가 참여중인지 확인하지 않고 단순 인원 체크 시 재접속 문제가 있을 수 있으나,
-          // 여기서는 일단 단순 인원수로 차단
           socket.emit("room_full");
+          socket.disconnect(true);
           return;
         }
       } catch (err) {
         return;
       }
 
-      // 메모리 관리
-      const newUser = { socketId: socket.id, userId, name, level: userLevel };
-      if (users[roomId]) {
-        if (!users[roomId].find((u) => u.socketId === socket.id)) {
-          users[roomId].push(newUser);
-        }
-      } else {
-        users[roomId] = [newUser];
+      // --- 이하 정상 입장 로직 ---
+      const newUser: User = {
+        socketId: socket.id,
+        userId,
+        name,
+        level: userLevel,
+        isMuted: !!isMuted,
+      };
+
+      if (!users[roomId]) users[roomId] = [];
+      if (!users[roomId].find((u) => u.socketId === socket.id)) {
+        users[roomId].push(newUser);
       }
 
       socketToRoom[socket.id] = roomId;
       socket.join(roomId);
 
-      // ✅ [DB Update] 실제 유저 등록 (프로필 이미지 표시를 위해 필수)
       try {
         await addRoomParticipant(pool, rId, userId);
-      } catch (err) {
-        console.error(`Failed to add participant DB:`, err);
-      }
+      } catch (e) {}
 
       const usersInThisRoom = users[roomId].filter(
         (u) => u.socketId !== socket.id
       );
       socket.emit("all_users", usersInThisRoom);
+      console.log(`👤 Joined: ${name} (${userId}) Room:${roomId}`);
     });
 
     // Signaling
@@ -87,30 +106,72 @@ export default function voiceRoomSocket(io: Server) {
         .to(p.callerID)
         .emit("receiving_returned_signal", { signal: p.signal, id: socket.id })
     );
-    socket.on("toggle_mute", (m) => {
-      const r = socketToRoom[socket.id];
-      if (r)
-        socket
-          .to(r)
-          .emit("user_mute_change", { socketId: socket.id, isMuted: m });
-    });
+
     socket.on("local_transcript", (p) => {
       const r = socketToRoom[socket.id];
       if (r) io.to(r).emit("transcript_item", p);
     });
 
-    // 5. Disconnect
-    socket.on("disconnect", async () => {
-      console.log(`❌ [Socket] Disconnected: ${socket.id}`);
+    // Mute Sync
+    socket.on("toggle_mute", (isMuted: boolean) => {
       const roomId = socketToRoom[socket.id];
+      if (roomId && users[roomId]) {
+        const user = users[roomId].find((u) => u.socketId === socket.id);
+        if (user) user.isMuted = isMuted;
+        socket
+          .to(roomId)
+          .emit("user_mute_change", { socketId: socket.id, isMuted });
+      }
+    });
 
+    // 강퇴
+    socket.on(
+      "kick_user",
+      async (data: {
+        roomId: string;
+        targetUserId: number;
+        targetSocketId: string;
+      }) => {
+        const { roomId, targetUserId, targetSocketId } = data;
+        const rId = Number(roomId);
+        try {
+          const roomData = await findVoiceRoomById(pool, rId);
+          const requester = users[roomId]?.find(
+            (u) => u.socketId === socket.id
+          );
+
+          if (roomData && requester && roomData.host_id === requester.userId) {
+            await banUser(pool, rId, targetUserId);
+
+            const targetSocket = io.sockets.sockets.get(targetSocketId);
+            if (targetSocket) {
+              targetSocket.emit("kicked");
+              targetSocket.disconnect(true); // 강퇴 시 강제 끊기
+            }
+
+            // 메모리 정리 및 전파
+            socket.to(roomId).emit("user_left", targetSocketId);
+            if (users[roomId]) {
+              users[roomId] = users[roomId].filter(
+                (u) => u.socketId !== targetSocketId
+              );
+            }
+          }
+        } catch (err) {
+          console.error("Kick failed:", err);
+        }
+      }
+    );
+
+    // Disconnect
+    socket.on("disconnect", async () => {
+      const roomId = socketToRoom[socket.id];
       if (roomId) {
-        // 나가는 유저 정보 찾기 (userId 필요)
+        const rId = Number(roomId);
         const leavingUser = users[roomId]?.find(
           (u) => u.socketId === socket.id
         );
 
-        // 메모리 정리
         if (users[roomId]) {
           users[roomId] = users[roomId].filter((u) => u.socketId !== socket.id);
         }
@@ -118,26 +179,36 @@ export default function voiceRoomSocket(io: Server) {
         socket.to(roomId).emit("user_left", socket.id);
         delete socketToRoom[socket.id];
 
-        // ✅ [DB Update] 유저 제거 및 빈 방 삭제
         if (leavingUser) {
           try {
-            const rId = Number(roomId);
+            const roomData = await findVoiceRoomById(pool, rId);
+            if (roomData && roomData.host_id === leavingUser.userId) {
+              console.log(`👑 Host left. Closing room...`);
+              socket.to(roomId).emit("room_closed");
+
+              // 방에 남은 사람들 강제 퇴장 처리
+              const socketsInRoom = await io.in(roomId).fetchSockets();
+              socketsInRoom.forEach((s) => s.disconnect(true));
+
+              await deleteVoiceRoomRow(pool, rId);
+              delete users[roomId];
+              return;
+            }
+
             const currentCount = await removeRoomParticipant(
               pool,
               rId,
               leavingUser.userId
             );
-
             if (
               currentCount <= 0 &&
               (!users[roomId] || users[roomId].length === 0)
             ) {
-              console.log(`🧹 Room ${roomId} empty. Deleting...`);
               await deleteVoiceRoomRow(pool, rId);
               delete users[roomId];
             }
           } catch (err) {
-            console.error("Failed to remove participant on disconnect:", err);
+            console.error(err);
           }
         }
       }

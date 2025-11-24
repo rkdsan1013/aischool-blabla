@@ -6,36 +6,30 @@ import * as service from "../services/voiceroomService";
 export async function createRoom(
   pool: Pool,
   payload: any,
-  user?: { name: string } // ✅ [수정] 유저 정보 수신
+  user?: { user_id: number; name: string } // ✅ [수정] id 포함
 ) {
   const hostName = user?.name || "Unknown";
+  const hostId = user?.user_id || 0; // Host ID 전달
   return await service.createVoiceRoom(pool, {
     ...payload,
     host_name: hostName,
+    host_id: hostId,
   });
 }
 
-/** GET /voice-room */
+// ... 나머지 함수들은 기존과 동일 ...
 export async function listRooms(pool: Pool, options?: any) {
   return await service.listVoiceRooms(pool, options);
 }
-
-/** GET /voice-room/:id */
 export async function getRoomById(pool: Pool, roomId: any) {
   return await service.getVoiceRoomById(pool, roomId);
 }
-
-/** PUT /voice-room/:id */
 export async function updateRoom(pool: Pool, roomId: any, payload: any) {
   return await service.updateVoiceRoom(pool, roomId, payload);
 }
-
-/** PATCH /voice-room/:id */
 export async function patchRoom(pool: Pool, roomId: any, payload: any) {
   return await service.patchVoiceRoom(pool, roomId, payload);
 }
-
-/** DELETE /voice-room/:id */
 export async function deleteRoom(pool: Pool, roomId: any) {
   return await service.deleteVoiceRoom(pool, roomId);
 }

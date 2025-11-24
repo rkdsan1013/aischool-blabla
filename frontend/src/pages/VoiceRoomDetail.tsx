@@ -43,6 +43,8 @@ import {
   AlertCircle,
   Send,
   Loader2,
+  UserMinus, // 강퇴 아이콘
+  MoreHorizontal, // 메뉴 아이콘
 } from "lucide-react";
 import io, { Socket } from "socket.io-client";
 import Peer from "simple-peer";
@@ -213,10 +215,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
   const animationRef = useRef<number | null>(null);
   const participantAnalyzers = useRef<Map<string, AnalyserNode>>(new Map());
   const lastSpeakingTimeRef = useRef<Map<string, number>>(new Map());
-
-  // [API 연동 대기] 주석 처리된 Recorder
-  // const recorderRef = useRef<MediaRecorder | null>(null);
-
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
   const interimIdRef = useRef<string | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
@@ -227,13 +225,22 @@ export default function VoiceRoomDetail(): React.ReactElement {
   // --- State ---
   const [isLoading, setIsLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState("방 접속 준비 중...");
-  const [roomInfo, setRoomInfo] = useState<{ name: string } | null>(null);
+  const [roomInfo, setRoomInfo] = useState<VoiceRoom | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [sessionTime, setSessionTime] = useState(0);
   const [inputText, setInputText] = useState("");
+
+  // 강퇴 메뉴 상태
+  const [menuState, setMenuState] = useState<{
+    socketId: string;
+    userId: number;
+    name: string;
+    x: number;
+    y: number;
+  } | null>(null);
 
   // Tooltip
   const [activeTooltipMsgId, setActiveTooltipMsgId] = useState<string | null>(
@@ -249,6 +256,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
     isAbove: boolean;
   }>({ top: 0, left: 0, width: 0, isAbove: false });
 
+  // Host Check
+  const isHost = roomInfo?.host_id === profile?.user_id;
   const isMobile = isMobileUA();
 
   // Sync Refs
@@ -279,6 +288,17 @@ export default function VoiceRoomDetail(): React.ReactElement {
     return () => window.removeEventListener("error", handleError);
   }, []);
 
+  // Close Menu Handler
+  useEffect(() => {
+    const handleClickOutside = () => setMenuState(null);
+    window.addEventListener("click", handleClickOutside);
+    window.addEventListener("scroll", handleClickOutside, true);
+    return () => {
+      window.removeEventListener("click", handleClickOutside);
+      window.removeEventListener("scroll", handleClickOutside, true);
+    };
+  }, []);
+
   // --- Transcript Helpers ---
   const addOrUpdateTranscript = useCallback((item: TranscriptItem) => {
     setTranscript((prev) => {
@@ -289,39 +309,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
       return [...prev, item];
     });
   }, []);
-
-  /*
-  // [API 연동 대기] 추후 서버 API 연동 시 주석 해제하여 사용
-  const sendTranscriptToServer = useCallback(
-    async (item: {
-      id: string;
-      speaker?: string;
-      text: string;
-      timestamp?: Date | string;
-      feedback?: FeedbackPayload | null;
-    }) => {
-      if (!roomId) return;
-      try {
-        await fetch(`/voice-room/${roomId}/transcript`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: item.id,
-            speaker: item.speaker || (profile ? profile.name : "unknown"),
-            text: item.text,
-            timestamp: item.timestamp
-              ? new Date(item.timestamp).toISOString()
-              : new Date().toISOString(),
-            feedback: item.feedback || null,
-          }),
-        });
-      } catch {
-        // silent fail
-      }
-    },
-    [roomId, profile]
-  );
-  */
 
   /* ------------------ Audio Analyzer (VAD) ------------------ */
   const attachAnalyzer = useCallback(
@@ -549,7 +536,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
       console.warn("Failed to initialize SpeechRecognition", e);
       recognitionRef.current = null;
     }
-  }, []); // [Fix] Empty dependency array (stable logic)
+  }, []); // Removed dependencies for stability
 
   const stopLocalRecognition = useCallback(() => {
     const rec = recognitionRef.current;
@@ -571,6 +558,25 @@ export default function VoiceRoomDetail(): React.ReactElement {
       interimIdRef.current = null;
     }
   }, []);
+
+  // ✅ 강퇴 핸들러
+  const handleKickUser = () => {
+    if (!menuState) return;
+    const { socketId, userId, name } = menuState;
+
+    if (
+      window.confirm(
+        `'${name}'님을 강퇴하시겠습니까?\n강퇴된 사용자는 이 방에 다시 입장할 수 없습니다.`
+      )
+    ) {
+      socketRef.current?.emit("kick_user", {
+        roomId,
+        targetUserId: userId,
+        targetSocketId: socketId,
+      });
+    }
+    setMenuState(null);
+  };
 
   /* ------------------ Main Effect ------------------ */
   useEffect(() => {
@@ -607,7 +613,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
         });
         localStreamRef.current = stream;
 
-        // Initial hardware mute check
         const audioTrack = stream.getAudioTracks()[0];
         const initialIsMuted = audioTrack ? !audioTrack.enabled : false;
         setIsMuted(initialIsMuted);
@@ -657,6 +662,44 @@ export default function VoiceRoomDetail(): React.ReactElement {
         socket.on("connect_error", (err) => {
           console.error("❌ Socket Error:", err);
           if (isMounted) setStatusMessage("서버 연결 실패... 재시도 중");
+        });
+
+        // Events
+        socket.on("room_closed", () => {
+          if (socketRef.current) socketRef.current.disconnect();
+          stopLocalRecognition();
+          alert("호스트가 퇴장하여 방이 종료되었습니다.");
+          navigate("/voiceroom");
+        });
+
+        // ✅ [Critical] 강퇴 메시지 수신 시 즉시 끊고 이동
+        socket.on("kicked", () => {
+          if (socketRef.current) {
+            socketRef.current.disconnect(); // 연결 끊기
+            socketRef.current = null;
+          }
+          stopLocalRecognition();
+
+          // 미디어 스트림 정지
+          if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach((t) => t.stop());
+          }
+
+          alert("호스트에 의해 강퇴되었습니다.");
+          navigate("/voiceroom");
+        });
+
+        socket.on("error_message", (msg: string) => {
+          if (socketRef.current) socketRef.current.disconnect();
+          stopLocalRecognition();
+          alert(msg);
+          navigate("/voiceroom");
+        });
+
+        socket.on("room_full", () => {
+          if (socketRef.current) socketRef.current.disconnect();
+          alert("방이 꽉 찼습니다.");
+          navigate("/voiceroom");
         });
 
         // --- Helpers for Socket Events ---
@@ -800,11 +843,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
           }
         );
 
-        socket.on("room_full", () => {
-          alert("방이 꽉 찼습니다.");
-          navigate("/voiceroom");
-        });
-
         socket.on("transcript_item", (item: TranscriptItem) => {
           const normalized: TranscriptItem = {
             ...item,
@@ -873,14 +911,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
       analyzersRef.clear();
       transcriptIds.clear();
-
-      /*
-      // [API 연동 대기]
-      if (recorderRef.current && recorderRef.current.state !== "inactive") {
-        try { recorderRef.current.stop(); } catch { }
-      }
-      recorderRef.current = null;
-      */
     };
   }, [
     roomId,
@@ -955,23 +985,12 @@ export default function VoiceRoomDetail(): React.ReactElement {
     addOrUpdateTranscript(newTranscript);
     setInputText("");
 
-    // 1. 소켓 전송 (실시간 공유)
     socketRef.current?.emit("local_transcript", {
       id: finalId,
       speaker: profileRef.current ? profileRef.current.name : "나",
       text: text,
       timestamp: new Date().toISOString(),
     });
-
-    /*
-    // [API 연동 대기]
-    sendTranscriptToServer({
-      id: finalId,
-      speaker: newTranscript.speaker,
-      text: newTranscript.text,
-      timestamp: newTranscript.timestamp,
-    });
-    */
   };
 
   const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
@@ -1154,8 +1173,32 @@ export default function VoiceRoomDetail(): React.ReactElement {
               style={{ WebkitOverflowScrolling: "touch" }}
             >
               {participants.map((p) => (
-                <div key={p.socketId} className="flex-none w-20 text-center">
-                  <div className="relative mx-auto w-14 h-14">
+                <div
+                  key={p.socketId}
+                  className="flex-none w-20 text-center relative"
+                >
+                  {/* Avatar Click Handler */}
+                  <div
+                    className="relative mx-auto w-14 h-14 cursor-pointer"
+                    onClick={(e) => {
+                      // ✅ [UI] 호스트가 다른 사람을 클릭하면 메뉴 토글
+                      if (isHost && p.socketId !== "me") {
+                        e.stopPropagation();
+                        if (menuState?.socketId === p.socketId) {
+                          setMenuState(null);
+                        } else {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setMenuState({
+                            socketId: p.socketId,
+                            userId: p.userId,
+                            name: p.name,
+                            x: rect.left + rect.width / 2,
+                            y: rect.bottom + 8,
+                          });
+                        }
+                      }
+                    }}
+                  >
                     {p.isSpeaking && (
                       <div className="absolute inset-0 rounded-full ring-4 ring-rose-400 ring-opacity-60 animate-pulse" />
                     )}
@@ -1166,10 +1209,16 @@ export default function VoiceRoomDetail(): React.ReactElement {
                     >
                       {p.name.charAt(0)}
                     </div>
-                    {/* Mute Icon Overlay */}
                     {p.isMuted && (
                       <div className="absolute -bottom-1 -right-1 bg-red-500 rounded-full p-1 border-2 border-white shadow-sm flex items-center justify-center">
                         <MicOff className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+
+                    {/* 호스트일 때 Hover 효과 */}
+                    {isHost && p.socketId !== "me" && (
+                      <div className="absolute inset-0 hover:bg-black/10 rounded-full transition-colors flex items-center justify-center">
+                        <MoreHorizontal className="text-white opacity-0 hover:opacity-100 transition-opacity" />
                       </div>
                     )}
                   </div>
@@ -1365,6 +1414,29 @@ export default function VoiceRoomDetail(): React.ReactElement {
           </section>
         </div>
       </main>
+
+      {/* ✅ [UI] 강퇴 메뉴 팝업 (Global Fixed Position) */}
+      {menuState && (
+        <div
+          style={{
+            position: "fixed",
+            top: menuState.y,
+            left: menuState.x,
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+          }}
+          className="bg-white rounded-lg shadow-xl border border-gray-100 py-1 min-w-[120px] overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={handleKickUser}
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <UserMinus className="w-4 h-4" />
+            강퇴하기
+          </button>
+        </div>
+      )}
 
       <FloatingFeedbackCard
         show={Boolean(activeTooltipMsgId)}

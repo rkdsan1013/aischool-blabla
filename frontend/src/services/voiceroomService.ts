@@ -11,20 +11,20 @@ export type VoiceRoom = {
   level: VoiceRoomLevel;
   max_participants: number;
   current_participants: number;
+  host_id: number; // ✅ [추가]
   host_name?: string;
   created_at?: string | null;
-  preview_users?: string; // ✅ [추가]
+  preview_users?: string;
 };
 
+// ... (나머지는 기존 코드와 동일)
 export type CreateVoiceRoomPayload = {
   name: string;
   description: string;
   level?: VoiceRoomLevel;
   max_participants?: number;
 };
-
 export type UpdateVoiceRoomPayload = Partial<CreateVoiceRoomPayload>;
-
 export async function createRoom(
   payload: CreateVoiceRoomPayload
 ): Promise<VoiceRoom> {
@@ -36,7 +36,6 @@ export async function createRoom(
           ? Number(payload.max_participants)
           : undefined,
     };
-
     const res: AxiosResponse<VoiceRoom> = await apiClient.post(
       "/voice-room",
       body
@@ -47,7 +46,6 @@ export async function createRoom(
     return Promise.reject();
   }
 }
-
 export async function getRooms(params?: {
   page?: number;
   size?: number;
@@ -63,7 +61,6 @@ export async function getRooms(params?: {
     return Promise.reject();
   }
 }
-
 export async function getRoomById(roomId: number): Promise<VoiceRoom> {
   try {
     const res: AxiosResponse<VoiceRoom> = await apiClient.get(
@@ -75,7 +72,6 @@ export async function getRoomById(roomId: number): Promise<VoiceRoom> {
     return Promise.reject();
   }
 }
-
 export async function updateRoom(
   roomId: number,
   payload: UpdateVoiceRoomPayload
@@ -98,7 +94,6 @@ export async function updateRoom(
     return Promise.reject();
   }
 }
-
 export async function patchRoom(
   roomId: number,
   payload: UpdateVoiceRoomPayload
@@ -121,7 +116,6 @@ export async function patchRoom(
     return Promise.reject();
   }
 }
-
 export async function deleteRoom(roomId: number): Promise<void> {
   try {
     await apiClient.delete(`/voice-room/${roomId}`);
@@ -131,14 +125,11 @@ export async function deleteRoom(roomId: number): Promise<void> {
     return Promise.reject();
   }
 }
-
 export function validateCreatePayload(payload: CreateVoiceRoomPayload) {
-  if (!payload.name || payload.name.trim().length === 0) {
+  if (!payload.name || payload.name.trim().length === 0)
     throw new ServiceError("방 이름을 입력해주세요.");
-  }
-  if (!payload.description || payload.description.trim().length === 0) {
+  if (!payload.description || payload.description.trim().length === 0)
     throw new ServiceError("방 설명을 입력해주세요.");
-  }
   if (
     payload.max_participants !== undefined &&
     (!Number.isFinite(payload.max_participants) ||
@@ -156,7 +147,6 @@ export function validateCreatePayload(payload: CreateVoiceRoomPayload) {
     throw new ServiceError("권장 레벨이 유효하지 않습니다.");
   }
 }
-
 const VoiceRoomService = {
   createRoom,
   getRooms,
@@ -166,5 +156,4 @@ const VoiceRoomService = {
   deleteRoom,
   validateCreatePayload,
 };
-
 export default VoiceRoomService;

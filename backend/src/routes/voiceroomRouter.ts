@@ -1,4 +1,6 @@
 // backend/src/routes/voiceroomRouter.ts
+// cspell:ignore voiceroom
+
 import express, { Request, Response, NextFunction } from "express";
 import { pool } from "../config/db";
 import { requireAuth } from "../middlewares/auth"; // ✅ 인증 미들웨어
@@ -35,8 +37,11 @@ router.post(
   "/",
   requireAuth, // ✅ 인증 필요
   asyncHandler(async (req: Request, res: Response) => {
-    // req.user에서 이름 추출 (requireAuth가 토큰 파싱 후 넣어줌)
-    const user = req.user as { name: string } | undefined;
+    // [Fix] req.user 타입 명시 (user_id 포함)
+    // requireAuth 미들웨어에서 user_id와 name 등을 토큰에서 추출해 넣습니다.
+    const user = req.user as { user_id: number; name: string } | undefined;
+
+    // 컨트롤러에 user 정보 전달
     const created = await controllerCreateRoom(pool, req.body, user);
     res.status(201).json(created);
   })

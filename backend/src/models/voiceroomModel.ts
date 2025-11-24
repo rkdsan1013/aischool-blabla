@@ -11,9 +11,10 @@ export type VoiceRoomRow = {
   level: VoiceRoomLevel;
   max_participants: number;
   current_participants: number;
+  host_id: number; // ✅ [추가]
   host_name: string;
   created_at: string | null;
-  preview_users?: string; // "userId|name|profileImg" 형태의 문자열
+  preview_users?: string;
 };
 
 export async function insertVoiceRoom(
@@ -23,19 +24,21 @@ export async function insertVoiceRoom(
     description: string;
     level: VoiceRoomLevel;
     max_participants: number;
+    host_id: number; // ✅ [추가]
     host_name: string;
   }
 ): Promise<number> {
   const conn = await pool.getConnection();
   try {
     const [result] = (await conn.execute(
-      `INSERT INTO voice_room (name, description, level, max_participants, current_participants, host_name)
-       VALUES (?, ?, ?, ?, 0, ?)`,
+      `INSERT INTO voice_room (name, description, level, max_participants, current_participants, host_id, host_name)
+       VALUES (?, ?, ?, ?, 0, ?, ?)`,
       [
         payload.name,
         payload.description,
         payload.level,
         payload.max_participants,
+        payload.host_id,
         payload.host_name,
       ]
     )) as unknown as [ResultSetHeader, any];
@@ -52,7 +55,7 @@ export async function findVoiceRoomById(
   const conn = await pool.getConnection();
   try {
     const [rows] = (await conn.execute(
-      `SELECT room_id, name, description, level, max_participants, current_participants, host_name, created_at
+      `SELECT room_id, name, description, level, max_participants, current_participants, host_id, host_name, created_at
        FROM voice_room WHERE room_id = ?`,
       [roomId]
     )) as unknown as [RowDataPacket[] & VoiceRoomRow[], any];
@@ -75,9 +78,6 @@ export async function selectVoiceRooms(
 
   const conn = await pool.getConnection();
   try {
-    // ✅ [핵심 수정] user_profiles 테이블과 조인하여 정보 가져오기
-    // GROUP_CONCAT을 사용해 "ID|이름|이미지" 형태의 문자열로 합침
-    // IFNULL(up.profile_img, 'null') : 이미지가 없으면 문자열 'null'로 처리
     let sql = `
       SELECT 
         r.*,
@@ -97,7 +97,6 @@ export async function selectVoiceRooms(
       params.push(options.level);
     }
 
-    // LIMIT, OFFSET은 직접 주입 (타입 에러 방지)
     sql += ` ORDER BY r.created_at DESC LIMIT ${size} OFFSET ${offset}`;
 
     const [rows] = (await conn.execute(sql, params)) as unknown as [
@@ -180,7 +179,6 @@ export async function deleteVoiceRoomRow(
   }
 }
 
-// ✅ [변경] 참여자 등록 (INSERT) 및 카운트 갱신
 export async function addRoomParticipant(
   pool: Pool,
   roomId: number,
@@ -189,21 +187,16 @@ export async function addRoomParticipant(
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-
-    // 1. 관계 테이블에 추가 (중복 무시)
     await conn.execute(
       `INSERT IGNORE INTO voice_room_participants (room_id, user_id) VALUES (?, ?)`,
       [roomId, userId]
     );
-
-    // 2. 카운트 업데이트 (정합성 보장)
     await conn.execute(
       `UPDATE voice_room 
        SET current_participants = (SELECT COUNT(*) FROM voice_room_participants WHERE room_id = ?)
        WHERE room_id = ?`,
       [roomId, roomId]
     );
-
     await conn.commit();
   } catch (err) {
     await conn.rollback();
@@ -213,7 +206,6 @@ export async function addRoomParticipant(
   }
 }
 
-// ✅ [변경] 참여자 제거 (DELETE) 및 카운트 갱신
 export async function removeRoomParticipant(
   pool: Pool,
   roomId: number,
@@ -222,22 +214,16 @@ export async function removeRoomParticipant(
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-
-    // 1. 관계 테이블에서 삭제
     await conn.execute(
       `DELETE FROM voice_room_participants WHERE room_id = ? AND user_id = ?`,
       [roomId, userId]
     );
-
-    // 2. 카운트 업데이트
     await conn.execute(
       `UPDATE voice_room 
        SET current_participants = (SELECT COUNT(*) FROM voice_room_participants WHERE room_id = ?)
        WHERE room_id = ?`,
       [roomId, roomId]
     );
-
-    // 3. 현재 인원 조회 (방 삭제 여부 판단용)
     const [rows] = (await conn.execute(
       `SELECT current_participants FROM voice_room WHERE room_id = ?`,
       [roomId]
@@ -253,18 +239,50 @@ export async function removeRoomParticipant(
   }
 }
 
-// Deprecated but kept for interface compatibility if needed elsewhere (but effectively replaced)
-export async function incrementParticipants(
+// ✅ [신규] 강퇴 처리 (Ban)
+export async function banUser(
   pool: Pool,
-  roomId: number
+  roomId: number,
+  userId: number
 ): Promise<void> {
-  // Placeholder to avoid breaking imports if any
-  // Logic is moved to addRoomParticipant
+  const conn = await pool.getConnection();
+  try {
+    // 1. Ban 목록에 추가
+    await conn.execute(
+      `INSERT IGNORE INTO voice_room_bans (room_id, user_id) VALUES (?, ?)`,
+      [roomId, userId]
+    );
+    // 2. 참여 목록에서 제거 (강퇴이므로)
+    await conn.execute(
+      `DELETE FROM voice_room_participants WHERE room_id = ? AND user_id = ?`,
+      [roomId, userId]
+    );
+    // 3. 카운트 갱신
+    await conn.execute(
+      `UPDATE voice_room 
+         SET current_participants = (SELECT COUNT(*) FROM voice_room_participants WHERE room_id = ?)
+         WHERE room_id = ?`,
+      [roomId, roomId]
+    );
+  } finally {
+    conn.release();
+  }
 }
-export async function decrementParticipants(
+
+// ✅ [신규] 강퇴 여부 확인
+export async function checkIsBanned(
   pool: Pool,
-  roomId: number
-): Promise<number> {
-  // Logic is moved to removeRoomParticipant
-  return 0;
+  roomId: number,
+  userId: number
+): Promise<boolean> {
+  const conn = await pool.getConnection();
+  try {
+    const [rows] = (await conn.execute(
+      `SELECT 1 FROM voice_room_bans WHERE room_id = ? AND user_id = ?`,
+      [roomId, userId]
+    )) as unknown as [RowDataPacket[], any];
+    return rows.length > 0;
+  } finally {
+    conn.release();
+  }
 }

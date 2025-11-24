@@ -11,7 +11,7 @@ import MyPage from "../pages/MyPage";
 import AITalk from "../pages/AITalkPage";
 import VoiceRoomPage from "../pages/VoiceRoomPage";
 import TrainingPage from "../pages/Training";
-import TrainingResult from "../pages/TrainingResult"; // [신규 Import]
+import TrainingResult from "../pages/TrainingResult";
 import VoiceRoomDetail from "../pages/VoiceRoomDetail";
 import VoiceRoomCreate from "../pages/VoiceRoomCreate";
 import AITalkPageDetail from "../pages/AITalkPageDetail";
@@ -46,13 +46,11 @@ export const routes: RouteObject[] = [
       {
         path: "/training",
         element: (
-          // 훈련 페이지도 로그인한 사용자만 접근 가능하도록 보호하는 것을 권장합니다.
           <ProtectedRoute redirectTo="/auth">
             <TrainingPage />
           </ProtectedRoute>
         ),
       },
-      // --- [신규] 결과 페이지 라우트 추가 ---
       {
         path: "/training/result",
         element: (
@@ -61,9 +59,9 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
-      // --- [추가 완료] ---
+      // ✅ [수정] URL 파라미터를 :id 로 통일
       {
-        path: "/voiceroom/room/:roomId",
+        path: "/voiceroom/:id",
         element: (
           <ProtectedRoute redirectTo="/auth">
             <VoiceRoomDetail />

@@ -6,15 +6,23 @@ import {
   generateTalkOpening,
   generateTalkResponse,
 } from "../ai/generators/talk";
+import { generateFeedbackOnly } from "../ai/generators/feedback"; // ✅ 신규 추가
 import { transcribeAudio, generateSpeech } from "../ai/audio";
 
 export const aiTalkService = {
-  // ... (CRUD 메서드 생략 - 기존 유지) ...
-  getScenarios: async (userId: number) =>
-    await aiTalkModel.getScenarios(userId),
-  getScenarioById: async (scenarioId: number) =>
-    await aiTalkModel.getScenarioById(scenarioId),
-  createCustomScenario: async (userId: number, data: any) => {
+  // --- 시나리오 CRUD ---
+  getScenarios: async (userId: number) => {
+    return await aiTalkModel.getScenarios(userId);
+  },
+
+  getScenarioById: async (scenarioId: number) => {
+    return await aiTalkModel.getScenarioById(scenarioId);
+  },
+
+  createCustomScenario: async (
+    userId: number,
+    data: { title: string; description: string; context: string }
+  ) => {
     const id = await aiTalkModel.createScenario(
       userId,
       data.title,
@@ -23,10 +31,18 @@ export const aiTalkService = {
     );
     return { scenario_id: id, ...data };
   },
-  updateCustomScenario: async (id: number, uid: number, data: any) =>
-    await aiTalkModel.updateScenario(id, uid, data),
-  deleteCustomScenario: async (id: number, uid: number) =>
-    await aiTalkModel.deleteScenario(id, uid),
+
+  updateCustomScenario: async (
+    scenarioId: number,
+    userId: number,
+    data: any
+  ) => {
+    return await aiTalkModel.updateScenario(scenarioId, userId, data);
+  },
+
+  deleteCustomScenario: async (scenarioId: number, userId: number) => {
+    return await aiTalkModel.deleteScenario(scenarioId, userId);
+  },
 
   // --- 대화 세션 로직 ---
 
@@ -37,6 +53,7 @@ export const aiTalkService = {
 
     const sessionId = await aiTalkModel.createSession(userId, scenarioId);
 
+    // AI 첫 마디 생성
     let openingText = "";
     try {
       openingText = await generateTalkOpening(scenario.context, level);
@@ -45,11 +62,12 @@ export const aiTalkService = {
       openingText = "Hello! I'm ready to talk.";
     }
 
+    // AI 첫 마디 음성 생성 (TTS)
     let aiAudio: Buffer | null = null;
     try {
       aiAudio = await generateSpeech(openingText);
     } catch (e) {
-      console.error("TTS error:", e);
+      console.error("TTS generation failed for opening:", e);
     }
 
     const aiMessage = await aiTalkModel.createMessage(
@@ -65,7 +83,7 @@ export const aiTalkService = {
     };
   },
 
-  // 2. 메시지 전송 (공통 로직)
+  // 2. 메시지 전송 (텍스트 입력 -> AI 응답 텍스트/음성)
   processUserMessage: async (
     sessionId: number,
     userId: number,
@@ -101,7 +119,6 @@ export const aiTalkService = {
     let isFinished = false;
 
     try {
-      // ✅ [수정] is_finished 받아오기
       const llmResult = await generateTalkResponse(
         context,
         history,
@@ -120,7 +137,7 @@ export const aiTalkService = {
     try {
       aiAudio = await generateSpeech(reply);
     } catch (e) {
-      console.error("TTS error:", e);
+      console.error("TTS generation failed:", e);
     }
 
     const aiMsgObj = await aiTalkModel.createMessage(sessionId, "ai", reply);
@@ -129,7 +146,6 @@ export const aiTalkService = {
       await aiTalkModel.createFeedback(userMsgObj.message_id, feedback);
     }
 
-    // ✅ [수정] 대화가 끝났다고 판단되면 세션 종료 처리
     if (isFinished) {
       await aiTalkModel.endSession(sessionId, userId);
     }
@@ -138,11 +154,11 @@ export const aiTalkService = {
       userMessage: { ...userMsgObj, feedback },
       aiMessage: aiMsgObj,
       aiAudio,
-      ended: isFinished, // 컨트롤러에 전달
+      ended: isFinished,
     };
   },
 
-  // 3. 음성 처리
+  // 3. 음성 메시지 처리 (오디오 입력 -> STT -> AI 처리)
   processUserAudio: async (
     sessionId: number,
     userId: number,
@@ -166,7 +182,25 @@ export const aiTalkService = {
     );
   },
 
+  // 4. 세션 종료
   endSession: async (sessionId: number, userId: number) => {
     return await aiTalkModel.endSession(sessionId, userId);
+  },
+
+  // ✅ [신규 추가] 독립적인 문장 분석/피드백 서비스
+  analyzeSentence: async (
+    userId: number,
+    content: string,
+    level: string,
+    context?: string
+  ) => {
+    try {
+      const feedback = await generateFeedbackOnly(content, level, context);
+      // 필요하다면 여기에 분석 로그 저장 로직 추가 가능
+      return feedback;
+    } catch (error) {
+      console.error("Feedback generation failed:", error);
+      throw new Error("Failed to generate feedback");
+    }
   },
 };

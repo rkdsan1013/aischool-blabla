@@ -1,9 +1,18 @@
-// src/pages/VoiceRoomPage.tsx
-import React, { useEffect, useMemo, useState } from "react";
+// frontend/src/pages/VoiceRoomPage.tsx
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Lock, Plus, Radio, Sparkles, Search } from "lucide-react";
+import {
+  Users,
+  Lock,
+  Plus,
+  Radio,
+  Sparkles,
+  Search,
+  Loader2,
+} from "lucide-react";
 import VoiceRoomService from "../services/voiceroomService";
 import type { VoiceRoom } from "../services/voiceroomService";
+import { useProfile } from "../hooks/useProfile";
 
 /**
  * UI에서 사용하는 Room 타입 (서비스에 없는 필드는 null 허용)
@@ -22,24 +31,22 @@ interface Room {
 export default function VoiceRoomPage() {
   const navigate = useNavigate();
 
-  // 훅은 항상 같은 순서로 선언되어야 합니다.
-  const [user, setUser] = useState<{ name: string; email: string } | null>({
-    name: "홍길동",
-    email: "test@test.com",
-  });
+  // 전역 상태에서 유저 정보 가져오기
+  const { profile, isProfileLoading } = useProfile();
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [query, setQuery] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // 로그인 체크: navigate는 훅이므로 위에서 선언된 후 사용
+  // 로그인 체크
   useEffect(() => {
-    if (!isLoading && !user) {
-      navigate("/login");
+    if (!isProfileLoading && !profile) {
+      navigate("/auth");
     }
-  }, [user, isLoading, navigate]);
+  }, [profile, isProfileLoading, navigate]);
 
-  // 실제 API에서 방 목록을 불러옵니다.
+  // 방 목록 조회
   useEffect(() => {
     let mounted = true;
 
@@ -54,20 +61,20 @@ export default function VoiceRoomPage() {
           id: String(v.room_id),
           name: v.name ?? null,
           topic: v.description ?? null,
-          host: null, // 서비스에 없는 필드
-          participants: null, // 서비스에 없는 필드
+          host: null,
+          participants: null,
           maxParticipants:
             v.max_participants !== undefined && v.max_participants !== null
               ? Number(v.max_participants)
               : null,
           level: v.level ?? null,
-          isPrivate: null, // 서비스에 없는 필드
+          isPrivate: null,
         }));
 
-        // id 내림차순(최신순)
+        // 최신순 정렬
         mapped.sort((a, b) => parseInt(b.id, 10) - parseInt(a.id, 10));
         setRooms(mapped);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("보이스룸 목록 로드 실패:", err);
         setErrorMessage(
           "보이스룸을 불러오는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요."
@@ -85,7 +92,7 @@ export default function VoiceRoomPage() {
   }, []);
 
   const handleJoinRoom = (roomId: string) => {
-    navigate(`/voiceroom/room/${roomId}`);
+    navigate(`/voiceroom/${roomId}`);
   };
 
   const handleCreateRoom = () => {
@@ -111,7 +118,7 @@ export default function VoiceRoomPage() {
     );
   }, [rooms, query]);
 
-  // 렌더: 조기 반환을 피하고 JSX 내부에서 상태별 UI를 처리합니다.
+  // 렌더링
   return (
     <div className="min-h-screen bg-white pb-20">
       {/* Hero Section */}
@@ -183,7 +190,7 @@ export default function VoiceRoomPage() {
         {/* 로딩 상태 표시 */}
         {isLoading && (
           <div className="min-h-[200px] flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500"></div>
+            <Loader2 className="w-10 h-10 animate-spin text-rose-500" />
           </div>
         )}
 

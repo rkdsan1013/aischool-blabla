@@ -1,547 +1,478 @@
-// src/pages/VoiceRoomDetail.tsx
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  Mic,
-  MicOff,
-  Users,
-  MessageSquare,
-  Volume2,
-  PhoneOff,
-  AlertCircle,
-  Send,
-} from "lucide-react";
-import FloatingFeedbackCard from "../components/FloatingFeedbackCard";
-import type {
-  FeedbackPayload,
-  ErrorType,
-} from "../components/FloatingFeedbackCard";
+// frontend/src/pages/VoiceRoomDetail.tsx
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Mic, MicOff, Users, Volume2, PhoneOff, Loader2 } from "lucide-react";
+import io, { Socket } from "socket.io-client";
+import Peer from "simple-peer";
+import VoiceRoomService, { type VoiceRoom } from "../services/voiceroomService";
+import { useProfile } from "../hooks/useProfile"; // ✅ useProfile Hook 사용
 
-/* ----------------------------- Types & helpers ----------------------------- */
-
+// --- Types ---
 interface Participant {
-  id: string;
+  socketId: string;
+  userId: number;
   name: string;
   isSpeaking: boolean;
-  speakingTime: number;
   isMuted: boolean;
+  stream?: MediaStream;
 }
 
-interface TranscriptItem {
+interface UserInfo {
+  userId: number;
+  name: string;
+}
+
+interface SignalPayload {
+  userToSignal: string;
+  callerID: string;
+  signal: Peer.SignalData;
+  userInfo: UserInfo;
+}
+
+interface ReturnSignalPayload {
+  signal: Peer.SignalData;
   id: string;
-  speaker: string;
-  text: string;
-  timestamp: Date;
-  feedback?: FeedbackPayload;
 }
 
-function formatTime(seconds: number) {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins.toString().padStart(2, "0")}:${secs
-    .toString()
-    .padStart(2, "0")}`;
+interface UserJoinedPayload {
+  signal: Peer.SignalData;
+  callerID: string;
+  userInfo: UserInfo;
 }
 
-function tokenizeWithIndices(text: string): { token: string; index: number }[] {
-  const parts = text.split(/(\s+)/);
-  const tokens: { token: string; index: number }[] = [];
-  let wordIndex = 0;
-  for (const part of parts) {
-    if (/\s+/.test(part)) {
-      tokens.push({ token: part, index: -1 });
-    } else {
-      tokens.push({ token: part, index: wordIndex });
-      wordIndex++;
-    }
-  }
-  return tokens;
-}
+type SafariWindow = Window &
+  typeof globalThis & {
+    webkitAudioContext: typeof AudioContext;
+  };
 
-function isMobileUA(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent || "";
-  return /Android|iPhone|iPad|iPod|Mobile|BlackBerry|IEMobile|Opera Mini/i.test(
-    ua
-  );
-}
-
-// Minimal speech recognition types to avoid `any`
-interface SpeechRecognitionAlternative {
-  transcript: string;
-}
-interface SpeechRecognitionResult {
-  isFinal: boolean;
-  [index: number]: SpeechRecognitionAlternative;
-  length: number;
-}
-interface SpeechRecognitionEvent {
-  results: SpeechRecognitionResult[];
-}
-interface IWebkitSpeechRecognition {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onstart: (() => void) | null;
-  onend: (() => void) | null;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  start: () => void;
-  stop: () => void;
-}
-
-/* -------------------------------- Component -------------------------------- */
-
-// 툴팁 간격 상수 정의
-const TOOLTIP_GAP_BELOW = 12;
-const TOOLTIP_GAP_ABOVE = 6;
+const SPEECH_THRESHOLD = 0.02;
+const SPEECH_HOLD_TIME = 1000;
 
 export default function VoiceRoomDetail(): React.ReactElement {
   const navigate = useNavigate();
-  const [isMuted, setIsMuted] = useState(false);
-  const [isConnected, setIsConnected] = useState(true);
-  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+  const { id: roomId } = useParams<{ id: string }>();
+
+  // ✅ [핵심] 전역 프로필 정보 사용
+  const { profile, isProfileLoading } = useProfile();
+
+  // --- Refs ---
+  const socketRef = useRef<Socket | null>(null);
+  const peersRef = useRef<{ peerID: string; peer: Peer.Instance }[]>([]);
+  const localStreamRef = useRef<MediaStream | null>(null);
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const animationRef = useRef<number | null>(null);
+  const participantAnalysers = useRef<Map<string, AnalyserNode>>(new Map());
+  const lastSpeakingTimeRef = useRef<Map<string, number>>(new Map());
+
+  // --- State ---
+  const [isLoading, setIsLoading] = useState(true);
+  const [statusMessage, setStatusMessage] = useState("방 접속 준비 중...");
+  const [roomInfo, setRoomInfo] = useState<{ name: string } | null>(null);
+
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
-  const [sessionTime, setSessionTime] = useState(0);
-  const recognitionRef = useRef<IWebkitSpeechRecognition | null>(null);
-  const transcriptRef = useRef<HTMLDivElement | null>(null);
-  const participantsRef = useRef<HTMLDivElement | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
 
-  const [inputText, setInputText] = useState("");
-
-  // shared card state
-  const [activeTooltipMsgId, setActiveTooltipMsgId] = useState<string | null>(
-    null
-  );
-  const [activeTooltipWordIndexes, setActiveTooltipWordIndexes] = useState<
-    number[]
-  >([]);
-
-  // ✅ [수정] isAbove 상태 추가
-  const [cardPos, setCardPos] = useState<{
-    top: number;
-    left: number;
-    width: number;
-    isAbove: boolean;
-  }>({ top: 0, left: 0, width: 0, isAbove: false });
-
-  const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const isMobile = isMobileUA();
-
-  // 푸터 높이 상수 (px)
-  const FOOTER_HEIGHT = 92;
-
-  // initial data
-  useEffect(() => {
-    setParticipants([
-      {
-        id: "1",
-        name: "나",
-        isSpeaking: false,
-        speakingTime: 0,
-        isMuted: false,
-      },
-      {
-        id: "2",
-        name: "김영희",
-        isSpeaking: false,
-        speakingTime: 45,
-        isMuted: false,
-      },
-      {
-        id: "3",
-        name: "이철수",
-        isSpeaking: false,
-        speakingTime: 32,
-        isMuted: false,
-      },
-      {
-        id: "4",
-        name: "박민수",
-        isSpeaking: false,
-        speakingTime: 28,
-        isMuted: false,
-      },
-    ]);
-
-    setTranscript([
-      {
-        id: "1",
-        speaker: "김영희",
-        text: "Hi everyone! How are you doing today?",
-        timestamp: new Date(Date.now() - 300000),
-      },
-      {
-        id: "2",
-        speaker: "나",
-        text: "I'm doing great, thanks! How about you?",
-        timestamp: new Date(Date.now() - 240000),
-        feedback: {
-          errors: [],
-          explanation: "자연스러운 응답이에요.",
-          suggestion: "I'm doing great, thanks! How about you?",
-        },
-      },
-      {
-        id: "3",
-        speaker: "이철수",
-        text: "I had a wonderful weekend. I went hiking with my friends.",
-        timestamp: new Date(Date.now() - 180000),
-      },
-      {
-        id: "4",
-        speaker: "나",
-        text: "He ain't coming to the meeting.",
-        timestamp: new Date(Date.now() - 120000),
-        feedback: {
-          errors: [
-            {
-              index: 1,
-              word: "ain't",
-              type: "word",
-              message:
-                "비표준적이고 구어체적인 표현으로 공식적인 문맥에서는 적절하지 않음",
-            },
-          ],
-          explanation: "공식적 맥락에서는 'isn't' 또는 'is not'을 사용합니다.",
-          suggestion: "He isn't coming to the meeting.",
-        },
-      },
-      {
-        id: "5",
-        speaker: "나",
-        text: "She go to the office every day.",
-        timestamp: new Date(Date.now() - 90000),
-        feedback: {
-          errors: [
-            {
-              index: 1,
-              word: "go",
-              type: "grammar",
-              message: "3인칭 단수 주어에는 현재형 동사에 -s 필요",
-            },
-          ],
-          explanation: "주어가 She일 때 동사는 goes가 됩니다.",
-          suggestion: "She goes to the office every day.",
-        },
-      },
-      {
-        id: "6",
-        speaker: "나",
-        text: "I didn't receive the email yet.",
-        timestamp: new Date(Date.now() - 60000),
-        feedback: {
-          errors: [
-            {
-              index: 3,
-              word: "receive",
-              type: "spelling",
-              message: "'receive'로 철자 수정 필요",
-            },
-          ],
-          explanation: "'receive'가 올바른 철자입니다.",
-          suggestion: "I didn't receive the email yet.",
-        },
-      },
-      {
-        id: "7",
-        speaker: "나",
-        text: "Yo, I'm like super into coding and stuff.",
-        timestamp: new Date(),
-        feedback: {
-          errors: [
-            {
-              index: null,
-              word: null,
-              type: "style",
-              message: "면접/격식 문맥에서 지나치게 비격식적이고 모호한 표현",
-            },
-          ],
-          explanation: "격식 있는 어휘와 구체성을 높여 표현해 보세요.",
-          suggestion:
-            "I am highly interested in software development, particularly in building reliable web applications.",
-        },
-      },
-    ]);
-
-    const t = setInterval(() => setSessionTime((s) => s + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  // STT simulation
-  useEffect(() => {
-    const w = window as unknown as {
-      webkitSpeechRecognition?: new () => IWebkitSpeechRecognition;
-    };
-    if (typeof window !== "undefined" && w.webkitSpeechRecognition) {
-      if (!recognitionRef.current) {
-        const recognition = new w.webkitSpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = "en-US";
-
-        recognition.onstart = () => {
-          setParticipants((prev) =>
-            prev.map((p) => (p.id === "1" ? { ...p, isSpeaking: true } : p))
-          );
-        };
-
-        recognition.onend = () => {
-          setParticipants((prev) =>
-            prev.map((p) => (p.id === "1" ? { ...p, isSpeaking: false } : p))
-          );
-          if (!isMuted && isConnected) {
-            setTimeout(() => {
-              try {
-                recognition.start();
-              } catch {
-                // intentionally empty
-              }
-            }, 200);
-          }
-        };
-
-        recognition.onresult = (event: SpeechRecognitionEvent) => {
-          const last = event.results.length - 1;
-          const text = event.results[last][0].transcript;
-          if (event.results[last].isFinal) {
-            const newTranscript: TranscriptItem = {
-              id: Date.now().toString(),
-              speaker: "나",
-              text,
-              timestamp: new Date(),
-              feedback:
-                text.length > 20
-                  ? {
-                      errors: [],
-                      explanation: "발음이 자연스러워요.",
-                      suggestion: text,
-                    }
-                  : undefined,
-            };
-            setTranscript((prev) => [...prev, newTranscript]);
-          }
-        };
-
-        recognitionRef.current = recognition;
-      }
+  // --- Helpers ---
+  const attachAnalyser = useCallback(
+    (socketId: string, stream: MediaStream) => {
+      if (!audioContextRef.current) return;
+      const ctx = audioContextRef.current;
+      if (stream.getAudioTracks().length === 0) return;
 
       try {
-        if (isConnected && !isMuted && recognitionRef.current)
-          recognitionRef.current.start();
-      } catch {
-        // intentionally empty
+        if (participantAnalysers.current.has(socketId)) return;
+
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 512;
+        source.connect(analyser);
+        participantAnalysers.current.set(socketId, analyser);
+      } catch (e) {
+        console.warn("AudioContext connect warning:", e);
       }
+    },
+    []
+  );
+
+  const updateParticipantStream = useCallback(
+    (socketId: string, stream: MediaStream) => {
+      setParticipants((prev) => {
+        const target = prev.find((p) => p.socketId === socketId);
+        if (target && target.stream === stream) return prev;
+        return prev.map((p) =>
+          p.socketId === socketId ? { ...p, stream } : p
+        );
+      });
+      attachAnalyser(socketId, stream);
+    },
+    [attachAnalyser]
+  );
+
+  // --- Initialize ---
+  useEffect(() => {
+    // 1. roomId가 없거나 프로필 로딩 중이면 대기
+    if (!roomId) return;
+    if (isProfileLoading) return;
+
+    // 2. 로그인 체크 (프로필이 없으면 로그인 페이지로)
+    if (!profile) {
+      alert("로그인이 필요합니다.");
+      navigate("/auth");
+      return;
     }
 
-    const speakingInterval = setInterval(() => {
-      const other = ["2", "3", "4"];
-      const rand = other[Math.floor(Math.random() * other.length)];
-      setParticipants((prev) =>
-        prev.map((p) =>
-          p.id === rand
-            ? { ...p, isSpeaking: true }
-            : p.id !== "1"
-            ? { ...p, isSpeaking: false }
-            : p
-        )
-      );
-      setTimeout(() => {
-        setParticipants((prev) =>
-          prev.map((p) => (p.id === rand ? { ...p, isSpeaking: false } : p))
-        );
-      }, 2000 + Math.random() * 3000);
-    }, 5000);
+    let isMounted = true;
+    const analysersMap = participantAnalysers.current;
 
-    return () => {
-      clearInterval(speakingInterval);
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.onresult = null;
-          recognitionRef.current.onend = null;
-          recognitionRef.current.onstart = null;
-          recognitionRef.current.stop();
-        } catch {
-          // intentionally empty
+    const initRoom = async () => {
+      try {
+        console.log("🚀 [VoiceRoom] 초기화 시작");
+        console.log("👤 [User] 접속자:", profile.name, profile.user_id);
+
+        // 3. 방 정보 조회
+        if (isMounted) setStatusMessage("방 정보를 불러오는 중...");
+        const roomDataPromise = VoiceRoomService.getRoomById(Number(roomId));
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout")), 5000)
+        );
+
+        const data = (await Promise.race([
+          roomDataPromise,
+          timeoutPromise,
+        ])) as VoiceRoom;
+        if (!isMounted) return;
+        setRoomInfo(data);
+
+        // 4. 마이크 권한 요청
+        if (isMounted) setStatusMessage("마이크 권한 요청 중...");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: true,
+        });
+        localStreamRef.current = stream;
+
+        if (!isMounted) return;
+
+        // 5. 내 정보 UI 추가 (useProfile 값 사용)
+        setParticipants([
+          {
+            socketId: "me",
+            userId: profile.user_id,
+            name: profile.name,
+            isSpeaking: false,
+            isMuted: false,
+            stream: stream,
+          },
+        ]);
+
+        // 6. VAD 시작
+        if (isMounted) setIsLoading(false);
+        startAudioAnalysis();
+
+        // 7. 소켓 연결
+        if (isMounted) setStatusMessage("서버 연결 시도 중...");
+        socketRef.current = io("http://localhost:3000", {
+          transports: ["websocket"],
+          withCredentials: true,
+        });
+        const socket = socketRef.current;
+
+        socket.on("connect", () => {
+          console.log("✅ [VoiceRoom] 소켓 연결됨");
+          // useProfile 값으로 입장 요청
+          socket.emit("join_room", {
+            roomId,
+            userId: profile.user_id,
+            name: profile.name,
+          });
+        });
+
+        socket.on("connect_error", (err) => {
+          console.error("❌ [VoiceRoom] 소켓 연결 에러:", err);
+          if (isMounted) setStatusMessage("서버 연결 실패... 재시도 중");
+        });
+
+        // --- WebRTC Event Handlers ---
+        const createPeer = (
+          userToSignal: string,
+          callerID: string,
+          stream: MediaStream,
+          userInfo: UserInfo
+        ) => {
+          const peer = new Peer({ initiator: true, trickle: false, stream });
+          peer.on("signal", (signal) => {
+            socketRef.current?.emit("sending_signal", {
+              userToSignal,
+              callerID,
+              signal,
+              userInfo,
+            } as SignalPayload);
+          });
+          peer.on("stream", (remoteStream) => {
+            updateParticipantStream(userToSignal, remoteStream);
+          });
+          return peer;
+        };
+
+        const addPeer = (
+          incomingSignal: Peer.SignalData,
+          callerID: string,
+          stream: MediaStream
+        ) => {
+          const peer = new Peer({ initiator: false, trickle: false, stream });
+          peer.on("signal", (signal) => {
+            socketRef.current?.emit("returning_signal", { signal, callerID });
+          });
+          peer.on("stream", (remoteStream) => {
+            updateParticipantStream(callerID, remoteStream);
+          });
+          peer.signal(incomingSignal);
+          return peer;
+        };
+
+        socket.on(
+          "all_users",
+          (
+            users: Array<{ socketId: string; userId: number; name: string }>
+          ) => {
+            if (!socket.id) return;
+
+            const newPeers: { peerID: string; peer: Peer.Instance }[] = [];
+            const newParticipants: Participant[] = [];
+
+            users.forEach((user) => {
+              if (peersRef.current.find((p) => p.peerID === user.socketId))
+                return;
+
+              const peer = createPeer(
+                user.socketId,
+                socket.id as string,
+                stream,
+                {
+                  userId: profile.user_id,
+                  name: profile.name,
+                }
+              );
+
+              newPeers.push({ peerID: user.socketId, peer });
+              newParticipants.push({
+                socketId: user.socketId,
+                userId: user.userId,
+                name: user.name,
+                isSpeaking: false,
+                isMuted: false,
+              });
+            });
+
+            peersRef.current.push(...newPeers);
+            setParticipants((prev) => [...prev, ...newParticipants]);
+
+            if (isMounted) setIsLoading(false);
+          }
+        );
+
+        socket.on("user_joined", (payload: UserJoinedPayload) => {
+          if (peersRef.current.find((p) => p.peerID === payload.callerID))
+            return;
+
+          const peer = addPeer(payload.signal, payload.callerID, stream);
+          peersRef.current.push({ peerID: payload.callerID, peer });
+
+          setParticipants((prev) => {
+            if (prev.find((p) => p.socketId === payload.callerID)) return prev;
+            return [
+              ...prev,
+              {
+                socketId: payload.callerID,
+                userId: payload.userInfo.userId,
+                name: payload.userInfo.name,
+                isSpeaking: false,
+                isMuted: false,
+              },
+            ];
+          });
+        });
+
+        socket.on(
+          "receiving_returned_signal",
+          (payload: ReturnSignalPayload) => {
+            const item = peersRef.current.find((p) => p.peerID === payload.id);
+            item?.peer.signal(payload.signal);
+          }
+        );
+
+        socket.on("user_left", (id: string) => {
+          const peerObj = peersRef.current.find((p) => p.peerID === id);
+          if (peerObj) peerObj.peer.destroy();
+          peersRef.current = peersRef.current.filter((p) => p.peerID !== id);
+          setParticipants((prev) => prev.filter((p) => p.socketId !== id));
+          participantAnalysers.current.delete(id);
+        });
+
+        socket.on(
+          "user_mute_change",
+          (payload: { socketId: string; isMuted: boolean }) => {
+            setParticipants((prev) =>
+              prev.map((p) =>
+                p.socketId === payload.socketId
+                  ? { ...p, isMuted: payload.isMuted }
+                  : p
+              )
+            );
+          }
+        );
+
+        socket.on("room_full", () => {
+          alert("방이 꽉 찼습니다.");
+          navigate("/voiceroom");
+        });
+      } catch (err: unknown) {
+        console.error("🚨 초기화 실패:", err);
+        if (!isMounted) return;
+
+        let errorMessage = "방에 입장할 수 없습니다.";
+        if (err instanceof Error && err.message === "Timeout") {
+          errorMessage = "서버 응답이 지연되고 있습니다.";
         }
-        recognitionRef.current = null;
+        if (err instanceof DOMException && err.name === "NotAllowedError") {
+          errorMessage = "마이크 권한을 허용해주세요.";
+        }
+        alert(errorMessage);
+        navigate("/voiceroom");
       }
     };
-  }, [isConnected, isMuted]);
 
-  // keep scroll bottom
-  useEffect(() => {
-    transcriptRef.current?.scrollTo({
-      top: transcriptRef.current.scrollHeight,
-      behavior: "smooth",
-    });
-  }, [transcript.length]);
+    initRoom();
 
-  const toggleMute = () => {
-    setIsMuted((s) => {
-      const newMuted = !s;
-      const rec = recognitionRef.current;
-      if (rec) {
-        try {
-          if (newMuted) rec.stop();
-          else if (isConnected) rec.start();
-        } catch {
-          // intentionally empty
-        }
+    return () => {
+      isMounted = false;
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
       }
-      return newMuted;
-    });
+      peersRef.current.forEach(({ peer }) => peer.destroy());
+      peersRef.current = [];
+
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (audioContextRef.current) audioContextRef.current.close();
+
+      analysersMap.clear();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, profile, isProfileLoading]); // ✅ profile 변경 시 재실행
+
+  // --- VAD Logic ---
+  const startAudioAnalysis = useCallback(() => {
+    if (audioContextRef.current) return;
+
+    try {
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as unknown as SafariWindow).webkitAudioContext;
+      const audioContext = new AudioContextClass();
+      audioContextRef.current = audioContext;
+
+      if (localStreamRef.current) {
+        attachAnalyser("me", localStreamRef.current);
+      }
+
+      const analyze = () => {
+        if (!audioContextRef.current) return;
+
+        const updates: { id: string; speaking: boolean }[] = [];
+        const now = Date.now();
+
+        participantAnalysers.current.forEach((analyser, socketId) => {
+          const bufferLength = analyser.fftSize;
+          const dataArray = new Float32Array(bufferLength);
+          analyser.getFloatTimeDomainData(dataArray);
+
+          let sumSquares = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            sumSquares += dataArray[i] * dataArray[i];
+          }
+          const rms = Math.sqrt(sumSquares / bufferLength);
+
+          // Hysteresis 적용
+          if (rms > SPEECH_THRESHOLD) {
+            lastSpeakingTimeRef.current.set(socketId, now);
+            updates.push({ id: socketId, speaking: true });
+          } else {
+            const lastTime = lastSpeakingTimeRef.current.get(socketId) || 0;
+            if (now - lastTime < SPEECH_HOLD_TIME) {
+              updates.push({ id: socketId, speaking: true });
+            } else {
+              updates.push({ id: socketId, speaking: false });
+            }
+          }
+        });
+
+        if (updates.length > 0) {
+          setParticipants((prev) => {
+            let hasChanges = false;
+            const nextState = prev.map((p) => {
+              const update = updates.find((u) => u.id === p.socketId);
+              if (update && update.speaking !== p.isSpeaking) {
+                hasChanges = true;
+                return { ...p, isSpeaking: update.speaking };
+              }
+              return p;
+            });
+            return hasChanges ? nextState : prev;
+          });
+        }
+        animationRef.current = requestAnimationFrame(analyze);
+      };
+      analyze();
+    } catch (e) {
+      console.error("VAD Start Error:", e);
+    }
+  }, [attachAnalyser]);
+
+  // --- Handlers ---
+  const toggleMute = () => {
+    if (!localStreamRef.current) return;
+    const audioTrack = localStreamRef.current.getAudioTracks()[0];
+    if (audioTrack) {
+      const newMuted = !audioTrack.enabled;
+      audioTrack.enabled = newMuted;
+      setIsMuted(!newMuted);
+      socketRef.current?.emit("toggle_mute", !newMuted);
+    }
   };
 
   const handleLeaveRoom = () => {
-    const rec = recognitionRef.current;
-    if (rec) {
-      try {
-        rec.stop();
-      } catch {
-        // intentionally empty
-      }
-    }
-    setIsConnected(false);
     navigate("/voiceroom");
   };
 
-  const handleSend = () => {
-    const text = inputText.trim();
-    if (!text) return;
-    const newTranscript: TranscriptItem = {
-      id: Date.now().toString(),
-      speaker: "나",
-      text,
-      timestamp: new Date(),
-    };
-    setTranscript((prev) => [...prev, newTranscript]);
-    setInputText("");
-  };
-
-  const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  // helpers
-  function isWordErrored(index: number, feedback?: FeedbackPayload) {
-    if (!feedback) return { errored: false, kind: null as ErrorType | null };
-    for (const e of feedback.errors) {
-      if (e.type !== "style" && e.index === index) {
-        return { errored: true, kind: e.type };
-      }
-    }
-    return { errored: false, kind: null as ErrorType | null };
-  }
-  function hasStyleError(feedback?: FeedbackPayload) {
-    return Boolean(feedback?.errors.find((e) => e.type === "style"));
+  // 로딩 화면
+  if (isProfileLoading || (isLoading && !roomInfo)) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+        <Loader2 className="w-10 h-10 animate-spin mb-4 text-rose-500" />
+        <p className="text-gray-600 font-medium">{statusMessage}</p>
+      </div>
+    );
   }
 
-  // ✅ [수정] 카드 위치 계산 로직 개선
-  const updateCardPosition = useCallback((msgId: string) => {
-    const node = bubbleRefs.current[msgId];
-    if (!node) return;
-    const rect = node.getBoundingClientRect();
-    const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
-
-    const desiredWidth = Math.min(rect.width, viewportW * 0.92);
-    const center = rect.left + rect.width / 2;
-    let left = center - desiredWidth / 2;
-    left = Math.max(8, Math.min(left, viewportW - desiredWidth - 8));
-
-    const estimatedCardHeight = 160; // 공간 계산용 추정치
-
-    const spaceBelow = viewportH - rect.bottom;
-    const spaceAbove = rect.top;
-
-    let top: number;
-    let isAbove = false;
-
-    if (spaceBelow >= estimatedCardHeight + TOOLTIP_GAP_BELOW) {
-      // 아래 공간 충분 -> 아래 배치
-      top = rect.bottom + TOOLTIP_GAP_BELOW;
-      isAbove = false;
-    } else if (spaceAbove >= estimatedCardHeight + TOOLTIP_GAP_ABOVE) {
-      // 위 공간 충분 -> 위 배치
-      isAbove = true;
-      // ✅ [수정] 높이를 빼지 않고 말풍선 상단 기준점 설정 (CSS transform이 위로 올림)
-      top = rect.top - TOOLTIP_GAP_ABOVE;
-    } else {
-      // 둘 다 부족할 때 더 넓은 쪽 선택
-      isAbove = spaceAbove >= spaceBelow;
-      if (isAbove) {
-        top = rect.top - TOOLTIP_GAP_ABOVE;
-      } else {
-        // Fallback 아래쪽
-        const maxAllowedTop = Math.max(8, viewportH - estimatedCardHeight - 8);
-        top = Math.min(rect.bottom + TOOLTIP_GAP_BELOW, maxAllowedTop);
-      }
-    }
-
-    setCardPos({ top, left, width: desiredWidth, isAbove });
-
-    const outOfView = rect.bottom < 0 || rect.top > viewportH;
-    if (outOfView) {
-      closeTooltip();
-    }
-  }, []);
-
-  // interactions
-  function onWordInteract(
-    msgId: string,
-    wordIndex: number,
-    feedback?: FeedbackPayload
-  ) {
-    if (!feedback) return;
-    const errorsForWord = feedback.errors.filter((e) => e.index === wordIndex);
-    if (errorsForWord.length === 0) return;
-    setActiveTooltipMsgId(msgId);
-    setActiveTooltipWordIndexes([wordIndex]);
-    updateCardPosition(msgId);
-  }
-
-  function onSentenceInteract(msgId: string, feedback?: FeedbackPayload) {
-    if (!feedback) return;
-    if (!hasStyleError(feedback)) return;
-    setActiveTooltipMsgId(msgId);
-    setActiveTooltipWordIndexes([]); // style-only
-    updateCardPosition(msgId);
-  }
-
-  function closeTooltip() {
-    setActiveTooltipMsgId(null);
-    setActiveTooltipWordIndexes([]);
-  }
-
-  useEffect(() => {
-    function onScroll() {
-      if (activeTooltipMsgId) updateCardPosition(activeTooltipMsgId);
-    }
-    function onResize() {
-      if (activeTooltipMsgId) updateCardPosition(activeTooltipMsgId);
-    }
-    // transcript scroll event handling needs to be attached to the scrollable container
-    const scrollContainer = transcriptRef.current;
-    if (scrollContainer) {
-      scrollContainer.addEventListener("scroll", onScroll, { passive: true });
-    }
-    window.addEventListener("resize", onResize);
-
-    return () => {
-      if (scrollContainer) {
-        scrollContainer.removeEventListener("scroll", onScroll);
-      }
-      window.removeEventListener("resize", onResize);
-    };
-  }, [activeTooltipMsgId, updateCardPosition]);
-
-  // 레이아웃: AITalkPageDetail과 동일한 중앙 정렬 + 여백(max-w-4xl)
   return (
     <div className="min-h-screen h-screen w-screen overflow-hidden bg-white text-gray-900 flex flex-col">
+      {/* Remote Audios */}
+      {participants.map((p) => {
+        if (p.socketId === "me" || !p.stream) return null;
+        return (
+          <AudioPlayer
+            key={p.socketId}
+            stream={p.stream}
+            isSpeakerOn={isSpeakerOn}
+          />
+        );
+      })}
+
       {/* Header */}
       <header className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-gray-200 flex-shrink-0">
         <div className="max-w-4xl w-full mx-auto flex items-center justify-between">
@@ -552,10 +483,10 @@ export default function VoiceRoomDetail(): React.ReactElement {
               </div>
               <div className="flex flex-col leading-tight">
                 <span className="text-sm sm:text-base font-bold">
-                  초보자 환영방
+                  {roomInfo?.name || "보이스룸"}
                 </span>
                 <span className="text-xs text-gray-600">
-                  {participants.length}명 · {formatTime(sessionTime)}
+                  {participants.length}명 참여 중
                 </span>
               </div>
             </div>
@@ -569,12 +500,12 @@ export default function VoiceRoomDetail(): React.ReactElement {
                   ? "bg-rose-50 text-rose-600"
                   : "bg-gray-50 text-gray-500"
               } hover:brightness-95`}
-              aria-pressed={isSpeakerOn}
-              aria-label={isSpeakerOn ? "스피커 끄기" : "스피커 켜기"}
-              title={isSpeakerOn ? "스피커 켜짐" : "스피커 꺼짐"}
-              style={{ width: 40, height: 40 }}
             >
-              <Volume2 className="w-5 h-5" />
+              {isSpeakerOn ? (
+                <Volume2 className="w-5 h-5" />
+              ) : (
+                <Volume2 className="w-5 h-5 opacity-50" />
+              )}
             </button>
 
             <button
@@ -582,10 +513,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
               className={`p-2.5 rounded-full flex items-center justify-center ${
                 isMuted ? "bg-red-50 text-red-600" : "bg-gray-50 text-gray-700"
               } hover:brightness-95`}
-              aria-pressed={isMuted}
-              aria-label={isMuted ? "음소거 해제" : "음소거"}
-              title={isMuted ? "마이크 음소거됨" : "마이크 음소거 아님"}
-              style={{ width: 40, height: 40 }}
             >
               {isMuted ? (
                 <MicOff className="w-5 h-5" />
@@ -597,8 +524,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
             <button
               onClick={handleLeaveRoom}
               className="flex items-center gap-1 px-4.5 py-1.5 rounded-full bg-red-600 text-white text-sm hover:bg-red-700"
-              aria-label="나가기"
-              title="나가기"
             >
               <div className="w-8 h-8 flex items-center justify-center">
                 <PhoneOff className="w-4 h-4 text-white" />
@@ -609,260 +534,65 @@ export default function VoiceRoomDetail(): React.ReactElement {
         </div>
       </header>
 
-      {/* Main (centered content area) */}
-      <main className="flex-1 flex flex-col min-h-0">
-        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 pt-4 pb-0 flex-1 flex flex-col gap-4">
-          {/* Participants strip */}
-          <div className="w-full border-b border-gray-100">
-            <div
-              ref={participantsRef}
-              className="flex gap-3 overflow-x-auto py-3 px-3 no-scrollbar"
-              style={{ WebkitOverflowScrolling: "touch" }}
-            >
-              {participants.map((p) => (
-                <div key={p.id} className="flex-none w-20 text-center">
-                  <div className="relative mx-auto w-14 h-14">
-                    {p.isSpeaking && (
-                      <div className="absolute inset-0 rounded-full ring-4 ring-rose-400 ring-opacity-60 animate-pulse" />
-                    )}
-                    <div
-                      className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold shadow-md ${
-                        p.id === "1" ? "bg-rose-500" : "bg-gray-300"
-                      }`}
-                    >
-                      {p.name.charAt(0)}
-                    </div>
-                  </div>
-                  <div className="mt-2 text-xs font-medium text-gray-900 truncate">
-                    {p.name}
+      {/* Main */}
+      <main className="flex-1 flex flex-col min-h-0 bg-gray-50">
+        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 pt-8 pb-8 flex-1 flex flex-col items-center justify-center">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 w-full">
+            {participants.map((p) => (
+              <div key={p.socketId} className="flex flex-col items-center">
+                <div className="relative w-24 h-24 sm:w-32 sm:h-32">
+                  {/* Speaking Pulse */}
+                  {p.isSpeaking && !p.isMuted && (
+                    <div className="absolute inset-0 rounded-full ring-4 ring-rose-400 ring-opacity-60 animate-pulse" />
+                  )}
+                  <div
+                    className={`w-full h-full rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg transition-transform duration-200 ${
+                      p.socketId === "me"
+                        ? "bg-gradient-to-br from-rose-400 to-rose-600"
+                        : "bg-white text-gray-700 border-2 border-gray-200"
+                    }`}
+                  >
+                    {p.name.charAt(0)}
                   </div>
                   {p.isMuted && (
-                    <div className="text-xs text-gray-400 mt-1">Muted</div>
+                    <div className="absolute bottom-0 right-0 bg-gray-800 text-white p-1.5 rounded-full shadow-sm border-2 border-white">
+                      <MicOff className="w-4 h-4" />
+                    </div>
                   )}
                 </div>
-              ))}
-            </div>
+                <div className="mt-3 text-center">
+                  <div className="font-semibold text-gray-900 text-lg truncate max-w-[120px]">
+                    {p.name} {p.socketId === "me" && "(나)"}
+                  </div>
+                  <div className="text-xs text-gray-500 font-medium mt-0.5">
+                    {p.isSpeaking && !p.isMuted ? "말하는 중..." : "대기 중"}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* Transcript / Feedback */}
-          <section className="flex-1 relative min-h-0">
-            <div className="flex items-center justify-between px-1 py-2 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-rose-500" />
-                <span className="text-sm font-bold">
-                  실시간 자막 & AI 피드백
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-rose-600">
-                <div className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse" />
-                <span className="font-medium">LIVE</span>
-              </div>
+          {!isLoading && participants.length === 1 && (
+            <div className="mt-12 text-center text-gray-500">
+              <p>다른 참여자를 기다리고 있습니다...</p>
             </div>
-
-            {/* transcript 컨테이너 */}
-            <div
-              ref={transcriptRef}
-              className="absolute inset-x-0 top-[56px] overflow-y-auto px-3"
-              style={{
-                bottom: FOOTER_HEIGHT,
-                paddingBottom: 12,
-                background: "white",
-              }}
-            >
-              {transcript.map((item) => {
-                const isMe = item.speaker === "나";
-                const tokens = isMe
-                  ? tokenizeWithIndices(item.text)
-                  : [{ token: item.text, index: -1 }];
-                const styleError = hasStyleError(item.feedback);
-
-                return (
-                  <div
-                    key={item.id}
-                    className={`flex ${
-                      isMe ? "justify-end" : "justify-start"
-                    } mb-4`}
-                  >
-                    <div
-                      className={`w-full max-w-[90%] ${
-                        isMe ? "items-end" : "items-start"
-                      } flex flex-col gap-2`}
-                    >
-                      <div
-                        className={`flex items-center gap-2 ${
-                          isMe ? "flex-row-reverse justify-end" : ""
-                        }`}
-                      >
-                        <span className="text-xs font-medium text-gray-600">
-                          {item.speaker}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          {item.timestamp.toLocaleTimeString("ko-KR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </div>
-
-                      <div
-                        ref={(el) => {
-                          bubbleRefs.current[item.id] = el;
-                        }}
-                        className={`${
-                          isMe
-                            ? "bg-rose-500 text-white"
-                            : "bg-gray-100 text-gray-900"
-                        } rounded-2xl p-3 ${
-                          styleError && isMe ? "ring-2 ring-yellow-300" : ""
-                        }`}
-                        onMouseEnter={() => {
-                          if (!isMobile && styleError && isMe)
-                            onSentenceInteract(item.id, item.feedback);
-                        }}
-                        onMouseLeave={() => {
-                          if (!isMobile) closeTooltip();
-                        }}
-                        onClick={() => {
-                          if (isMobile && styleError && isMe)
-                            onSentenceInteract(item.id, item.feedback);
-                        }}
-                      >
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                          {isMe ? (
-                            <span>
-                              {tokens.map(({ token, index }, i) => {
-                                if (index === -1)
-                                  return (
-                                    <span key={`${item.id}-ws-${i}`}>
-                                      {token}
-                                    </span>
-                                  );
-                                const res = item.feedback
-                                  ? isWordErrored(index, item.feedback)
-                                  : {
-                                      errored: false,
-                                      kind: null as ErrorType | null,
-                                    };
-                                const base = "rounded-sm px-0.5 inline-block";
-                                const highlight =
-                                  res.kind === "word"
-                                    ? "bg-blue-600/30 underline decoration-2 underline-offset-2"
-                                    : res.kind === "grammar"
-                                    ? "bg-purple-600/30 underline decoration-dotted"
-                                    : res.kind === "spelling"
-                                    ? "bg-orange-500/30 underline decoration-wavy"
-                                    : "";
-
-                                return (
-                                  <span
-                                    key={`${item.id}-w-${index}`}
-                                    className={`${base} ${highlight} ${
-                                      res.errored ? "cursor-pointer" : ""
-                                    }`}
-                                    onMouseEnter={() => {
-                                      if (!isMobile && res.errored)
-                                        onWordInteract(
-                                          item.id,
-                                          index,
-                                          item.feedback
-                                        );
-                                    }}
-                                    onMouseLeave={() => {
-                                      if (!isMobile) closeTooltip();
-                                    }}
-                                    onClick={() => {
-                                      if (isMobile && res.errored)
-                                        onWordInteract(
-                                          item.id,
-                                          index,
-                                          item.feedback
-                                        );
-                                    }}
-                                  >
-                                    {token}
-                                  </span>
-                                );
-                              })}
-                            </span>
-                          ) : (
-                            <span>{item.text}</span>
-                          )}
-                        </p>
-
-                        {styleError && isMe && (
-                          <div className="mt-2 flex items-center gap-2 text-yellow-900">
-                            <AlertCircle size={16} />
-                            <span className="text-[13px]">
-                              문장 전체 스타일 개선 필요
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* 채팅 푸터 */}
-            <div
-              className="absolute left-0 right-0 bottom-0 border-t border-gray-100 bg-white flex items-center"
-              style={{
-                height: FOOTER_HEIGHT,
-                padding: 0,
-                boxShadow: "none",
-              }}
-            >
-              <div className="max-w-4xl mx-auto w-full px-0 sm:px-6 flex items-center gap-3">
-                <div className="flex-1">
-                  <label htmlFor="voice-input" className="sr-only">
-                    메시지 입력
-                  </label>
-                  <input
-                    id="voice-input"
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="메시지를 입력하세요..."
-                    className="w-full rounded-xl bg-gray-50 border border-gray-200 px-5 py-4 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200"
-                    aria-label="메시지 입력"
-                  />
-                </div>
-                <button
-                  onClick={handleSend}
-                  className="w-12 h-12 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-md hover:bg-rose-600"
-                  aria-label="전송"
-                >
-                  <Send className="w-4.5 h-4.5" />
-                </button>
-              </div>
-            </div>
-          </section>
+          )}
         </div>
       </main>
-
-      <FloatingFeedbackCard
-        show={Boolean(activeTooltipMsgId)}
-        top={cardPos.top}
-        left={cardPos.left}
-        width={cardPos.width}
-        onClose={closeTooltip}
-        mobile={isMobile}
-        feedback={transcript.find((t) => t.id === activeTooltipMsgId)?.feedback}
-        activeWordIndexes={activeTooltipWordIndexes}
-        // ✅ [추가] 위쪽 배치 여부 전달
-        isAbove={cardPos.isAbove}
-      />
-
-      <style>
-        {`
-          @keyframes ringPulse {
-            0%   { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.40); }
-            70%  { box-shadow: 0 0 0 14px rgba(244, 63, 94, 0.00); }
-            100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.00); }
-          }
-        `}
-      </style>
     </div>
   );
 }
+
+const AudioPlayer: React.FC<{ stream: MediaStream; isSpeakerOn: boolean }> = ({
+  stream,
+  isSpeakerOn,
+}) => {
+  const ref = useRef<HTMLAudioElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.srcObject = stream;
+  }, [stream]);
+  useEffect(() => {
+    if (ref.current) ref.current.muted = !isSpeakerOn;
+  }, [isSpeakerOn]);
+  return <audio ref={ref} autoPlay playsInline />;
+};

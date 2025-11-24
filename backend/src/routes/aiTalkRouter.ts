@@ -25,13 +25,16 @@ aiTalkRouter.post("/sessions", aiTalkController.startSession);
 // 텍스트 메시지 전송
 aiTalkRouter.post("/sessions/:id/messages", aiTalkController.sendMessage);
 
-// ✅ [추가] 오디오 메시지 전송 (음성 파일 업로드)
+// 오디오 메시지 전송
 aiTalkRouter.post(
   "/sessions/:id/audio",
-  upload.single("audio"), // 'audio' 필드명으로 파일 받기
+  upload.single("audio"),
   aiTalkController.sendAudio
 );
 
 aiTalkRouter.patch("/sessions/:id/end", aiTalkController.endSession);
+
+// ✅ [신규 추가] 독립적인 피드백 분석 API (회화 세션 없이 사용 가능)
+aiTalkRouter.post("/analyze", aiTalkController.analyzeText);
 
 export default aiTalkRouter;

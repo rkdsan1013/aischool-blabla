@@ -82,7 +82,7 @@ const Avatar: React.FC<{
     <div
       className={`rounded-full overflow-hidden flex items-center justify-center bg-rose-500 text-white font-bold`}
       style={style}
-      aria-hidden
+      aria-hidden="true"
     >
       <span className={textSize}>{initials}</span>
     </div>
@@ -188,7 +188,7 @@ const HomeLeaderBoard: React.FC = () => {
 
   return (
     <div className="min-h-screen w-full bg-white">
-      {/* 상단 히어로: 상단에만 연한 로즈 그라데이션, 아래로 갈수록 흰색으로 자연스럽게 전환 */}
+      {/* 상단 히어로: VoiceRoomCreate와 동일한 좌우/하단 여백 규격을 적용 */}
       <header
         className="w-full"
         style={{
@@ -196,7 +196,7 @@ const HomeLeaderBoard: React.FC = () => {
             "linear-gradient(180deg, rgba(254,226,226,0.9) 0%, rgba(255,255,255,0.6) 35%, rgba(255,255,255,1) 70%)",
         }}
       >
-        <div className="relative max-w-6xl mx-auto px-6 py-12 sm:py-16 text-center">
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24 text-center">
           {/* 우측 상단 X 유지 (위치: top-4로 살짝 올림) */}
           <div className="absolute right-4 top-4">
             <button
@@ -208,7 +208,7 @@ const HomeLeaderBoard: React.FC = () => {
             </button>
           </div>
 
-          {/* 제목만 남김 (텍스트 위치를 살짝 아래로 이동) */}
+          {/* 제목 */}
           <div className="mt-6 sm:mt-8 lg:mt-10">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 leading-tight">
               리더보드에서
@@ -218,7 +218,7 @@ const HomeLeaderBoard: React.FC = () => {
             </h1>
           </div>
 
-          {/* Top3 영역: 히어로 하단과 자연스럽게 이어지도록 배치 (배경은 점점 흰색으로) */}
+          {/* Top3 영역 */}
           <div className="w-full mt-8">
             <div className="flex justify-center items-end gap-10">
               {/* 2위 */}
@@ -333,9 +333,9 @@ const HomeLeaderBoard: React.FC = () => {
         </div>
       </header>
 
-      {/* 리스트 영역: 배경은 완전 흰색으로 유지 (히어로 그라데이션과 자연스럽게 분리) */}
+      {/* 리스트 영역: VoiceRoomCreate와 동일한 좌우/하단 여백 규격을 적용 */}
       <main className="w-full bg-white">
-        <div className="divide-y divide-gray-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24 divide-y divide-gray-100">
           {loading ? (
             <div className="w-full px-6 py-12 flex items-center justify-center">
               <div className="animate-spin rounded-full h-10 w-10 border-4 border-rose-200 border-t-rose-500" />
@@ -345,6 +345,10 @@ const HomeLeaderBoard: React.FC = () => {
               <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-500 text-sm">
                 {error}
               </div>
+            </div>
+          ) : items.length === 0 ? (
+            <div className="w-full px-6 py-12 text-center text-sm text-gray-500">
+              순위 데이터가 없습니다.
             </div>
           ) : (
             items.map((it) => {

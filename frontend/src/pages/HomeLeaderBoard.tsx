@@ -67,6 +67,7 @@ const Avatar: React.FC<{
     .slice(0, 2)
     .toUpperCase();
 
+  // Tailwind로 가능한 부분은 클래스화, 동적 크기/그로우/링은 style로 처리
   const px = `${size}px`;
   const textSize =
     size >= 80 ? "text-xl" : size >= 64 ? "text-base" : "text-sm";
@@ -188,15 +189,9 @@ const HomeLeaderBoard: React.FC = () => {
 
   return (
     <div className="min-h-screen w-full bg-white">
-      {/* 상단 히어로: VoiceRoomCreate와 동일한 좌우/하단 여백 규격을 적용 */}
-      <header
-        className="w-full"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(254,226,226,0.9) 0%, rgba(255,255,255,0.6) 35%, rgba(255,255,255,1) 70%)",
-        }}
-      >
-        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24 text-center">
+      {/* 상단 히어로: 웹에서는 중앙 max-width 유지, 모바일에서는 좌우 꽉 채움 */}
+      <header className="w-full bg-gradient-to-b from-rose-100/90 via-white/60 to-white">
+        <div className="relative w-full md:max-w-5xl md:mx-auto px-0 md:px-4 lg:px-6 py-6 sm:py-8 pb-0 text-center">
           {/* 우측 상단 X 유지 (위치: top-4로 살짝 올림) */}
           <div className="absolute right-4 top-4">
             <button
@@ -224,15 +219,9 @@ const HomeLeaderBoard: React.FC = () => {
               {/* 2위 */}
               <div className="flex flex-col items-center">
                 <div
-                  className="relative rounded-full"
+                  className="relative rounded-full w-18 h-18 md:w-20 md:h-20 lg:w-24 lg:h-24 flex items-center justify-center transform md:scale-105 lg:scale-110"
                   style={{
-                    width: 72,
-                    height: 72,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: 9999,
-                    background: rankColorInfo(top2?.rank).bgGradient,
+                    backgroundImage: rankColorInfo(top2?.rank).bgGradient,
                     boxShadow: `0 8px 22px ${rankColorInfo(top2?.rank).glow}`,
                   }}
                 >
@@ -244,15 +233,15 @@ const HomeLeaderBoard: React.FC = () => {
                   />
                 </div>
 
-                <div className="mt-3 flex items-center gap-2 text-sm font-semibold text-foreground truncate max-w-[160px]">
+                <div className="mt-3 flex items-center gap-2 text-sm md:text-base font-semibold text-foreground truncate max-w-[160px]">
                   <Crown
-                    className="w-4 h-4"
+                    className="w-4 h-4 md:w-5 md:h-5"
                     style={{ color: rankColorInfo(top2?.rank).crown }}
                   />
                   <span className="truncate">{top2?.name ?? "—"}</span>
                 </div>
 
-                <div className="text-xs text-foreground/60 mt-1">
+                <div className="text-xs md:text-sm text-foreground/60 mt-1">
                   {Math.round(top2?.score ?? 0)}pt
                 </div>
               </div>
@@ -260,15 +249,9 @@ const HomeLeaderBoard: React.FC = () => {
               {/* 1위 */}
               <div className="flex flex-col items-center">
                 <div
-                  className="relative rounded-full"
+                  className="relative rounded-full w-28 h-28 md:w-36 md:h-36 lg:w-44 lg:h-44 flex items-center justify-center transform md:scale-105 lg:scale-110"
                   style={{
-                    width: 112,
-                    height: 112,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: 9999,
-                    background: rankColorInfo(top1?.rank).bgGradient,
+                    backgroundImage: rankColorInfo(top1?.rank).bgGradient,
                     boxShadow: `0 12px 36px ${rankColorInfo(top1?.rank).glow}`,
                   }}
                 >
@@ -280,15 +263,15 @@ const HomeLeaderBoard: React.FC = () => {
                   />
                 </div>
 
-                <div className="mt-4 flex items-center gap-2 text-lg font-extrabold text-foreground truncate max-w-[260px]">
+                <div className="mt-4 flex items-center gap-2 text-lg md:text-2xl lg:text-3xl font-extrabold text-foreground truncate max-w-[260px]">
                   <Crown
-                    className="w-5 h-5"
+                    className="w-5 h-5 md:w-6 md:h-6"
                     style={{ color: rankColorInfo(top1?.rank).crown }}
                   />
                   <span className="truncate">{top1?.name ?? "—"}</span>
                 </div>
 
-                <div className="text-sm text-foreground/60 mt-1">
+                <div className="text-sm md:text-base text-foreground/60 mt-1">
                   {Math.round(top1?.score ?? 0)}pt
                 </div>
               </div>
@@ -296,15 +279,9 @@ const HomeLeaderBoard: React.FC = () => {
               {/* 3위 */}
               <div className="flex flex-col items-center">
                 <div
-                  className="relative rounded-full"
+                  className="relative rounded-full w-18 h-18 md:w-20 md:h-20 lg:w-24 lg:h-24 flex items-center justify-center transform md:scale-105 lg:scale-110"
                   style={{
-                    width: 72,
-                    height: 72,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: 9999,
-                    background: rankColorInfo(top3?.rank).bgGradient,
+                    backgroundImage: rankColorInfo(top3?.rank).bgGradient,
                     boxShadow: `0 8px 22px ${rankColorInfo(top3?.rank).glow}`,
                   }}
                 >
@@ -316,15 +293,15 @@ const HomeLeaderBoard: React.FC = () => {
                   />
                 </div>
 
-                <div className="mt-3 flex items-center gap-2 text-sm font-semibold text-foreground truncate max-w-[140px]">
+                <div className="mt-3 flex items-center gap-2 text-sm md:text-base font-semibold text-foreground truncate max-w-[140px]">
                   <Crown
-                    className="w-4 h-4"
+                    className="w-4 h-4 md:w-5 md:h-5"
                     style={{ color: rankColorInfo(top3?.rank).crown }}
                   />
                   <span className="truncate">{top3?.name ?? "—"}</span>
                 </div>
 
-                <div className="text-xs text-foreground/60 mt-1">
+                <div className="text-xs md:text-sm text-foreground/60 mt-1">
                   {Math.round(top3?.score ?? 0)}pt
                 </div>
               </div>
@@ -333,21 +310,21 @@ const HomeLeaderBoard: React.FC = () => {
         </div>
       </header>
 
-      {/* 리스트 영역: VoiceRoomCreate와 동일한 좌우/하단 여백 규격을 적용 */}
+      {/* 리스트 영역: 웹은 중앙 max-width 유지, 모바일은 좌우 꽉 채움 */}
       <main className="w-full bg-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24 divide-y divide-gray-100">
+        <div className="w-full md:max-w-5xl md:mx-auto px-0 md:px-4 lg:px-6 py-6 sm:py-8 pb-0 divide-y divide-gray-100">
           {loading ? (
-            <div className="w-full px-6 py-12 flex items-center justify-center">
+            <div className="w-full px-4 md:px-6 py-12 flex items-center justify-center">
               <div className="animate-spin rounded-full h-10 w-10 border-4 border-rose-200 border-t-rose-500" />
             </div>
           ) : error ? (
-            <div className="w-full px-6 py-6">
+            <div className="w-full px-4 md:px-6 py-6">
               <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-500 text-sm">
                 {error}
               </div>
             </div>
           ) : items.length === 0 ? (
-            <div className="w-full px-6 py-12 text-center text-sm text-gray-500">
+            <div className="w-full px-4 md:px-6 py-12 text-center text-sm text-gray-500">
               순위 데이터가 없습니다.
             </div>
           ) : (
@@ -359,7 +336,7 @@ const HomeLeaderBoard: React.FC = () => {
               return (
                 <div
                   key={it.id}
-                  className="w-full grid grid-cols-12 gap-4 items-center px-6 py-4 hover:bg-rose-50 transition-colors"
+                  className="w-full grid grid-cols-12 gap-4 items-center px-4 md:px-6 py-4 hover:bg-rose-50 transition-colors"
                 >
                   <div
                     className={`col-span-1 text-sm font-bold ${medal.color}`}
@@ -369,17 +346,15 @@ const HomeLeaderBoard: React.FC = () => {
 
                   <div className="col-span-6 flex items-center gap-4 min-w-0">
                     <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center font-semibold text-white bg-rose-500 "
-                      style={{
-                        boxShadow:
-                          it.rank && it.rank <= 3
-                            ? `0 8px 22px ${rankInfo.glow}`
-                            : undefined,
-                        border:
-                          it.rank && it.rank <= 3
-                            ? `1.5px solid ${rankInfo.ring}`
-                            : undefined,
-                      }}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-white bg-rose-500`}
+                      style={
+                        it.rank && it.rank <= 3
+                          ? {
+                              boxShadow: `0 8px 22px ${rankInfo.glow}`,
+                              border: `1.5px solid ${rankInfo.ring}`,
+                            }
+                          : undefined
+                      }
                     >
                       {String(it.name || "익명")
                         .slice(0, 1)

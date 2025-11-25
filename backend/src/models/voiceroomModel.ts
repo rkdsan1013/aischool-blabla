@@ -11,10 +11,10 @@ export type VoiceRoomRow = {
   level: VoiceRoomLevel;
   max_participants: number;
   current_participants: number;
-  host_id: number; // ✅ [추가]
-  host_name: string;
+  host_id: number | null; // DB allows NULL for host_id
+  host_name: string | null;
   created_at: string | null;
-  preview_users?: string;
+  preview_users?: string | null;
 };
 
 export async function insertVoiceRoom(
@@ -24,22 +24,22 @@ export async function insertVoiceRoom(
     description: string;
     level: VoiceRoomLevel;
     max_participants: number;
-    host_id: number; // ✅ [추가]
-    host_name: string;
+    host_id?: number | null;
+    host_name?: string | null;
   }
 ): Promise<number> {
   const conn = await pool.getConnection();
   try {
     const [result] = (await conn.execute(
-      `INSERT INTO voice_room (name, description, level, max_participants, current_participants, host_id, host_name)
+      `INSERT INTO voice_rooms (name, description, level, max_participants, current_participants, host_id, host_name)
        VALUES (?, ?, ?, ?, 0, ?, ?)`,
       [
         payload.name,
         payload.description,
         payload.level,
         payload.max_participants,
-        payload.host_id,
-        payload.host_name,
+        payload.host_id ?? null,
+        payload.host_name ?? null,
       ]
     )) as unknown as [ResultSetHeader, any];
     return result.insertId;
@@ -56,7 +56,7 @@ export async function findVoiceRoomById(
   try {
     const [rows] = (await conn.execute(
       `SELECT room_id, name, description, level, max_participants, current_participants, host_id, host_name, created_at
-       FROM voice_room WHERE room_id = ?`,
+       FROM voice_rooms WHERE room_id = ?`,
       [roomId]
     )) as unknown as [RowDataPacket[] & VoiceRoomRow[], any];
     return rows[0] ?? null;
@@ -87,7 +87,7 @@ export async function selectVoiceRooms(
           JOIN user_profiles up ON vrp.user_id = up.user_id
           WHERE vrp.room_id = r.room_id
         ) as preview_users
-      FROM voice_room r
+      FROM voice_rooms r
     `;
 
     const params: any[] = [];
@@ -127,7 +127,7 @@ export async function updateVoiceRoomRow(
   const conn = await pool.getConnection();
   try {
     const [result] = (await conn.execute(
-      `UPDATE voice_room
+      `UPDATE voice_rooms
        SET name = ?, description = ?, level = ?, max_participants = ?
        WHERE room_id = ?`,
       [
@@ -151,7 +151,7 @@ export async function patchVoiceRoomRow(
 ): Promise<number> {
   const conn = await pool.getConnection();
   try {
-    const sql = `UPDATE voice_room SET ${updates.sql} WHERE room_id = ?`;
+    const sql = `UPDATE voice_rooms SET ${updates.sql} WHERE room_id = ?`;
     const params = [...updates.params, roomId];
     const [result] = (await conn.execute(sql, params)) as unknown as [
       ResultSetHeader,
@@ -170,7 +170,7 @@ export async function deleteVoiceRoomRow(
   const conn = await pool.getConnection();
   try {
     const [result] = (await conn.execute(
-      `DELETE FROM voice_room WHERE room_id = ?`,
+      `DELETE FROM voice_rooms WHERE room_id = ?`,
       [roomId]
     )) as unknown as [ResultSetHeader, any];
     return result.affectedRows;
@@ -192,7 +192,7 @@ export async function addRoomParticipant(
       [roomId, userId]
     );
     await conn.execute(
-      `UPDATE voice_room 
+      `UPDATE voice_rooms 
        SET current_participants = (SELECT COUNT(*) FROM voice_room_participants WHERE room_id = ?)
        WHERE room_id = ?`,
       [roomId, roomId]
@@ -219,13 +219,13 @@ export async function removeRoomParticipant(
       [roomId, userId]
     );
     await conn.execute(
-      `UPDATE voice_room 
+      `UPDATE voice_rooms 
        SET current_participants = (SELECT COUNT(*) FROM voice_room_participants WHERE room_id = ?)
        WHERE room_id = ?`,
       [roomId, roomId]
     );
     const [rows] = (await conn.execute(
-      `SELECT current_participants FROM voice_room WHERE room_id = ?`,
+      `SELECT current_participants FROM voice_rooms WHERE room_id = ?`,
       [roomId]
     )) as unknown as [RowDataPacket[], any];
 
@@ -259,7 +259,7 @@ export async function banUser(
     );
     // 3. 카운트 갱신
     await conn.execute(
-      `UPDATE voice_room 
+      `UPDATE voice_rooms 
          SET current_participants = (SELECT COUNT(*) FROM voice_room_participants WHERE room_id = ?)
          WHERE room_id = ?`,
       [roomId, roomId]

@@ -63,8 +63,8 @@ export async function generateSentenceQuestionsRaw(
 
   const res = await generateText({
     prompt,
-    model: "gpt-4o", // 문장 구성은 gpt-4o 유지
-    maxTokens: 2500, // 개수가 늘었으므로 토큰 상향
+    model: "gpt-5.1",
+    maxTokens: 2000,
     temperature: 0.7,
     context: "SENTENCE GEN",
   });

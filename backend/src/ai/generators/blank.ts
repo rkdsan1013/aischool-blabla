@@ -61,8 +61,8 @@ export async function generateBlankQuestionsRaw(
 
   const res = await generateText({
     prompt,
-    model: "gpt-4o-mini", // 속도 최적화 유지
-    maxTokens: 2000, // 개수가 늘었으므로 토큰 한도 상향
+    model: "gpt-5.1",
+    maxTokens: 2000,
     temperature: 0.7,
     context: "BLANK GEN",
   });

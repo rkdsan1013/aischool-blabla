@@ -38,8 +38,8 @@ export async function generateWritingQuestionsRaw(
 
   const res = await generateText({
     prompt,
-    model: "gpt-4o", // 작문은 4o 유지
-    maxTokens: 3000, // 개수가 늘었으므로 토큰 상향 (작문은 토큰 많이 씀)
+    model: "gpt-5.1",
+    maxTokens: 2000,
     temperature: 0.7,
     context: "WRITING GEN",
   });

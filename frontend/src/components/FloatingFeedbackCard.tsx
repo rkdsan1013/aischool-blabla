@@ -88,7 +88,7 @@ export default function FloatingFeedbackCard({
                 <>
                   <div className="flex items-start gap-2">
                     <AlertCircle
-                      className="text-yellow-500 flex-shrink-0"
+                      className="text-yellow-500 shrink-0"
                       size={18}
                     />
                     <div className="text-[14px] text-gray-800">
@@ -104,7 +104,7 @@ export default function FloatingFeedbackCard({
                   {feedback.suggestion && (
                     <div className="flex items-start gap-2">
                       <CheckCircle2
-                        className="text-emerald-600 flex-shrink-0"
+                        className="text-emerald-600 shrink-0"
                         size={18}
                       />
                       <div className="text-[14px]">
@@ -137,7 +137,7 @@ export default function FloatingFeedbackCard({
                             className="flex items-start gap-2"
                           >
                             <AlertCircle
-                              className="text-rose-500 flex-shrink-0"
+                              className="text-rose-500 shrink-0"
                               size={18}
                             />
                             <div className="text-[14px] text-gray-800">
@@ -154,7 +154,7 @@ export default function FloatingFeedbackCard({
                         {feedback.suggestion && (
                           <div className="flex items-start gap-2">
                             <CheckCircle2
-                              className="text-emerald-600 flex-shrink-0"
+                              className="text-emerald-600 shrink-0"
                               size={18}
                             />
                             <div className="text-[14px]">

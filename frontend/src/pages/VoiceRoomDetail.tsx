@@ -1095,7 +1095,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
   return (
     <div className="min-h-screen h-screen w-screen overflow-hidden bg-white text-gray-900 flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-gray-200 flex-shrink-0">
+      <header className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-gray-200 shrink-0">
         <div className="max-w-4xl w-full mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3.5">
             <div className="flex items-center gap-2.5">
@@ -1247,7 +1247,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
             <div
               ref={transcriptRef}
-              className="absolute inset-x-0 top-[56px] overflow-y-auto px-3"
+              className="absolute inset-x-0 top-14 overflow-y-auto px-3"
               style={{
                 bottom: 92,
                 paddingBottom: 12,
@@ -1314,7 +1314,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
                           onSentenceInteract(item.id, item.feedback)
                         }
                       >
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word">
                           {isMe ? (
                             <span>
                               {tokens.map(({ token, index }, i) => {

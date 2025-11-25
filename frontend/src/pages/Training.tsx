@@ -387,7 +387,6 @@ const TrainingPage: React.FC = () => {
     if (!startType) return;
 
     const endTime = Date.now();
-    // 시간 계산 (초 단위)
     const durationSec = Math.floor((endTime - startTimeRef.current) / 1000);
 
     try {
@@ -399,7 +398,6 @@ const TrainingPage: React.FC = () => {
       });
 
       if (profile && res.stats) {
-        // [수정] 서비스 타입에 맞게 addedSeconds 사용
         const addedSeconds = res.stats.addedSeconds ?? durationSec;
 
         setProfileLocal({
@@ -407,7 +405,6 @@ const TrainingPage: React.FC = () => {
           streak_count: res.stats.streak,
           score: res.stats.totalScore,
           tier: res.stats.tier,
-          // 기존 총 학습 시간(초)에 이번 학습 시간(초) 추가
           total_study_time: (profile.total_study_time || 0) + addedSeconds,
           completed_lessons: (profile.completed_lessons || 0) + 1,
         });
@@ -428,12 +425,22 @@ const TrainingPage: React.FC = () => {
   };
 
   useLayoutEffect(() => {
-    if (showFeedback && feedbackContentRef.current) {
-      const currentContentHeight = feedbackContentRef.current.scrollHeight;
-      setFeedbackContentHeight(
-        Math.max(currentContentHeight, FEEDBACK_AREA_MIN_HEIGHT)
-      );
-    }
+    const updateHeight = () => {
+      if (showFeedback && feedbackContentRef.current) {
+        const currentContentHeight = feedbackContentRef.current.scrollHeight;
+        setFeedbackContentHeight(
+          Math.max(currentContentHeight, FEEDBACK_AREA_MIN_HEIGHT)
+        );
+      }
+    };
+
+    updateHeight();
+
+    window.addEventListener("resize", updateHeight);
+
+    return () => {
+      window.removeEventListener("resize", updateHeight);
+    };
   }, [
     showFeedback,
     isCorrect,
@@ -646,7 +653,8 @@ const TrainingPage: React.FC = () => {
                   ) : (
                     <>
                       <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        // [수정] flex-shrink-0 -> shrink-0 (권장사항 반영)
+                        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
                           isCorrect ? "bg-green-500" : "bg-rose-500"
                         }`}
                       >

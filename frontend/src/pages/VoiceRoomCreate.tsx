@@ -114,8 +114,8 @@ const VoiceRoomCreate: React.FC = () => {
   }
 
   return (
-    <div className="h-[100dvh] bg-white flex flex-col">
-      <header className="w-full bg-rose-500 text-white flex-shrink-0">
+    <div className="h-dvh bg-white flex flex-col">
+      <header className="w-full bg-rose-500 text-white shrink-0">
         <div className="max-w-5xl mx-auto flex items-center justify-between px-4 sm:px-6 py-4">
           <h1 className="text-lg font-semibold">새로운 방 만들기</h1>
           <button
@@ -229,7 +229,7 @@ const VoiceRoomCreate: React.FC = () => {
                             setFormData((p) => ({ ...p, level: opt.value }))
                           }
                           className={`
-                            flex-shrink-0 px-4 py-2.5 sm:px-0 rounded-lg text-sm font-medium border transition-all
+                            shrink-0 px-4 py-2.5 sm:px-0 rounded-lg text-sm font-medium border transition-all
                             focus:outline-none focus:ring-2 focus:ring-rose-300 whitespace-nowrap
                             ${
                               isSelected
@@ -253,7 +253,7 @@ const VoiceRoomCreate: React.FC = () => {
         </div>
       </main>
 
-      <footer className="w-full bg-white border-t border-gray-200 flex-shrink-0">
+      <footer className="w-full bg-white border-t border-gray-200 shrink-0">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex gap-3">
             <button

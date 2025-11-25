@@ -61,7 +61,7 @@ const Vocabulary: React.FC<Props> = ({
               <div className="flex items-center gap-3 sm:gap-4 relative z-10">
                 {/* 아이콘/번호 */}
                 <div
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center text-base font-bold flex-shrink-0 transition-colors ${
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center text-base font-bold shrink-0 transition-colors ${
                     isSelected
                       ? "bg-white/20 text-white"
                       : "bg-gray-100 text-gray-700 group-hover:bg-rose-100 group-hover:text-rose-600"

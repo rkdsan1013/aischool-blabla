@@ -323,7 +323,7 @@ const MyPageHistory: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white pb-20">
+    <div className="min-h-screen bg-white pb-24">
       <header className="bg-rose-500 text-white py-4 shadow-md">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 flex items-center justify-between">
           <div className="min-w-0">

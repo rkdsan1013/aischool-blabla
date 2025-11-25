@@ -454,6 +454,7 @@ const TrainingPage: React.FC = () => {
     ? FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight
     : FOOTER_BUTTON_AREA_HEIGHT;
 
+  // 이 값이 자식 컴포넌트(Sentence 등)에게 전달되어 내부 스크롤 하단 여백으로 사용됨
   const MAIN_CONTENT_PADDING_BOTTOM =
     FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight;
 
@@ -496,6 +497,7 @@ const TrainingPage: React.FC = () => {
   }
 
   const renderQuestionComponent = (item: QuestionItem) => {
+    // Sentence 컴포넌트에 하단 여백(bottomPadding) prop 전달
     switch (item.type) {
       case "vocabulary":
         return (
@@ -521,6 +523,8 @@ const TrainingPage: React.FC = () => {
             onReorder={handleReorder}
             showFeedback={showFeedback}
             isCorrect={isCorrect}
+            // 푸터 버튼 높이만큼 내부 스크롤에 여백을 주기 위해 전달
+            bottomPadding={MAIN_CONTENT_PADDING_BOTTOM}
           />
         );
       case "blank":
@@ -589,8 +593,16 @@ const TrainingPage: React.FC = () => {
       </header>
 
       <main
-        className="flex-1 max-w-4xl mx-auto w-full px-4 pt-4 overflow-y-auto relative"
-        style={{ paddingBottom: `${MAIN_CONTENT_PADDING_BOTTOM}px` }}
+        // 수정됨: paddingBottom 스타일 제거.
+        // overflow-y-auto를 조건부 또는 Sentence가 제어하도록 변경해야 하지만,
+        // Sentence 컴포넌트가 h-full을 쓰므로 main은 overflow-hidden으로 설정하여 이중 스크롤 방지.
+        // (단, 다른 컴포넌트들도 자체 스크롤을 가지거나, 필요시 auto로 되돌려야 함. 여기서는 Sentence 최적화 위주)
+        className={`flex-1 max-w-4xl mx-auto w-full px-4 pt-4 relative ${
+          currentQuestion?.type === "sentence"
+            ? "overflow-hidden"
+            : "overflow-y-auto"
+        }`}
+        // paddingBottom 제거: 자식 컴포넌트 내부에서 처리
       >
         {showFeedback && (
           <div
@@ -599,12 +611,18 @@ const TrainingPage: React.FC = () => {
             aria-hidden="true"
           />
         )}
+
+        {/* fieldset은 스타일링 목적보다는 기능 그룹핑이므로 h-full 적용 */}
         <fieldset
           disabled={showFeedback || verifying}
           className="w-full flex flex-col gap-4 h-full"
         >
           {renderQuestionComponent(currentQuestion)}
-          <div className="flex-1" />
+
+          {/* Sentence가 아닌 경우 여백을 밀어주기 위한 요소 (선택적) */}
+          {currentQuestion?.type !== "sentence" && (
+            <div style={{ height: `${MAIN_CONTENT_PADDING_BOTTOM}px` }} />
+          )}
         </fieldset>
       </main>
 
@@ -653,7 +671,6 @@ const TrainingPage: React.FC = () => {
                   ) : (
                     <>
                       <div
-                        // [수정] flex-shrink-0 -> shrink-0 (권장사항 반영)
                         className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
                           isCorrect ? "bg-green-500" : "bg-rose-500"
                         }`}

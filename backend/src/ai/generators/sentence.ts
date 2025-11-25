@@ -21,7 +21,7 @@ export async function generateSentenceQuestionsRaw(
   level: string = "C2",
   level_progress: number = 50
 ): Promise<string> {
-  const QUESTION_COUNT = 10; // [변경] 변수로 추출 및 10개로 복구
+  const QUESTION_COUNT = 10;
 
   const allowedLevels = ["A1", "A2", "B1", "B2", "C1", "C2"];
   const normalizedLevel = allowedLevels.includes(String(level).toUpperCase())

@@ -312,7 +312,7 @@ const HomeLeaderBoard: React.FC = () => {
 
       {/* 리스트 영역: 웹은 중앙 max-width 유지, 모바일은 좌우 꽉 채움 */}
       <main className="w-full bg-white">
-        <div className="w-full md:max-w-5xl md:mx-auto px-0 md:px-4 lg:px-6 py-6 sm:py-8 pb-0 divide-y divide-gray-100">
+        <div className="w-full md:max-w-5xl md:pb-24 md:mx-auto px-0 md:px-4 lg:px-6 py-6 sm:py-8 pb-0 divide-y divide-gray-100">
           {loading ? (
             <div className="w-full px-4 md:px-6 py-12 flex items-center justify-center">
               <div className="animate-spin rounded-full h-10 w-10 border-4 border-rose-200 border-t-rose-500" />

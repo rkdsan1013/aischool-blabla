@@ -199,7 +199,7 @@ const HomePage: React.FC = () => {
     const fetchPreview = async () => {
       setLeaderLoading(true);
       try {
-        const data = await getLeaderboard({ limit: 5 });
+        const data = await getLeaderboard({ limit: 12 });
         if (!mounted) return;
         const arr: LeaderPreviewItem[] = Array.isArray(data)
           ? data
@@ -244,16 +244,22 @@ const HomePage: React.FC = () => {
       .toUpperCase();
     return (
       <div
-        className={`flex items-center justify-center rounded-full bg-white/90 text-rose-600 font-semibold ${className}`}
-        style={{ width: size, height: size }}
+        className={`flex items-center justify-center rounded-full text-white font-bold ${className}`}
+        style={{
+          width: size,
+          height: size,
+          backgroundColor: "#ef4444",
+          fontSize: size * 0.4,
+        }}
       >
         {initials}
       </div>
     );
   };
 
-  // 상위 3명만 사용
   const top3 = leaderPreview ? leaderPreview.slice(0, 3) : [];
+  const nextTwo = leaderPreview ? leaderPreview.slice(3, 5) : [];
+  const blurredAfterFive = leaderPreview ? leaderPreview.slice(5) : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 pb-20">
@@ -352,138 +358,171 @@ const HomePage: React.FC = () => {
           ))}
         </ul>
 
-        {/* 리더보드 섹션 — 카드 효과 유지, 배경색 제거(투명), 2-1-3 레이아웃 유지 */}
+        {/* 리더보드 섹션 */}
         <section className="mt-8">
           <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4">
             리더보드
           </h2>
 
-          <div className="bg-gradient-to-br from-white via-rose-50 to-rose-100 border border-rose-100 rounded-2xl p-4 shadow-sm">
-            <div className="relative">
-              <div className="flex items-end justify-between gap-4">
-                {/* 2위 (왼쪽) */}
-                <div className="flex-1 flex justify-start">
-                  <div
-                    className="w-full max-w-[160px] md:max-w-[180px] bg-transparent border border-white/10 rounded-2xl p-3 flex flex-col items-center gap-2
-                      transform transition-transform duration-300 hover:scale-105 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-rose-100"
-                    role="group"
-                    aria-label="2위"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="p-1 rounded-full bg-transparent">
-                        <Award className="w-4 h-4 text-slate-500" />
-                      </div>
-                      <div className="text-xs text-muted-foreground font-medium">
-                        2위
-                      </div>
-                    </div>
-
-                    <div className="mt-1">
-                      <div className="w-14 h-14 rounded-full bg-white shadow-md flex items-center justify-center">
-                        <Avatar name={top3[1]?.name} size={56} />
-                      </div>
-                    </div>
-
-                    <div className="mt-2 text-sm font-semibold text-center truncate">
-                      {top3[1]?.name ?? "—"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      <span className="font-medium">{top3[1]?.score ?? 0}</span>{" "}
-                      pt
-                    </div>
+          <div className="bg-gradient-to-br from-white via-rose-50 to-rose-100 border border-rose-100 rounded-3xl p-6 shadow-lg">
+            {/* 상위 3명 가로 배치 (2-1-3 순서) */}
+            <div className="flex items-end justify-center gap-4 sm:gap-6 mb-8">
+              {/* 2위 */}
+              <div className="flex flex-col items-center gap-3 flex-1 max-w-[120px] sm:max-w-[140px]">
+                <div className="relative">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-rose-500 shadow-lg flex items-center justify-center">
+                    <Avatar
+                      name={top3[1]?.name}
+                      size={window.innerWidth < 640 ? 64 : 80}
+                    />
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-7 h-7 bg-gradient-to-br from-slate-200 to-slate-400 rounded-full flex items-center justify-center shadow-md border-2 border-white">
+                    <span className="text-xs font-bold text-slate-800">2</span>
                   </div>
                 </div>
-
-                {/* 1위 (중앙) */}
-                <div className="flex-1 flex justify-center -mt-4 md:-mt-6">
-                  <div
-                    className="w-full max-w-[220px] md:max-w-[260px] bg-transparent border border-white/10 rounded-3xl p-4 flex flex-col items-center gap-3
-                      transform transition-transform duration-300 hover:scale-105 hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-yellow-100"
-                    role="group"
-                    aria-label="1위"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="p-1 rounded-full bg-transparent">
-                        <Award className="w-4 h-4 text-yellow-500" />
-                      </div>
-                      <div className="text-sm font-semibold">1위</div>
-                    </div>
-
-                    <div className="mt-1">
-                      <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-white shadow-2xl flex items-center justify-center">
-                        <Avatar name={top3[0]?.name} size={96} />
-                      </div>
-                    </div>
-
-                    <div className="mt-2 text-lg font-bold text-center truncate">
-                      {top3[0]?.name ?? "—"}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      <span className="font-semibold">
-                        {top3[0]?.score ?? 0}
-                      </span>{" "}
-                      pt
-                    </div>
+                <div className="text-center w-full">
+                  <div className="text-xs sm:text-sm font-bold truncate">
+                    {top3[1]?.name ?? "—"}
+                  </div>
+                  <div className="text-xs text-rose-600 font-semibold mt-1">
+                    {top3[1]?.score ?? 0} pt
                   </div>
                 </div>
+              </div>
 
-                {/* 3위 (오른쪽) */}
-                <div className="flex-1 flex justify-end">
-                  <div
-                    className="w-full max-w-[140px] md:max-w-[160px] bg-transparent border border-white/10 rounded-2xl p-3 flex flex-col items-center gap-2
-                      transform transition-transform duration-300 hover:scale-105 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-rose-100"
-                    role="group"
-                    aria-label="3위"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="p-1 rounded-full bg-transparent">
-                        <Award className="w-4 h-4 text-slate-500" />
-                      </div>
-                      <div className="text-xs text-muted-foreground font-medium">
-                        3위
-                      </div>
-                    </div>
+              {/* 1위 (가장 크게) */}
+              <div className="flex flex-col items-center gap-3 flex-1 max-w-[140px] sm:max-w-[160px] -mt-6">
+                <div className="relative">
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-rose-500 shadow-2xl flex items-center justify-center ring-4 ring-yellow-400/50">
+                    <Avatar
+                      name={top3[0]?.name}
+                      size={window.innerWidth < 640 ? 96 : 112}
+                    />
+                  </div>
+                  <div className="absolute -top-2 -right-2 w-9 h-9 bg-gradient-to-br from-yellow-300 to-yellow-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                    <Award className="w-5 h-5 text-yellow-900" />
+                  </div>
+                </div>
+                <div className="text-center w-full">
+                  <div className="text-sm sm:text-base font-extrabold truncate">
+                    {top3[0]?.name ?? "—"}
+                  </div>
+                  <div className="text-xs sm:text-sm text-rose-600 font-bold mt-1">
+                    {top3[0]?.score ?? 0} pt
+                  </div>
+                </div>
+              </div>
 
-                    <div className="mt-1">
-                      <div className="w-12 h-12 rounded-full bg-white shadow-md flex items-center justify-center">
-                        <Avatar name={top3[2]?.name} size={48} />
-                      </div>
-                    </div>
-
-                    <div className="mt-2 text-sm font-semibold text-center truncate">
-                      {top3[2]?.name ?? "—"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      <span className="font-medium">{top3[2]?.score ?? 0}</span>{" "}
-                      pt
-                    </div>
+              {/* 3위 */}
+              <div className="flex flex-col items-center gap-3 flex-1 max-w-[120px] sm:max-w-[140px]">
+                <div className="relative">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-rose-500 shadow-lg flex items-center justify-center">
+                    <Avatar
+                      name={top3[2]?.name}
+                      size={window.innerWidth < 640 ? 64 : 80}
+                    />
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-7 h-7 bg-gradient-to-br from-amber-600 to-amber-800 rounded-full flex items-center justify-center shadow-md border-2 border-white">
+                    <span className="text-xs font-bold text-white">3</span>
+                  </div>
+                </div>
+                <div className="text-center w-full">
+                  <div className="text-xs sm:text-sm font-bold truncate">
+                    {top3[2]?.name ?? "—"}
+                  </div>
+                  <div className="text-xs text-rose-600 font-semibold mt-1">
+                    {top3[2]?.score ?? 0} pt
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* CTA */}
-            <div className="mt-4 flex items-center justify-center">
+            {/* 4·5위 카드 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              {nextTwo.length > 0 ? (
+                nextTwo.map((it, idx) => (
+                  <div
+                    key={it.id ?? it.name ?? idx}
+                    className="flex items-center gap-3 bg-white/95 border border-rose-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex-shrink-0 relative">
+                      <div className="w-14 h-14 rounded-full bg-rose-500 shadow-md flex items-center justify-center">
+                        <Avatar name={it.name} size={56} />
+                      </div>
+                      <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-rose-600 rounded-full flex items-center justify-center shadow-sm border-2 border-white">
+                        <span className="text-xs font-bold text-white">
+                          {it.rank}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold truncate">
+                        {it.name}
+                      </div>
+                      <div className="text-xs text-rose-600 font-semibold mt-1">
+                        {it.score} pt
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-muted-foreground col-span-2 text-center py-4">
+                  데이터 없음
+                </div>
+              )}
+            </div>
+
+            {/* 6위 이후 블러 처리 영역 */}
+            {blurredAfterFive.length > 0 && (
+              <div className="relative mb-4">
+                <div
+                  className="space-y-2 overflow-hidden"
+                  style={{ maxHeight: 140 }}
+                >
+                  {blurredAfterFive.slice(0, 3).map((it, idx) => (
+                    <div
+                      key={it.id ?? it.name ?? idx}
+                      className="flex items-center gap-3 bg-white/80 border border-rose-50 rounded-xl p-3"
+                      style={{ filter: "blur(4px)", opacity: 0.5 }}
+                    >
+                      <div className="flex-shrink-0">
+                        <div className="w-12 h-12 rounded-full bg-rose-500 shadow-sm flex items-center justify-center">
+                          <Avatar name={it.name} size={48} />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold truncate">
+                          {it.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {it.score} pt
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 하단 그라데이션 오버레이 */}
+                <div
+                  className="absolute left-0 right-0 bottom-0 h-24 pointer-events-none"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(254,242,242,0.95) 60%, rgba(254,242,242,1) 100%)",
+                  }}
+                />
+              </div>
+            )}
+
+            {/* 전체 순위 보기 버튼 */}
+            <div className="flex items-center justify-center">
               <button
                 onClick={goToLeaderboard}
-                className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg"
+                className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-6 py-3 rounded-full text-sm font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
               >
                 전체 순위 보기
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
-
-            {/* 로딩/빈 상태 처리 */}
-            {leaderLoading && (
-              <div className="mt-3 text-center text-xs text-muted-foreground">
-                로딩 중...
-              </div>
-            )}
-            {!leaderLoading && leaderPreview && leaderPreview.length === 0 && (
-              <div className="mt-3 text-center text-xs text-muted-foreground">
-                아직 순위가 없습니다.
-              </div>
-            )}
           </div>
         </section>
       </main>

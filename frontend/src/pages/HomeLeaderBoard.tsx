@@ -204,7 +204,7 @@ const HomeLeaderBoard: React.FC = () => {
               onClick={() => navigate(-1)}
               className="p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-rose-200"
             >
-              <X className="w-5 h-5 text-rose-600" />
+              <X className="w-5 h-5 text-rose-400" />
             </button>
           </div>
 
@@ -335,16 +335,6 @@ const HomeLeaderBoard: React.FC = () => {
 
       {/* 리스트 영역: 배경은 완전 흰색으로 유지 (히어로 그라데이션과 자연스럽게 분리) */}
       <main className="w-full bg-white">
-        {/* 헤더 행 (full width, sticky) */}
-        <div className="w-full grid grid-cols-12 gap-4 items-center px-6 py-3 border-t border-b border-gray-100 sticky top-0 z-20 bg-white">
-          <div className="col-span-1 text-sm text-gray-500">#</div>
-          <div className="col-span-6 text-sm text-gray-500">이름</div>
-          <div className="col-span-3 text-sm text-gray-500">티어</div>
-          <div className="col-span-2 text-sm text-gray-500 text-right">
-            점수
-          </div>
-        </div>
-
         <div className="divide-y divide-gray-100">
           {loading ? (
             <div className="w-full px-6 py-12 flex items-center justify-center">
@@ -352,7 +342,7 @@ const HomeLeaderBoard: React.FC = () => {
             </div>
           ) : error ? (
             <div className="w-full px-6 py-6">
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-sm">
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-500 text-sm">
                 {error}
               </div>
             </div>
@@ -375,9 +365,8 @@ const HomeLeaderBoard: React.FC = () => {
 
                   <div className="col-span-6 flex items-center gap-4 min-w-0">
                     <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center font-semibold text-white"
+                      className="w-10 h-10 rounded-full flex items-center justify-center font-semibold text-white bg-rose-500 "
                       style={{
-                        backgroundColor: "#ef4444", // 통일된 프로필 컬러 (rose-500)
                         boxShadow:
                           it.rank && it.rank <= 3
                             ? `0 8px 22px ${rankInfo.glow}`

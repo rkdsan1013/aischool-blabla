@@ -43,6 +43,11 @@ type LeaderPreviewItem = {
   rank?: number;
 };
 
+// getLeaderboard 함수가 반환할 수 있는 타입에 대한 인터페이스 정의
+interface LeaderboardDataWrapper {
+  data: LeaderPreviewItem[];
+}
+
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
 
@@ -54,10 +59,61 @@ const HomePage: React.FC = () => {
   const [prefetchingType, setPrefetchingType] = useState<TrainingType | null>(
     null
   );
+  const [leaderPreview, setLeaderPreview] = useState<
+    LeaderPreviewItem[] | null
+  >(null);
+  // 1. leaderLoading 상태 제거 (미사용 경고 해결)
+  // const [leaderLoading, setLeaderLoading] = useState(false);
 
   useEffect(() => {
     if (!profileLoading && !profile) navigate("/auth");
   }, [profileLoading, profile, navigate]);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchPreview = async () => {
+      // setLeaderLoading(true); // 제거
+      try {
+        // getLeaderboard의 반환 타입을 unknown으로 받고, 런타임에 타입 검사를 수행합니다.
+        const data: unknown = await getLeaderboard({ limit: 12 });
+        if (!mounted) return;
+
+        let arr: LeaderPreviewItem[] = [];
+
+        if (Array.isArray(data)) {
+          arr = data as LeaderPreviewItem[];
+        } else if (
+          typeof data === "object" &&
+          data !== null &&
+          "data" in data &&
+          Array.isArray((data as LeaderboardDataWrapper).data)
+        ) {
+          // 2. any 대신 타입 단언 및 런타임 체크를 통해 경고 해결
+          arr = (data as LeaderboardDataWrapper).data;
+        }
+
+        arr.sort((a, b) => {
+          if (typeof a.rank === "number" && typeof b.rank === "number") {
+            return a.rank - b.rank;
+          }
+          return (b.score ?? 0) - (a.score ?? 0);
+        });
+        const normalized = arr.map((it, idx) => ({
+          ...it,
+          rank: it.rank ?? idx + 1,
+        }));
+        setLeaderPreview(normalized);
+      } catch {
+        if (mounted) setLeaderPreview([]);
+      } finally {
+        // if (mounted) setLeaderLoading(false); // 제거
+      }
+    };
+    fetchPreview();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   if (profileLoading) {
     return (
@@ -189,44 +245,6 @@ const HomePage: React.FC = () => {
 
   const chosen = tierStyles[tier] ?? tierStyles.Bronze;
 
-  const [leaderPreview, setLeaderPreview] = useState<
-    LeaderPreviewItem[] | null
-  >(null);
-  const [leaderLoading, setLeaderLoading] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-    const fetchPreview = async () => {
-      setLeaderLoading(true);
-      try {
-        const data = await getLeaderboard({ limit: 12 });
-        if (!mounted) return;
-        const arr: LeaderPreviewItem[] = Array.isArray(data)
-          ? data
-          : data?.data ?? [];
-        arr.sort((a, b) => {
-          if (typeof a.rank === "number" && typeof b.rank === "number") {
-            return a.rank - b.rank;
-          }
-          return (b.score ?? 0) - (a.score ?? 0);
-        });
-        const normalized = arr.map((it, idx) => ({
-          ...it,
-          rank: it.rank ?? idx + 1,
-        }));
-        setLeaderPreview(normalized);
-      } catch {
-        if (mounted) setLeaderPreview([]);
-      } finally {
-        if (mounted) setLeaderLoading(false);
-      }
-    };
-    fetchPreview();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
   const goToLeaderboard = () => {
     navigate("/leaderboard");
   };
@@ -262,7 +280,7 @@ const HomePage: React.FC = () => {
   const blurredAfterFive = leaderPreview ? leaderPreview.slice(5) : [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 pb-20">
+    <div className="min-h-screen bg-linear-to-b from-white to-gray-50 pb-20">
       <header className="bg-rose-500 text-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -318,7 +336,7 @@ const HomePage: React.FC = () => {
               >
                 <div className="flex items-center gap-3 sm:gap-4">
                   <div
-                    className={`w-10 h-10 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${s.color} text-white shadow-md group-hover:scale-110 transition-transform duration-300 flex-shrink-0`}
+                    className={`w-10 h-10 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${s.color} text-white shadow-md group-hover:scale-110 transition-transform duration-300 shrink-0`}
                     style={{ border: `1px solid ${s.colorHex}` }}
                   >
                     {s.icon}
@@ -330,7 +348,7 @@ const HomePage: React.FC = () => {
                         {s.title}
                       </h3>
 
-                      <div className="flex-shrink-0 ml-auto flex items-center gap-2">
+                      <div className="shrink-0 ml-auto flex items-center gap-2">
                         {prefetchingType === s.startType ? (
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">
                             <Repeat className="w-3.5 h-3.5 text-rose-600" />
@@ -364,7 +382,7 @@ const HomePage: React.FC = () => {
             리더보드
           </h2>
 
-          <div className="bg-gradient-to-br from-white via-rose-50 to-rose-100 border border-rose-100 rounded-3xl p-6 shadow-lg">
+          <div className="bg-linear-to-br from-white via-rose-50 to-rose-100 border border-rose-100 rounded-3xl p-6 shadow-lg">
             {/* 상위 3명 가로 배치 (2-1-3 순서) */}
             <div className="flex items-end justify-center gap-4 sm:gap-6 mb-8">
               {/* 2위 */}
@@ -376,7 +394,7 @@ const HomePage: React.FC = () => {
                       size={window.innerWidth < 640 ? 64 : 80}
                     />
                   </div>
-                  <div className="absolute -top-1 -right-1 w-7 h-7 bg-gradient-to-br from-slate-200 to-slate-400 rounded-full flex items-center justify-center shadow-md border-2 border-white">
+                  <div className="absolute -top-1 -right-1 w-7 h-7 bg-linear-to-br from-slate-200 to-slate-400 rounded-full flex items-center justify-center shadow-md border-2 border-white">
                     <span className="text-xs font-bold text-slate-800">2</span>
                   </div>
                 </div>
@@ -391,7 +409,7 @@ const HomePage: React.FC = () => {
               </div>
 
               {/* 1위 (가장 크게) */}
-              <div className="flex flex-col items-center gap-3 flex-1 max-w-[140px] sm:max-w-[160px] -mt-6">
+              <div className="flex flex-col items-center gap-3 flex-1 max-w-[140px] sm:max-w-40 -mt-6">
                 <div className="relative">
                   <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-rose-500 shadow-2xl flex items-center justify-center ring-4 ring-yellow-400/50">
                     <Avatar
@@ -399,7 +417,7 @@ const HomePage: React.FC = () => {
                       size={window.innerWidth < 640 ? 96 : 112}
                     />
                   </div>
-                  <div className="absolute -top-2 -right-2 w-9 h-9 bg-gradient-to-br from-yellow-300 to-yellow-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                  <div className="absolute -top-2 -right-2 w-9 h-9 bg-linear-to-br from-yellow-300 to-yellow-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
                     <Award className="w-5 h-5 text-yellow-900" />
                   </div>
                 </div>
@@ -422,7 +440,7 @@ const HomePage: React.FC = () => {
                       size={window.innerWidth < 640 ? 64 : 80}
                     />
                   </div>
-                  <div className="absolute -top-1 -right-1 w-7 h-7 bg-gradient-to-br from-amber-600 to-amber-800 rounded-full flex items-center justify-center shadow-md border-2 border-white">
+                  <div className="absolute -top-1 -right-1 w-7 h-7 bg-linear-to-br from-amber-600 to-amber-800 rounded-full flex items-center justify-center shadow-md border-2 border-white">
                     <span className="text-xs font-bold text-white">3</span>
                   </div>
                 </div>
@@ -445,7 +463,7 @@ const HomePage: React.FC = () => {
                     key={it.id ?? it.name ?? idx}
                     className="flex items-center gap-3 bg-white/95 border border-rose-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
                   >
-                    <div className="flex-shrink-0 relative">
+                    <div className="shrink-0 relative">
                       <div className="w-14 h-14 rounded-full bg-rose-500 shadow-md flex items-center justify-center">
                         <Avatar name={it.name} size={56} />
                       </div>
@@ -485,7 +503,7 @@ const HomePage: React.FC = () => {
                       className="flex items-center gap-3 bg-white/80 border border-rose-50 rounded-xl p-3"
                       style={{ filter: "blur(4px)", opacity: 0.5 }}
                     >
-                      <div className="flex-shrink-0">
+                      <div className="shrink-0">
                         <div className="w-12 h-12 rounded-full bg-rose-500 shadow-sm flex items-center justify-center">
                           <Avatar name={it.name} size={48} />
                         </div>

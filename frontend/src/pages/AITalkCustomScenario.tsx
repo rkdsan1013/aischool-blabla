@@ -216,7 +216,7 @@ const AITalkCustomScenario: React.FC = () => {
   const labelClassName = "block text-sm font-medium text-gray-900";
 
   return (
-    <div className="h-[100dvh] bg-white flex flex-col">
+    <div className="h-dvh bg-white flex flex-col">
       {/* 헤더: VoiceRoomCreate와 동일한 높이, 폰트, 버튼 스타일 적용 */}
       <header className="w-full bg-rose-500 text-white flex-shrink-0">
         <div className="max-w-5xl mx-auto flex items-center justify-between px-4 sm:px-6 py-4">

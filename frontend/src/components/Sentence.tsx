@@ -298,7 +298,7 @@ const Sentence: React.FC<Props> = ({
                 style={{ flexWrap: "wrap", alignItems: "center" }}
               >
                 {placedIds.length === 0 ? (
-                  <div className="flex items-center h-[56px] sm:h-[56px] text-muted-foreground text-sm px-2">
+                  <div className="flex items-center h-14 sm:h-14 text-muted-foreground text-sm px-2">
                     아래의 단어를 선택하거나 드래그하여 문장을 만드세요.
                   </div>
                 ) : (

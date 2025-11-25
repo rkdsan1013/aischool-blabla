@@ -206,9 +206,9 @@ const MyPageProfile: React.FC = () => {
   };
 
   return (
-    <div className="h-[100dvh] bg-gray-50 flex flex-col">
+    <div className="h-dvh bg-gray-50 flex flex-col">
       {/* Header */}
-      <header className="bg-rose-500 text-white flex-shrink-0">
+      <header className="bg-rose-500 text-white shrink-0">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold">개인정보 수정</h1>

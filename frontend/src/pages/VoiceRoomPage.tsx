@@ -166,7 +166,7 @@ export default function VoiceRoomPage() {
   return (
     <div className="min-h-screen bg-white pb-20">
       {/* Hero Section */}
-      <div className="bg-gradient-to-b from-rose-50 to-white border-b border-rose-100">
+      <div className="bg-linear-to-b from-rose-50 to-white border-b border-rose-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <div className="text-center space-y-3 sm:space-y-4 mb-6 sm:mb-8">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-rose-100 text-rose-700 rounded-full text-xs sm:text-sm font-medium mb-1 sm:mb-2">
@@ -269,14 +269,14 @@ export default function VoiceRoomPage() {
                           {room.name ?? "이름 없음"}
                         </h3>
                         {room.isPrivate && (
-                          <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
+                          <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 shrink-0" />
                         )}
                       </div>
                       <p className="text-sm sm:text-base text-gray-600 leading-relaxed line-clamp-2">
                         {topicLabel}
                       </p>
                     </div>
-                    <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-rose-50 text-rose-600 rounded-lg text-xs sm:text-sm font-semibold flex-shrink-0">
+                    <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-rose-50 text-rose-600 rounded-lg text-xs sm:text-sm font-semibold shrink-0">
                       <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       {levelLabel}
                     </div>

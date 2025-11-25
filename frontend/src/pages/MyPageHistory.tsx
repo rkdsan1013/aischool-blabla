@@ -435,7 +435,7 @@ const MyPageHistory: React.FC = () => {
                 <div className="flex items-start gap-4">
                   {/* 아이콘 */}
                   <div
-                    className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300 ${
+                    className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300 ${
                       isTraining ? "bg-indigo-500" : "bg-rose-500"
                     }`}
                   >

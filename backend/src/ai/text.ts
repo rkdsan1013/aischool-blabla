@@ -15,6 +15,7 @@ export async function generateText(params: {
   maxTokens?: number;
   temperature?: number;
   system?: string;
+  context?: string; // [추가] 호출 출처 식별자
 }): Promise<TextGenResponse> {
   // 시스템 메시지 기본값: JSON 출력을 권장하도록 설정
   const systemMsg =
@@ -31,11 +32,12 @@ export async function generateText(params: {
       model: params.model,
       maxTokens: params.maxTokens,
       temperature: params.temperature,
+      context: params.context, // [추가] client로 전달
     });
 
     return { text: res.text, raw: res.raw };
   } catch (err) {
-    console.error("[AI Text] Generation error:", err);
+    // sendChat에서 에러 로그를 이미 남기므로 여기서는 rethrow만 수행
     throw err;
   }
 }

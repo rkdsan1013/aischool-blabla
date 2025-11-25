@@ -441,7 +441,7 @@ const AITalkPage: React.FC = () => {
               <>
                 <div className="flex items-start gap-3">
                   <div
-                    className={`${scenario.colorClass} text-white p-2.5 rounded-xl shadow-md flex-shrink-0`}
+                    className={`${scenario.colorClass} text-white p-2.5 rounded-xl shadow-md shrink-0`}
                     style={{ border: `1px solid ${scenario.colorHex}` }}
                   >
                     {scenario.icon}
@@ -586,7 +586,7 @@ const AITalkPage: React.FC = () => {
           >
             <div className="flex items-start gap-3">
               <div
-                className="bg-red-100 text-red-600 p-2.5 rounded-xl flex-shrink-0"
+                className="bg-red-100 text-red-600 p-2.5 rounded-xl shrink-0"
                 style={{ border: "1px solid rgba(220,38,38,0.08)" }}
               >
                 <Trash2 className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -650,7 +650,7 @@ const AITalkPage: React.FC = () => {
               >
                 <div className="flex items-start gap-3 sm:gap-4">
                   <div
-                    className={`${s.colorClass} text-white p-2.5 sm:p-3 rounded-xl flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300`}
+                    className={`${s.colorClass} text-white p-2.5 sm:p-3 rounded-xl shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300`}
                     style={{ border: `1px solid ${s.colorHex}` }}
                   >
                     {s.icon}
@@ -694,7 +694,7 @@ const AITalkPage: React.FC = () => {
 
           {customScenarios.length === 0 ? (
             <div className="border-3 border-gray-200 border-dashed rounded-2xl p-8 sm:p-12 text-center bg-card">
-              <div className="bg-gradient-to-br from-rose-100 to-pink-100 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
+              <div className="bg-linear-to-br from-rose-100 to-pink-100 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
                 <Sparkles className="w-8 h-8 sm:w-10 sm:h-10 text-rose-500" />
               </div>
               <h3 className="text-base sm:text-lg font-semibold mb-2 text-foreground">
@@ -714,7 +714,7 @@ const AITalkPage: React.FC = () => {
                 >
                   <div className="flex items-start gap-3 sm:gap-4">
                     <div
-                      className={`${s.colorClass} text-white p-2.5 sm:p-3 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300 flex-shrink-0`}
+                      className={`${s.colorClass} text-white p-2.5 sm:p-3 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300 shrink-0`}
                       style={{ border: `1px solid ${s.colorHex}` }}
                     >
                       {s.icon}

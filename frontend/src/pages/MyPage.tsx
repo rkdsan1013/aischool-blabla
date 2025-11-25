@@ -186,7 +186,7 @@ const AttendanceGrid: React.FC<{
         className="flex gap-1 sm:gap-1.5 w-full overflow-hidden"
       >
         {/* 요일 라벨 */}
-        <div className="flex flex-col gap-1 sm:gap-1.5 pt-[0px]">
+        <div className="flex flex-col gap-1 sm:gap-1.5 pt-0">
           {dayLabels.map((d) => (
             <div
               key={d}
@@ -367,7 +367,7 @@ const MyPage: React.FC = () => {
               aria-valuenow={stats.nextLevelProgress}
             >
               <div
-                className="h-2 bg-gradient-to-r from-gray-100 to-white rounded"
+                className="h-2 bg-linear-to-r from-gray-100 to-white rounded"
                 style={{
                   width: `${Math.max(
                     0,

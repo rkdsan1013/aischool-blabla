@@ -70,6 +70,7 @@ export async function generateTalkOpening(
     system: systemPrompt,
     temperature: 0.7,
     model: "gpt-4o",
+    context: "TALK OPENING", // [추가] 로그 식별자
   });
 
   const parsed = parseJSON<{ opening: string }>(res.text);
@@ -157,7 +158,8 @@ export async function generateTalkResponse(
     prompt: userPrompt,
     system: systemPrompt,
     temperature: 0.4,
-    model: "gpt-4o",
+    model: "gpt-5.1",
+    context: "TALK RESPONSE",
   });
 
   return parseJSON<{ reply: string; feedback: any; is_finished: boolean }>(

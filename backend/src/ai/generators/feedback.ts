@@ -102,6 +102,7 @@ export async function generateFeedbackOnly(
     system: systemPrompt,
     temperature: 0.2, // 피드백은 창의성보다 정확성이 중요하므로 낮게 설정
     model: "gpt-4o",
+    context: "FEEDBACK ONLY", // [추가] 로그 식별자
   });
 
   return parseJSON(res.text);

@@ -1,10 +1,6 @@
 // backend/src/ai/generators/blank.ts
 import { generateText } from "../text";
 
-/**
- * getBlankDifficultyRule
- * CEFR 수준에 따라 빈칸 문제의 난이도와 정답/오답 규칙을 반환
- */
 function getBlankDifficultyRule(level: string): string {
   switch (level) {
     case "A1":
@@ -21,14 +17,12 @@ function getBlankDifficultyRule(level: string): string {
   }
 }
 
-/**
- * generateBlankQuestionsRaw
- * 'blank' 유형(빈칸 채우기) 문제 10개 생성
- */
 export async function generateBlankQuestionsRaw(
   level: string = "C2",
   level_progress: number = 50
 ): Promise<string> {
+  const QUESTION_COUNT = 10; // [변경] 변수로 추출 및 10개로 복구
+
   const allowedLevels = ["A1", "A2", "B1", "B2", "C1", "C2"];
   const normalizedLevel = allowedLevels.includes(String(level).toUpperCase())
     ? String(level).toUpperCase()
@@ -45,7 +39,7 @@ export async function generateBlankQuestionsRaw(
     `사용자 CEFR 수준: \`${normalizedLevel}\``,
     ``,
     `--- [지시] ---`,
-    `1. 사용자의 수준(\`${normalizedLevel}\`)에 맞는 빈칸 채우기 문제 10개를 출제하세요.`,
+    `1. 사용자의 수준(\`${normalizedLevel}\`)에 맞는 빈칸 채우기 문제 ${QUESTION_COUNT}개를 출제하세요.`,
     `2. 각 문제는 반드시 다음 JSON 객체 형태로만 출력하세요:`,
     `   {"question": "문장 (빈칸은 ___으로 표기)", "options": ["정답단어", "오답1", "오답2", "오답3"]}`,
     `3. 'question'의 문장은 자연스럽고 실제 사용 맥락(대화, 이메일, 공지, 기사 등)에서 쓰일 법한 표현이어야 합니다. 절대 '수능식'으로 과도하게 꼬거나 비일상적 표현을 만들지 마세요.`,
@@ -55,7 +49,7 @@ export async function generateBlankQuestionsRaw(
     `   - 나머지 3개 요소는 '오답'이어야 합니다.`,
     `5. 오답은 '완전한 잘못'이나 '문장 성립 불가'를 피하고, 실제 학습자가 혼동할 수 있는 현실적인 대안(시제/형태/전치사/조동사/어법 차이 등)으로 구성하세요.`,
     `6. 문장에는 문화적/정치적/성적으로 민감한 내용이 없어야 합니다.`,
-    `7. **(다양성 규칙)** 문제 10개는 서로 중복되지 않아야 하며, 다양한 문법 포인트(시제, 수일치, 전치사, 조동사, 관용구 등)를 고루 다루세요. 또한 빈칸의 위치도 문장 앞/중간/뒤로 다양하게 배치하고, 문장의 종류(평서문, 의문문, 부정문 등)도 섞어서 구성하세요.`,
+    `7. **(다양성 규칙)** 문제 ${QUESTION_COUNT}개는 서로 중복되지 않아야 하며, 다양한 문법 포인트(시제, 수일치, 전치사, 조동사, 관용구 등)를 고루 다루세요.`,
     `8. 출력은 "오직" JSON 배열 단일 파일로만 하세요. (설명 금지, correct 필드 포함 금지)`,
     `9. 예시: [{"question":"She ___ to work by bus every morning","options":["goes","go","going","went"]}, ...]`,
     difficultyRule,
@@ -65,13 +59,12 @@ export async function generateBlankQuestionsRaw(
     `   - 각 문제마다 어떤 문법 포인트를 다루는지 내부적으로는 고려하되(출력엔 표시 금지), 동일 유형의 문제가 연속으로 나오지 않게 하세요.`,
   ].join("\n");
 
-  console.log("[BLANK GEN] Prompt generated.");
-
   const res = await generateText({
     prompt,
-    model: "gpt-5.1", // 또는 gpt-4o
-    maxTokens: 2000,
+    model: "gpt-4o-mini", // 속도 최적화 유지
+    maxTokens: 2000, // 개수가 늘었으므로 토큰 한도 상향
     temperature: 0.7,
+    context: "BLANK GEN",
   });
 
   return res.text;

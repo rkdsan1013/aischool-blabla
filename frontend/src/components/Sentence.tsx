@@ -31,8 +31,6 @@ interface Props {
   onReorder?: (order: string[]) => void;
   showFeedback?: boolean;
   isCorrect?: boolean;
-  // 부모로부터 전달받는 하단 여백 높이
-  bottomPadding?: number;
 }
 
 const CARD_TEXT_CLASS =
@@ -144,7 +142,6 @@ const Sentence: React.FC<Props> = ({
   onRemove,
   onReorder,
   showFeedback = false,
-  bottomPadding = 0, // 기본값 설정
 }) => {
   const { uniqueOptions, wordMap } = useMemo(() => {
     const map = new Map<string, string>();
@@ -255,7 +252,10 @@ const Sentence: React.FC<Props> = ({
         onDragEnd={handleDragEnd}
       >
         {/* 2. 정답 영역 (중간) */}
-        <div className="shrink-0 max-h-[35vh] flex flex-col min-h-[100px] mb-2">
+        {/* 중요 변경: max-h 제한을 60vh 등으로 매우 크게 잡아주고 shrink-0 적용.
+            단어가 많아지면 이 영역이 커지고, 하단 Pool 영역이 줄어듦.
+            Pool 영역이 너무 작아지면 그때서야 Pool 영역에 스크롤이 생김. */}
+        <div className="shrink-0 max-h-[60vh] flex flex-col min-h-[100px] mb-2">
           <div className="flex-1 bg-white border-2 border-dashed border-gray-200 rounded-xl p-2 overflow-y-auto transition-colors hover:border-rose-200">
             <SortableContext items={placedIds} strategy={rectSortingStrategy}>
               <div className="flex flex-wrap items-start content-start min-h-full">
@@ -280,12 +280,9 @@ const Sentence: React.FC<Props> = ({
         </div>
 
         {/* 3. 보기(Pool) 영역 (하단 채움) */}
-        {/* bg-white 적용. paddingBottom을 style로 적용하여 스크롤 끝부분 여백 확보 */}
+        {/* flex-1, min-h-0을 사용하여 남은 공간을 차지. 공간이 부족하면 스크롤 발생. */}
         <div className="flex-1 min-h-0 bg-white -mx-4 px-4 pt-4 flex flex-col">
-          <div
-            className="flex-1 overflow-y-auto"
-            style={{ paddingBottom: bottomPadding }}
-          >
+          <div className="flex-1 overflow-y-auto pb-4">
             <div className="flex flex-wrap content-start">
               {uniqueOptions
                 .filter(({ id }) => !placedIds.includes(id))

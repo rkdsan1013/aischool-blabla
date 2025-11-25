@@ -60,7 +60,6 @@ function normalizeForCompare(s: string) {
 const TrainingPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-
   const { profile, setProfileLocal } = useProfile();
 
   const locState = isLocState(location.state)
@@ -84,7 +83,6 @@ const TrainingPage: React.FC = () => {
 
   const [correctCount, setCorrectCount] = useState<number>(0);
   const [sessionScore, setSessionScore] = useState<number>(0);
-
   const [history, setHistory] = useState<TrainingSessionDetail[]>([]);
   const startTimeRef = useRef<number>(Date.now());
 
@@ -98,7 +96,6 @@ const TrainingPage: React.FC = () => {
 
   const [answerToShow, setAnswerToShow] = useState<string | null>(null);
   const [answerLabel, setAnswerLabel] = useState<string>("정답");
-
   const [finalTranscript, setFinalTranscript] = useState<string | null>(null);
 
   const [feedbackContentHeight, setFeedbackContentHeight] = useState(
@@ -112,7 +109,6 @@ const TrainingPage: React.FC = () => {
       navigate("/home");
       return;
     }
-
     if (!questions && startType) {
       const load = async () => {
         try {
@@ -173,6 +169,7 @@ const TrainingPage: React.FC = () => {
     setFeedbackContentHeight(FEEDBACK_AREA_MIN_HEIGHT);
   };
 
+  // 핸들러 함수들 생략 (기존과 동일)
   const handleSelect = (option: string) => {
     if (showFeedback || verifying) return;
     setSelectedAnswer(option);
@@ -193,30 +190,22 @@ const TrainingPage: React.FC = () => {
     if (showFeedback || verifying) return;
     setWritingValue(v);
   };
-
   const arraysEqual = (a: string[], b: string[]) =>
     a.length === b.length &&
     a.every((v, i) => v.trim() === (b[i] ?? "").trim());
 
   const handleSpeakingComplete = async (audioBlob: Blob) => {
     if (!currentQuestion) return;
-
     setVerifying(true);
     setShowFeedback(true);
-
     try {
       const result = await verifyAnswer({
         type: "speaking",
         userAnswer: audioBlob,
         correctAnswer: currentQuestion.correct ?? [],
       });
-
       setIsCorrect(result.isCorrect);
-
-      if (result.transcript) {
-        setFinalTranscript(result.transcript);
-      }
-
+      if (result.transcript) setFinalTranscript(result.transcript);
       if (result.isCorrect) {
         setCorrectCount((prev) => prev + 1);
         setSessionScore((prev) => prev + result.points);
@@ -225,7 +214,6 @@ const TrainingPage: React.FC = () => {
         setAnswerLabel("인식된 문장");
         setAnswerToShow(result.transcript ?? "인식 실패");
       }
-
       const detail: TrainingSessionDetail = {
         questionId: currentQuestion.id,
         questionText: currentQuestion.question,
@@ -246,7 +234,6 @@ const TrainingPage: React.FC = () => {
 
   const handleCheckAnswer = async () => {
     if (!currentQuestion || verifying) return;
-
     setAnswerToShow(null);
     setAnswerLabel("정답");
 
@@ -265,11 +252,9 @@ const TrainingPage: React.FC = () => {
           : Array.isArray(correctField)
           ? !!selectedAnswer && correctField.includes(selectedAnswer)
           : false;
-
       setIsCorrect(localCorrect);
       if (localCorrect) setCorrectCount((prev) => prev + 1);
       setShowFeedback(true);
-
       if (!localCorrect) {
         const correct = currentQuestion.correct;
         setAnswerToShow(Array.isArray(correct) ? correct[0] : correct ?? "");
@@ -281,11 +266,9 @@ const TrainingPage: React.FC = () => {
       } else if (typeof currentQuestion.correct === "string") {
         localCorrect = currentQuestion.correct === selectedOrder.join(" ");
       }
-
       setIsCorrect(localCorrect);
       if (localCorrect) setCorrectCount((prev) => prev + 1);
       setShowFeedback(true);
-
       if (!localCorrect) {
         const correct = currentQuestion.correct;
         setAnswerToShow(
@@ -309,18 +292,14 @@ const TrainingPage: React.FC = () => {
       if (currentQuestion.type === "writing") {
         const serverCorrect = result.isCorrect;
         setIsCorrect(serverCorrect);
-
         if (serverCorrect) {
           setCorrectCount((prev) => prev + 1);
           setSessionScore((prev) => prev + result.points);
-
           const intended = Array.isArray(currentQuestion.correct)
             ? currentQuestion.correct[0]
             : currentQuestion.correct;
-
           const normUser = normalizeForCompare(writingValue);
           const normIntended = normalizeForCompare(intended || "");
-
           if (intended && normUser !== normIntended) {
             setAnswerLabel("이런 표현도 있어요");
             setAnswerToShow(intended);
@@ -340,7 +319,6 @@ const TrainingPage: React.FC = () => {
           setSessionScore((prev) => prev + result.points);
         }
       }
-
       let storedUserAnswer = "";
       if (Array.isArray(userAnswerForBackend)) {
         storedUserAnswer = userAnswerForBackend.join(" ");
@@ -350,7 +328,6 @@ const TrainingPage: React.FC = () => {
       const storedCorrectAnswer = Array.isArray(currentQuestion.correct)
         ? currentQuestion.correct.join(" ")
         : String(currentQuestion.correct ?? "");
-
       const detail: TrainingSessionDetail = {
         questionId: currentQuestion.id,
         questionText: currentQuestion.question,
@@ -385,10 +362,8 @@ const TrainingPage: React.FC = () => {
 
   const handleTrainingComplete = async () => {
     if (!startType) return;
-
     const endTime = Date.now();
     const durationSec = Math.floor((endTime - startTimeRef.current) / 1000);
-
     try {
       const res = await completeTrainingSession({
         type: startType,
@@ -396,10 +371,8 @@ const TrainingPage: React.FC = () => {
         durationSeconds: durationSec,
         sessionData: history,
       });
-
       if (profile && res.stats) {
         const addedSeconds = res.stats.addedSeconds ?? durationSec;
-
         setProfileLocal({
           ...profile,
           streak_count: res.stats.streak,
@@ -412,7 +385,6 @@ const TrainingPage: React.FC = () => {
     } catch (err) {
       console.error("학습 기록 저장 실패:", err);
     }
-
     navigate("/training/result", {
       replace: true,
       state: {
@@ -433,18 +405,13 @@ const TrainingPage: React.FC = () => {
         );
       }
     };
-
     updateHeight();
-
     window.addEventListener("resize", updateHeight);
-
-    return () => {
-      window.removeEventListener("resize", updateHeight);
-    };
+    return () => window.removeEventListener("resize", updateHeight);
   }, [
     showFeedback,
     isCorrect,
-    currentQuestion?.correct,
+    currentQuestion,
     answerToShow,
     verifying,
     answerLabel,
@@ -453,10 +420,6 @@ const TrainingPage: React.FC = () => {
   const footerVisualHeight = showFeedback
     ? FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight
     : FOOTER_BUTTON_AREA_HEIGHT;
-
-  // 이 값이 자식 컴포넌트(Sentence 등)에게 전달되어 내부 스크롤 하단 여백으로 사용됨
-  const MAIN_CONTENT_PADDING_BOTTOM =
-    FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight;
 
   const canCheck = useMemo(() => {
     if (!currentQuestion) return false;
@@ -483,9 +446,7 @@ const TrainingPage: React.FC = () => {
   if (!currentQuestion) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white p-4">
-        <div className="text-gray-500">
-          문제를 불러오는 중이거나, 문제가 없습니다.
-        </div>
+        <div className="text-gray-500">문제를 불러오는 중...</div>
         <button
           onClick={() => navigate("/home")}
           className="mt-4 text-rose-500 font-bold"
@@ -497,7 +458,6 @@ const TrainingPage: React.FC = () => {
   }
 
   const renderQuestionComponent = (item: QuestionItem) => {
-    // Sentence 컴포넌트에 하단 여백(bottomPadding) prop 전달
     switch (item.type) {
       case "vocabulary":
         return (
@@ -523,8 +483,6 @@ const TrainingPage: React.FC = () => {
             onReorder={handleReorder}
             showFeedback={showFeedback}
             isCorrect={isCorrect}
-            // 푸터 버튼 높이만큼 내부 스크롤에 여백을 주기 위해 전달
-            bottomPadding={MAIN_CONTENT_PADDING_BOTTOM}
           />
         );
       case "blank":
@@ -584,45 +542,33 @@ const TrainingPage: React.FC = () => {
           <button
             onClick={handleClose}
             className="w-8 h-8 flex items-center justify-center text-gray-600 rounded-md hover:bg-gray-100 transition"
-            aria-label="닫기"
             type="button"
           >
-            <X className="w-4 h-4" aria-hidden="true" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       </header>
 
+      {/* 중요 수정: main 영역의 높이를 계산하여 푸터 위까지만 차지하도록 설정.
+          이렇게 하면 내부 스크롤이 푸터 뒤로 넘어가지 않고 푸터 위에서 끝남. */}
       <main
-        // 수정됨: paddingBottom 스타일 제거.
-        // overflow-y-auto를 조건부 또는 Sentence가 제어하도록 변경해야 하지만,
-        // Sentence 컴포넌트가 h-full을 쓰므로 main은 overflow-hidden으로 설정하여 이중 스크롤 방지.
-        // (단, 다른 컴포넌트들도 자체 스크롤을 가지거나, 필요시 auto로 되돌려야 함. 여기서는 Sentence 최적화 위주)
-        className={`flex-1 max-w-4xl mx-auto w-full px-4 pt-4 relative ${
-          currentQuestion?.type === "sentence"
-            ? "overflow-hidden"
-            : "overflow-y-auto"
-        }`}
-        // paddingBottom 제거: 자식 컴포넌트 내부에서 처리
+        className="flex-1 max-w-4xl mx-auto w-full px-4 pt-4 relative overflow-hidden"
+        style={{
+          height: `calc(100% - ${footerVisualHeight}px)`, // 전체 높이에서 푸터 높이만큼 뺌
+        }}
       >
         {showFeedback && (
           <div
             className="absolute inset-0 bg-transparent"
             style={{ zIndex: 30, pointerEvents: "auto" }}
-            aria-hidden="true"
           />
         )}
 
-        {/* fieldset은 스타일링 목적보다는 기능 그룹핑이므로 h-full 적용 */}
         <fieldset
           disabled={showFeedback || verifying}
           className="w-full flex flex-col gap-4 h-full"
         >
           {renderQuestionComponent(currentQuestion)}
-
-          {/* Sentence가 아닌 경우 여백을 밀어주기 위한 요소 (선택적) */}
-          {currentQuestion?.type !== "sentence" && (
-            <div style={{ height: `${MAIN_CONTENT_PADDING_BOTTOM}px` }} />
-          )}
         </fieldset>
       </main>
 
@@ -681,7 +627,6 @@ const TrainingPage: React.FC = () => {
                           <X className="w-6 h-6 text-white" />
                         )}
                       </div>
-
                       <div className="flex-1">
                         <div
                           className={`text-lg font-semibold ${
@@ -730,7 +675,6 @@ const TrainingPage: React.FC = () => {
                   <button
                     disabled
                     className="w-full h-12 rounded-xl font-semibold text-base bg-gray-200 text-gray-400 cursor-wait flex items-center justify-center gap-2"
-                    style={{ pointerEvents: "auto" }}
                   >
                     채점 중...
                   </button>
@@ -749,7 +693,6 @@ const TrainingPage: React.FC = () => {
                         ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20 active:scale-[.98]"
                         : "bg-gray-200 text-gray-400 cursor-not-allowed"
                     }`}
-                    style={{ pointerEvents: "auto" }}
                   >
                     {currentQuestion?.type === "speaking"
                       ? "말하기를 완료하세요"
@@ -763,7 +706,6 @@ const TrainingPage: React.FC = () => {
                         ? "bg-green-600 shadow-green-500/20"
                         : "bg-rose-600 shadow-rose-500/20"
                     }`}
-                    style={{ pointerEvents: "auto" }}
                   >
                     학습 종료
                   </button>
@@ -775,7 +717,6 @@ const TrainingPage: React.FC = () => {
                         ? "bg-green-600 shadow-green-500/20"
                         : "bg-rose-600 shadow-rose-500/20"
                     }`}
-                    style={{ pointerEvents: "auto" }}
                   >
                     다음 문제
                   </button>

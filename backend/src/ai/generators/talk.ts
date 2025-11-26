@@ -158,7 +158,7 @@ export async function generateTalkResponse(
     prompt: userPrompt,
     system: systemPrompt,
     temperature: 0.4,
-    model: "gpt-5.1",
+    model: "gpt-4o",
     context: "TALK RESPONSE",
   });
 

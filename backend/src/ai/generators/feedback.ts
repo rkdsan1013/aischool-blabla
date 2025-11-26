@@ -101,7 +101,7 @@ export async function generateFeedbackOnly(
     prompt: userPrompt,
     system: systemPrompt,
     temperature: 0.2,
-    model: "gpt-5.1",
+    model: "gpt-4o-mini",
     context: "FEEDBACK ONLY",
   });
 

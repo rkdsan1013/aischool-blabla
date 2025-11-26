@@ -1,5 +1,6 @@
+// frontend/src/components/FloatingFeedbackCard.tsx
 import React from "react";
-import { AlertCircle, CheckCircle2, X } from "lucide-react";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 export type ErrorType = "word" | "grammar" | "spelling" | "style";
 
@@ -20,7 +21,7 @@ type Props = {
   show: boolean;
   top: number;
   left: number;
-  width: number; // 이 값은 이제 position 계산의 참조용으로만 사용하거나 무시합니다.
+  width: number; // ✅ 부모 컴포넌트 호환성을 위해 타입은 유지 (실제 사용은 안 함)
   onClose: () => void;
   mobile: boolean;
   feedback?: FeedbackPayload;
@@ -32,6 +33,7 @@ export default function FloatingFeedbackCard({
   show,
   top,
   left,
+  // width, // ✅ [수정] 사용하지 않는 변수 제거 (ESLint 에러 해결)
   onClose,
   mobile,
   feedback,
@@ -45,19 +47,14 @@ export default function FloatingFeedbackCard({
     e.preventDefault();
   }
 
-  // ✅ [수정] 스타일 계산 로직 분리
-  // 1. 데스크탑: 말풍선 위치(left)를 따르되, 최소 너비(320px)를 보장합니다.
-  // 2. 모바일: 말풍선 너비와 상관없이 화면 중앙에 넓게(92vw) 띄웁니다.
+  // 스타일 계산 로직
   const cardStyle: React.CSSProperties = {
     top,
-    left: mobile ? "50%" : left, // 모바일은 무조건 중앙 정렬
-    width: mobile ? "92vw" : "auto", // 모바일은 꽉 차게, 데스크탑은 내용물에 맞게
-    minWidth: mobile ? "unset" : "320px", // ✅ [핵심] 데스크탑에서 최소 너비 보장 (짧은 스크립트 대응)
-    maxWidth: "92vw", // 화면 밖으로 나가는 것 방지
-
-    // Transform 로직:
-    // - isAbove가 true면 Y축 -100% (위로 올림)
-    // - mobile이면 X축 -50% (중앙 정렬 보정)
+    left: mobile ? "50%" : left, // 모바일은 중앙 정렬
+    width: mobile ? "92vw" : "auto", // 모바일은 꽉 차게, 데스크탑은 auto
+    minWidth: mobile ? "unset" : "320px", // 데스크탑 최소 너비 보장
+    maxWidth: "92vw",
+    // 모바일이면 X축 중앙 정렬(-50%), 위쪽 배치면 Y축 위로(-100%)
     transform: `translate(${mobile ? "-50%" : "0"}, ${
       isAbove ? "-100%" : "0"
     })`,
@@ -65,6 +62,7 @@ export default function FloatingFeedbackCard({
 
   return (
     <>
+      {/* 모바일 배경 오버레이 (터치 시 닫기) */}
       {mobile && show && (
         <div
           className="fixed inset-0 z-40 bg-black/10"
@@ -72,6 +70,8 @@ export default function FloatingFeedbackCard({
           aria-hidden="true"
         />
       )}
+
+      {/* 피드백 카드 */}
       <div
         className={`fixed z-50 transition-opacity duration-150 ${
           show ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -80,20 +80,10 @@ export default function FloatingFeedbackCard({
         onClick={onCardClick}
       >
         <div className="relative rounded-lg border border-gray-200 bg-white shadow-xl px-4 py-3">
-          {mobile && (
-            <button
-              type="button"
-              aria-label="닫기"
-              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-600 z-50"
-              onClick={onClose}
-            >
-              <X size={18} />
-            </button>
-          )}
-
           {!feedback ? null : (
             <div className="space-y-3">
               {isStyleOnly ? (
+                // 문장 전체 스타일 피드백
                 <>
                   <div className="flex items-start gap-3">
                     <AlertCircle
@@ -133,6 +123,7 @@ export default function FloatingFeedbackCard({
                   )}
                 </>
               ) : (
+                // 단어별 피드백
                 <>
                   {activeWordIndexes.map((wIdx) => {
                     const errs = feedback.errors.filter(

@@ -18,6 +18,32 @@ import { useProfile } from "../hooks/useProfile";
 import type { UserProfileResponse } from "../services/userService";
 import { getLeaderboard } from "../services/leaderboardService";
 
+// [수정됨] Omit을 사용하여 충돌하는 속성(user_id, id 등)을 제거 후 재정의
+type ExtendedProfile = Omit<
+  Partial<UserProfileResponse>,
+  "user_id" | "id" | "streak_count"
+> & {
+  user_id?: string | number;
+  userId?: string | number;
+  id?: string | number;
+  streak_count?: number;
+  streakCount?: number;
+  streak?: number;
+  tier?: string;
+  score?: number;
+};
+
+// 리더보드 서비스에서 넘어오는 원본 데이터 타입 정의
+interface RawLeaderboardItem {
+  id?: string | number;
+  rank?: number;
+  name?: string;
+  tier?: string;
+  score?: number;
+  streak_count?: number;
+  streakCount?: number;
+}
+
 interface TrainingStep {
   id: string;
   title: string;
@@ -30,7 +56,7 @@ interface TrainingStep {
 }
 
 type LocalProfileContext = {
-  profile: (UserProfileResponse & { tier?: string; score?: number }) | null;
+  profile: ExtendedProfile | null;
   isLoading?: boolean;
   loading?: boolean;
 };
@@ -70,39 +96,38 @@ const HomePage: React.FC = () => {
     const fetchTop = async () => {
       setLeaderLoading(true);
       try {
-        // get top 3 from service (service handles normalization, sorting, ranking)
-        const data = await getLeaderboard({ limit: 3 });
+        // get top 3 from service
+        // API 응답 타입을 알 수 없으므로 unknown 후 로컬 타입으로 단언
+        const response = await getLeaderboard({ limit: 3 });
+        const data = response as unknown as RawLeaderboardItem[];
+
         if (!mounted) return;
 
         // determine current profile id for fallback streak mapping
-        const profileId =
-          (profile as any)?.user_id ??
-          (profile as any)?.userId ??
-          (profile as any)?.id ??
-          null;
+        const profileId = profile
+          ? profile.user_id ?? profile.userId ?? profile.id
+          : null;
 
         // map service LeaderItem -> LeaderboardUser
         const mapped: LeaderboardUser[] = (data ?? []).map((d) => {
           // service may provide streak_count or streakCount or nothing
-          const raw: any = d as any;
-          const streakFromService =
-            typeof raw.streak_count === "number"
-              ? raw.streak_count
-              : typeof raw.streakCount === "number"
-              ? raw.streakCount
-              : undefined;
+          const streakFromService = d.streak_count ?? d.streakCount;
+
+          // id 비교를 위해 문자열로 변환
+          const itemIdStr = d.id ? String(d.id) : undefined;
+          const profileIdStr = profileId ? String(profileId) : undefined;
+
+          const isCurrentUser =
+            (itemIdStr && profileIdStr && itemIdStr === profileIdStr) ||
+            (!itemIdStr && !!profileIdStr); // ID가 없는 경우 본인으로 간주하던 로직 유지
 
           // if service didn't provide streak, and this entry is current user, use profile.streak_count
-          const fallbackStreak =
-            (d.id && profileId && String(d.id) === String(profileId)) ||
-            (!d.id && profileId)
-              ? (profile as any)?.streak_count ??
-                (profile as any)?.streakCount ??
-                0
-              : 0;
+          const fallbackStreak = isCurrentUser
+            ? profile?.streak_count ?? profile?.streakCount ?? 0
+            : 0;
 
           return {
-            id: d.id,
+            id: itemIdStr,
             rank: d.rank ?? 0,
             name: d.name ?? "익명",
             tier: d.tier,
@@ -342,7 +367,7 @@ const HomePage: React.FC = () => {
               >
                 <div className="flex items-center gap-3 sm:gap-4">
                   <div
-                    className={`w-10 h-10 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${s.color} text-white shadow-sm group-hover:scale-105 transition-transform duration-300 flex-shrink-0 ${s.borderClass} border`}
+                    className={`w-10 h-10 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${s.color} text-white shadow-sm group-hover:scale-105 transition-transform duration-300 shrink-0 ${s.borderClass} border`}
                   >
                     {s.icon}
                   </div>
@@ -353,7 +378,7 @@ const HomePage: React.FC = () => {
                         {s.title}
                       </h3>
 
-                      <div className="flex-shrink-0 ml-auto flex items-center gap-2">
+                      <div className="shrink-0 ml-auto flex items-center gap-2">
                         {prefetchingType === s.startType ? (
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
                             <Repeat className="w-3.5 h-3.5 text-rose-600" />
@@ -376,7 +401,7 @@ const HomePage: React.FC = () => {
                     </p>
                   </div>
 
-                  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 flex-shrink-0 self-start mt-1 group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
+                  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 shrink-0 self-start mt-1 group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
                 </div>
               </button>
             </li>

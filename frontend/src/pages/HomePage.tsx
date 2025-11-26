@@ -11,6 +11,7 @@ import {
   Flame,
   ChevronRight,
   Repeat,
+  Layers,
 } from "lucide-react";
 import type { TrainingType } from "../services/trainingService";
 import { useProfile } from "../hooks/useProfile";
@@ -324,7 +325,8 @@ const HomePage: React.FC = () => {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4 text-gray-900">
+        <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4 text-gray-900 flex items-center gap-2">
+          <Layers className="w-5 h-5 text-rose-500" aria-hidden="true" />
           학습 세션
         </h2>
 
@@ -383,25 +385,28 @@ const HomePage: React.FC = () => {
 
         {/* --- 통합된 리더보드 프리뷰 (실제 데이터 사용, 포디엄 하단 정렬 보정) --- */}
         <section className="mt-10 sm:mt-12">
-          <div className="mb-6 flex items-start justify-between">
-            <div>
+          {/* 변경: "더보기" 버튼을 subtitle(상위 학습자들과 경쟁해보세요)와 같은 행에 배치 */}
+          <div className="mb-3">
+            <div className="flex items-center justify-between">
               <h2 className="sm:text-xl font-bold flex items-center gap-2 text-gray-900">
                 <Trophy className="w-5 h-5 text-amber-500" />
                 리더보드
               </h2>
-              <p className="text-sm text-gray-600 mt-1">
-                상위 학습자들과 경쟁해보세요
-              </p>
+              {/* 빈 공간 유지하여 제목 왼쪽 정렬 유지 */}
+              <div />
             </div>
 
-            {/* "더보기" 버튼을 h2와 평행선상에 배치 */}
-            <div className="ml-4 flex items-center">
+            <div className="mt-1 flex items-center justify-between">
+              <p className="text-sm text-gray-600">
+                상위 학습자들과 경쟁해보세요
+              </p>
+
               <button
                 onClick={() => navigate("/leaderboard")}
                 className="text-sm font-medium text-rose-500 hover:underline px-3 py-1 rounded-md"
                 aria-label="전체 순위 보기"
               >
-                전체 순위 확인하기
+                전체 순위 보기
               </button>
             </div>
           </div>
@@ -478,8 +483,6 @@ const HomePage: React.FC = () => {
               </div>
             )}
           </div>
-
-          {/* 하단의 전체 순위 보기 버튼은 제거하고, 상단의 더보기 버튼으로 대체했습니다 */}
         </section>
       </main>
     </div>

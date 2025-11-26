@@ -144,7 +144,6 @@ export default function AuthPage() {
   const handleSignup = async () => {
     try {
       await signupService(signupName, signupEmail, signupPassword);
-      alert("회원가입 성공! 로그인 해주세요.");
       setTab("login");
       setLoginEmail(signupEmail);
       setLoginPassword("");

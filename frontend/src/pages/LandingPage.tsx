@@ -57,9 +57,9 @@ const LandingPage: React.FC = () => {
                           : "opacity-0 translate-y-4"
                       }`}
         >
-          {/* 시작하기 버튼 */}
+          {/* 시작하기 버튼 - 레벨 테스트 페이지로 연결 */}
           <button
-            onClick={() => navigate("/level-test")}
+            onClick={() => navigate("/ai-talk/level-test")}
             className="w-full sm:w-auto min-w-[200px] h-14 sm:h-16 
                        bg-white text-rose-500 font-semibold text-base sm:text-lg 
                        shadow-xl rounded-xl transition 

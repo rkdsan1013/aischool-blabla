@@ -12,6 +12,7 @@ import FloatingFeedbackCard, {
   type FeedbackPayload,
 } from "../components/FloatingFeedbackCard";
 import { aiTalkService, type AIMessage } from "../services/aiTalkService";
+import { useAITalkRecorder } from "../hooks/useAITalkRecorder"; // ✅ 커스텀 훅 Import
 
 // --- 타입 정의 ---
 type Message = {
@@ -22,12 +23,6 @@ type Message = {
   audioUrl?: string;
   feedback?: FeedbackPayload;
 };
-
-// Safari 호환용 타입
-type SafariWindow = Window &
-  typeof globalThis & {
-    webkitAudioContext: typeof AudioContext;
-  };
 
 // --- 유틸리티 ---
 function tokenizeWithIndices(text: string): { token: string; index: number }[] {
@@ -54,8 +49,6 @@ function isMobileUA(): boolean {
 }
 
 // --- 상수 설정 ---
-const SILENCE_THRESHOLD = 1200; // 침묵 감지 시간 (ms)
-const VOLUME_THRESHOLD = 15;
 const FOOTER_HEIGHT = 96;
 const LAST_MESSAGE_SPACING = 16;
 const TOOLTIP_GAP_BELOW = 12;
@@ -70,6 +63,7 @@ const AITalkPageDetail: React.FC = () => {
   const headerRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   // --- 상태 관리 ---
   const [scenarioTitle, setScenarioTitle] = useState("");
@@ -78,33 +72,10 @@ const AITalkPageDetail: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [isConversationEnded, setIsConversationEnded] = useState(false);
 
-  // --- 오디오/VAD 관련 Refs ---
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-
-  // VAD Refs
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const silenceTimerRef = useRef<number | null>(null);
-
-  const speechStartedRef = useRef(false);
-  const animationFrameRef = useRef<number | null>(null);
   const isUnmountedRef = useRef(false);
-
-  // 순환 참조 방지용 Ref
-  const startRecordingAutoRef = useRef<() => Promise<void>>(() =>
-    Promise.resolve()
-  );
-  const stopRecordingInternalRef = useRef<(shouldSend?: boolean) => void>(
-    () => {}
-  );
-
   const isMobile = isMobileUA();
 
   // --- 툴팁 상태 ---
@@ -128,11 +99,9 @@ const AITalkPageDetail: React.FC = () => {
     (base64Audio: string | null | undefined) => {
       if (isUnmountedRef.current) return;
 
+      // 오디오가 없으면 녹음 시작 (훅 제어는 아래 useEffect에서 처리)
       if (!base64Audio || !audioPlayerRef.current) {
-        // 오디오가 없으면 바로 마이크 켜기 (종료된 상태가 아니라면)
-        if (!isUnmountedRef.current && !isConversationEnded) {
-          startRecordingAutoRef.current();
-        }
+        setIsAISpeaking(false);
         return;
       }
 
@@ -141,47 +110,31 @@ const AITalkPageDetail: React.FC = () => {
         player.src = `data:audio/mp3;base64,${base64Audio}`;
 
         setIsAISpeaking(true);
-        stopRecordingInternalRef.current(false);
 
-        player
-          .play()
-          .then(() => {})
-          .catch((e) => {
-            console.error("Autoplay blocked:", e);
-            setIsAISpeaking(false);
-            if (!isUnmountedRef.current && !isConversationEnded)
-              startRecordingAutoRef.current();
-          });
+        player.play().catch((e) => {
+          console.error("Autoplay blocked:", e);
+          setIsAISpeaking(false);
+        });
       } catch (error) {
         console.error("Failed to play audio:", error);
         setIsAISpeaking(false);
-        if (!isUnmountedRef.current && !isConversationEnded)
-          startRecordingAutoRef.current();
       }
     },
-    [isConversationEnded]
+    []
   );
 
   const handleAIThinkingEnd = () => {
     if (isUnmountedRef.current) return;
-
     console.log("AI 발화 종료");
     setIsAISpeaking(false);
-
-    if (isConversationEnded) {
-      // 대화 종료됨 -> 아무것도 안 함 (마이크 안 켬)
-    } else {
-      // 계속 진행 중 -> 마이크 켜기
-      startRecordingAutoRef.current();
-    }
   };
 
   // -----------------------------------------------------------------------
-  // [2] 메시지 전송
+  // [2] 메시지 전송 핸들러
   // -----------------------------------------------------------------------
   const handleSendAudio = useCallback(
     async (audioBlob: Blob) => {
-      if (!sessionId || isUnmountedRef.current) return;
+      if (!sessionId || isUnmountedRef.current || isProcessing) return;
 
       setIsProcessing(true);
 
@@ -221,183 +174,66 @@ const AITalkPageDetail: React.FC = () => {
         });
 
         if (ended) {
-          setIsConversationEnded(true); // 종료 상태 설정
-          if (audioData) {
-            playAudioData(audioData); // 마지막 작별 인사 재생
-          }
+          setIsConversationEnded(true);
+          if (audioData) playAudioData(audioData);
         } else {
           if (audioData) {
             playAudioData(audioData);
           } else {
             setIsProcessing(false);
-            startRecordingAutoRef.current();
           }
         }
-
-        setIsProcessing(false);
       } catch (error) {
         console.error("음성 전송 실패:", error);
         if (!isUnmountedRef.current) {
           setMessages((prev) => prev.filter((m) => m.id !== tempUserMsgId));
-          setIsProcessing(false);
-          startRecordingAutoRef.current();
         }
+      } finally {
+        if (!isUnmountedRef.current) setIsProcessing(false);
       }
     },
-    [sessionId, playAudioData]
+    [sessionId, playAudioData, isProcessing]
   );
 
   // -----------------------------------------------------------------------
-  // [3] 녹음 제어 및 VAD
+  // [3] ✅ 커스텀 훅 사용 (녹음/VAD 로직 대체)
   // -----------------------------------------------------------------------
+  const {
+    start: startRecording,
+    stop: stopRecording,
+    isRecording,
+    isTalking,
+  } = useAITalkRecorder(handleSendAudio);
 
-  const stopRecordingInternal = useCallback((shouldSend: boolean = false) => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-
-    if (audioContextRef.current) {
-      audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
-    }
-    analyserRef.current = null;
-
+  // 상태에 따른 녹음기 제어 (Auto Start)
+  useEffect(() => {
+    // 대화 종료, 처리 중, AI 말하는 중, 로딩 중이 아니면 녹음 시작
     if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !== "inactive"
+      !isConversationEnded &&
+      !isProcessing &&
+      !isAISpeaking &&
+      !isLoading &&
+      sessionId
     ) {
-      mediaRecorderRef.current.stop();
+      startRecording();
+    } else {
+      stopRecording();
     }
+  }, [
+    isConversationEnded,
+    isProcessing,
+    isAISpeaking,
+    isLoading,
+    sessionId,
+    startRecording,
+    stopRecording,
+  ]);
 
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-
-    if (!shouldSend) {
-      speechStartedRef.current = false;
-    }
-
-    setIsRecording(false);
-  }, []);
-
-  useEffect(() => {
-    stopRecordingInternalRef.current = stopRecordingInternal;
-  }, [stopRecordingInternal]);
-
-  const startRecordingAuto = useCallback(async () => {
-    if (isUnmountedRef.current) return;
-    if (isRecording || isProcessing) return;
-    // 종료된 상태면 녹음 시작 안 함
-    if (isConversationEnded) return;
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        if (speechStartedRef.current && !isUnmountedRef.current) {
-          const audioBlob = new Blob(audioChunksRef.current, {
-            type: "audio/webm",
-          });
-          await handleSendAudio(audioBlob);
-        } else {
-          setIsRecording(false);
-        }
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-      speechStartedRef.current = false;
-
-      const AudioContextClass =
-        window.AudioContext ||
-        (window as unknown as SafariWindow).webkitAudioContext;
-      const audioContext = new AudioContextClass();
-
-      if (audioContext.state === "suspended") {
-        await audioContext.resume();
-      }
-
-      const analyser = audioContext.createAnalyser();
-      const source = audioContext.createMediaStreamSource(stream);
-
-      source.connect(analyser);
-      analyser.fftSize = 256;
-
-      audioContextRef.current = audioContext;
-      analyserRef.current = analyser;
-
-      const detectSilence = () => {
-        const analyser = analyserRef.current;
-        if (!analyser || isUnmountedRef.current) return;
-
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-
-        const checkVolume = () => {
-          if (!analyserRef.current || isUnmountedRef.current) return;
-
-          analyser.getByteFrequencyData(dataArray);
-          let sum = 0;
-          for (let i = 0; i < bufferLength; i++) {
-            sum += dataArray[i];
-          }
-          const average = sum / bufferLength;
-
-          if (average > VOLUME_THRESHOLD) {
-            if (!speechStartedRef.current) {
-              speechStartedRef.current = true;
-            }
-            if (silenceTimerRef.current) {
-              clearTimeout(silenceTimerRef.current);
-              silenceTimerRef.current = null;
-            }
-          } else {
-            if (speechStartedRef.current) {
-              if (!silenceTimerRef.current) {
-                silenceTimerRef.current = window.setTimeout(() => {
-                  stopRecordingInternalRef.current(true);
-                }, SILENCE_THRESHOLD);
-              }
-            }
-          }
-
-          animationFrameRef.current = requestAnimationFrame(checkVolume);
-        };
-
-        checkVolume();
-      };
-
-      detectSilence();
-    } catch (error) {
-      console.error("마이크 접근 실패:", error);
-    }
-  }, [handleSendAudio, isRecording, isProcessing, isConversationEnded]);
-
-  useEffect(() => {
-    startRecordingAutoRef.current = startRecordingAuto;
-  }, [startRecordingAuto]);
-
-  // --- 초기화 및 정리 ---
+  // -----------------------------------------------------------------------
+  // [4] 초기화
+  // -----------------------------------------------------------------------
   useEffect(() => {
     isUnmountedRef.current = false;
-    const playerNode = audioPlayerRef.current;
 
     if (!scenarioId) {
       alert("잘못된 접근입니다.");
@@ -426,8 +262,6 @@ const AITalkPageDetail: React.FC = () => {
 
         if (audioData) {
           playAudioData(audioData);
-        } else {
-          startRecordingAutoRef.current();
         }
       } catch (error) {
         console.error(error);
@@ -441,13 +275,8 @@ const AITalkPageDetail: React.FC = () => {
 
     return () => {
       isUnmountedRef.current = true;
-      stopRecordingInternalRef.current(false);
-      if (playerNode) {
-        playerNode.pause();
-        playerNode.src = "";
-      }
+      stopRecording(); // 언마운트 시 확실히 종료
     };
-    // ✅ [중요 수정] playAudioData가 변경되어도 초기화가 다시 실행되지 않도록 의존성 제거
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scenarioId, navigate]);
 
@@ -459,10 +288,10 @@ const AITalkPageDetail: React.FC = () => {
         el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
       }, 100);
     }
-  }, [messages, isProcessing, isConversationEnded]);
+  }, [messages, isProcessing, isTalking]);
 
   const handleEndConversation = async () => {
-    stopRecordingInternal(false);
+    stopRecording();
     isUnmountedRef.current = true;
     if (sessionId) await aiTalkService.endSession(sessionId);
     navigate("/ai-talk");
@@ -567,7 +396,7 @@ const AITalkPageDetail: React.FC = () => {
 
       <header
         ref={headerRef}
-        className="w-full bg-white flex-shrink-0 border-b border-gray-100"
+        className="w-full bg-white shrink-0 border-b border-gray-100"
       >
         <div className="max-w-5xl mx-auto flex items-center gap-4 px-4 sm:px-6 py-3">
           <div className="flex-1 min-w-0">
@@ -627,7 +456,7 @@ const AITalkPageDetail: React.FC = () => {
                         ref={(el) => {
                           bubbleRefs.current[m.id] = el;
                         }}
-                        className={`rounded-xl px-3 py-2 text-[15px] sm:text-[18px] leading-snug break-words 
+                        className={`rounded-xl px-3 py-2 text-[15px] sm:text-[18px] leading-snug wrap-break-word 
                         ${
                           isUser
                             ? "bg-rose-500 text-white"
@@ -651,7 +480,7 @@ const AITalkPageDetail: React.FC = () => {
                         }}
                       >
                         <div
-                          className={`whitespace-pre-wrap break-words ${
+                          className={`whitespace-pre-wrap wrap-break-word ${
                             styleError && isUser ? "bg-yellow-50/20" : ""
                           }`}
                         >
@@ -750,7 +579,6 @@ const AITalkPageDetail: React.FC = () => {
                 </div>
               )}
 
-              {/* 대화 종료 시스템 메시지 */}
               {isConversationEnded && (
                 <div className="flex justify-center my-6">
                   <span className="bg-gray-200 text-gray-600 px-4 py-2 rounded-full text-sm font-medium shadow-sm">
@@ -773,7 +601,9 @@ const AITalkPageDetail: React.FC = () => {
               className={`relative w-16 h-16 rounded-full flex items-center justify-center text-white shadow-md transition-all duration-300
                 ${
                   isRecording
-                    ? "bg-rose-500 ring-4 ring-rose-300 ring-offset-2 animate-pulse"
+                    ? isTalking
+                      ? "bg-rose-500 ring-4 ring-rose-300 ring-offset-2 scale-110"
+                      : "bg-rose-400 ring-2 ring-rose-200"
                     : isProcessing
                     ? "bg-gray-400"
                     : isAISpeaking
@@ -783,7 +613,7 @@ const AITalkPageDetail: React.FC = () => {
               `}
             >
               {isRecording ? (
-                <Mic size={30} />
+                <Mic size={30} className={isTalking ? "animate-pulse" : ""} />
               ) : isProcessing ? (
                 <Loader2 size={30} className="animate-spin" />
               ) : isAISpeaking ? (

@@ -47,6 +47,7 @@ import Peer from "simple-peer";
 import VoiceRoomService, { type VoiceRoom } from "../services/voiceroomService";
 import FloatingFeedbackCard from "../components/FloatingFeedbackCard";
 import { useProfile } from "../hooks/useProfile";
+import { useVoiceRoomRecorder } from "../hooks/useVoiceRoomRecorder";
 import type {
   FeedbackPayload,
   ErrorType,
@@ -80,13 +81,6 @@ interface UserInfo {
   isMuted?: boolean;
 }
 
-interface SignalPayload {
-  userToSignal: string;
-  callerID: string;
-  signal: Peer.SignalData;
-  userInfo: UserInfo;
-}
-
 interface ReturnSignalPayload {
   signal: Peer.SignalData;
   id: string;
@@ -98,49 +92,17 @@ interface UserJoinedPayload {
   userInfo: UserInfo;
 }
 
-interface SpeechRecognitionEvent {
-  resultIndex: number;
-  results: {
-    [key: number]: {
-      isFinal: boolean;
-      [key: number]: { transcript: string };
-      length: number;
-    };
-    length: number;
-  };
-}
-
-interface SpeechRecognitionErrorEvent {
-  error: string;
-  message: string;
-}
-
-interface ISpeechRecognition {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start: () => void;
-  stop: () => void;
-  onstart: (() => void) | null;
-  onend: (() => void) | null;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
-}
-
-type SafariWindow = Window &
-  typeof globalThis & {
-    webkitAudioContext: typeof AudioContext;
-    webkitSpeechRecognition?: new () => ISpeechRecognition;
-    SpeechRecognition?: new () => ISpeechRecognition;
-  };
-
-// 소켓 유저 타입 정의 (any 제거용)
 interface SocketUser {
   socketId: string;
   userId: number;
   name: string;
   isMuted?: boolean;
 }
+
+type SafariWindow = Window &
+  typeof globalThis & {
+    webkitAudioContext: typeof AudioContext;
+  };
 
 /* ----------------------------- Static Helpers ----------------------------- */
 
@@ -220,23 +182,14 @@ export default function VoiceRoomDetail(): React.ReactElement {
   const animationRef = useRef<number | null>(null);
   const participantAnalyzers = useRef<Map<string, AnalyserNode>>(new Map());
   const lastSpeakingTimeRef = useRef<Map<string, number>>(new Map());
-  const recognitionRef = useRef<ISpeechRecognition | null>(null);
 
   // ID & Transcript Refs
-  const interimIdRef = useRef<string | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const participantsRef = useRef<HTMLDivElement | null>(null);
   const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const transcriptIdsRef = useRef<Set<string>>(new Set());
 
-  // transcript State를 Ref로 동기화하여 useEffect 의존성 제거
   const transcriptStateRef = useRef<TranscriptItem[]>([]);
-
-  // --- MediaRecorder Refs ---
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const isRecordingRef = useRef(false);
-  const tempTranscriptIdRef = useRef<string | null>(null);
 
   // --- State ---
   const [isLoading, setIsLoading] = useState(true);
@@ -283,38 +236,11 @@ export default function VoiceRoomDetail(): React.ReactElement {
     profileRef.current = profile;
   }, [profile]);
 
-  // Transcript State 변경 시 Ref 동기화
   useEffect(() => {
     transcriptStateRef.current = transcript;
   }, [transcript]);
 
-  useEffect(() => {
-    const handleError = (e: ErrorEvent) => {
-      if (
-        e.message &&
-        (e.message.includes("_readableState") ||
-          e.message.includes("process.nextTick"))
-      ) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        return true;
-      }
-    };
-    window.addEventListener("error", handleError);
-    return () => window.removeEventListener("error", handleError);
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = () => setMenuState(null);
-    window.addEventListener("click", handleClickOutside);
-    window.addEventListener("scroll", handleClickOutside, true);
-    return () => {
-      window.removeEventListener("click", handleClickOutside);
-      window.removeEventListener("scroll", handleClickOutside, true);
-    };
-  }, []);
-
-  // Transcript Add/Update
+  // addOrUpdateTranscript: 컴포넌트 레벨에서 정의
   const addOrUpdateTranscript = useCallback((item: TranscriptItem) => {
     setTranscript((prev) => {
       const index = prev.findIndex((t) => t.id === item.id);
@@ -330,92 +256,102 @@ export default function VoiceRoomDetail(): React.ReactElement {
     });
   }, []);
 
-  /* ------------------ Recording & Audio Sending ------------------ */
+  // -----------------------------------------------------------------------
+  // [1] Recorder Callback Handlers
+  // -----------------------------------------------------------------------
 
-  const startRecording = useCallback(() => {
-    const stream = localStreamRef.current;
-    if (!stream || mediaRecorderRef.current?.state === "recording") return;
-
-    try {
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
-      mediaRecorderRef.current = recorder;
-      audioChunksRef.current = [];
-      isRecordingRef.current = true;
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      recorder.start();
-
-      if (interimIdRef.current) {
-        tempTranscriptIdRef.current = interimIdRef.current;
-      } else {
-        tempTranscriptIdRef.current = null;
-      }
-    } catch (e) {
-      console.error("MediaRecorder start error:", e);
-    }
-  }, []);
-
-  // 의존성 배열을 비우기 위해 State 대신 Ref 사용
-  const stopRecordingAndSend = useCallback((specificId?: string) => {
-    const recorder = mediaRecorderRef.current;
-    if (!recorder || recorder.state !== "recording") return;
-
-    const capturedId = specificId || tempTranscriptIdRef.current;
-
-    recorder.onstop = async () => {
-      isRecordingRef.current = false;
-      const audioBlob = new Blob(audioChunksRef.current, {
-        type: "audio/webm",
-      });
-
-      if (audioBlob.size < 1000) return;
-
-      const arrayBuffer = await audioBlob.arrayBuffer();
-
-      const currentTranscript = transcriptStateRef.current;
-      const contextMessages = currentTranscript
-        .slice(-5)
-        .map((t) => `${t.speaker}: ${t.text}`);
-
-      let targetId = capturedId;
-
-      if (!targetId) {
-        const lastMyMessage = [...currentTranscript]
-          .reverse()
-          .find(
-            (t) => t.speaker === "나" || t.speaker === profileRef.current?.name
-          );
-        if (
-          lastMyMessage &&
-          new Date().getTime() - lastMyMessage.timestamp.getTime() < 3000
-        ) {
-          targetId = lastMyMessage.id;
-        }
-      }
-
-      if (targetId) {
-        setTranscript((prev) =>
-          prev.map((t) => (t.id === targetId ? { ...t, isAnalyzing: true } : t))
-        );
-
-        socketRef.current?.emit("audio_message", {
-          audio: arrayBuffer,
-          tempId: targetId,
-          context: contextMessages,
-        });
-      }
-      tempTranscriptIdRef.current = null;
+  const onInterimResult = useCallback((text: string, id: string) => {
+    const item: TranscriptItem = {
+      id,
+      speaker: "나",
+      text,
+      timestamp: new Date(),
+      interim: true,
+      isAnalyzing: false,
     };
 
-    recorder.stop();
+    setTranscript((prev) => {
+      const index = prev.findIndex((t) => t.id === id);
+      if (index !== -1) {
+        const newArr = [...prev];
+        newArr[index] = { ...newArr[index], ...item };
+        return newArr;
+      } else {
+        transcriptIdsRef.current.add(id);
+        return [...prev, item];
+      }
+    });
   }, []);
 
-  /* ------------------ Audio Analyzer (VAD) ------------------ */
+  const onFinalResult = useCallback((text: string, id: string) => {
+    const finalItem: TranscriptItem = {
+      id,
+      speaker: "나",
+      text: text.trim(),
+      timestamp: new Date(),
+      interim: false,
+      isAnalyzing: false,
+    };
+
+    setTranscript((prev) => {
+      const index = prev.findIndex((t) => t.id === id);
+      if (index !== -1) {
+        const newArr = [...prev];
+        newArr[index] = { ...newArr[index], ...finalItem };
+        return newArr;
+      } else {
+        transcriptIdsRef.current.add(id);
+        return [...prev, finalItem];
+      }
+    });
+
+    socketRef.current?.emit("local_transcript", {
+      id: finalItem.id,
+      speaker: profileRef.current ? profileRef.current.name : "나",
+      text: finalItem.text,
+      timestamp: new Date().toISOString(),
+    });
+  }, []);
+
+  const onAudioCaptured = useCallback((blob: Blob, id: string) => {
+    setTranscript((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, isAnalyzing: true } : t))
+    );
+
+    const currentTranscript = transcriptStateRef.current;
+    const contextMessages = currentTranscript
+      .slice(-5)
+      .map((t) => `${t.speaker}: ${t.text}`);
+
+    blob.arrayBuffer().then((buffer) => {
+      socketRef.current?.emit("audio_message", {
+        audio: buffer,
+        tempId: id,
+        context: contextMessages,
+      });
+    });
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // [2] Use Custom Recorder Hook
+  // -----------------------------------------------------------------------
+  const { start: startRecording, stop: stopRecording } = useVoiceRoomRecorder({
+    onInterimResult,
+    onFinalResult,
+    onAudioCaptured,
+  });
+
+  useEffect(() => {
+    if (isMuted) {
+      stopRecording();
+    } else {
+      if (socketRef.current?.connected) {
+        startRecording();
+      }
+    }
+  }, [isMuted, startRecording, stopRecording]);
+
+  /* ------------------ Audio Analyzer (Visualizer) ------------------ */
   const attachAnalyzer = useCallback(
     (socketId: string, stream: MediaStream) => {
       if (
@@ -528,167 +464,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
     }
   }, [attachAnalyzer]);
 
-  const myParticipant = participants.find((p) => p.socketId === "me");
-  const amISpeaking = myParticipant?.isSpeaking || false;
-
-  useEffect(() => {
-    if (isMuted || !localStreamRef.current) return;
-
-    if (amISpeaking && !isRecordingRef.current) {
-      startRecording();
-    } else if (!amISpeaking && isRecordingRef.current) {
-      stopRecordingAndSend();
-    }
-  }, [amISpeaking, isMuted, startRecording, stopRecordingAndSend]);
-
-  /* ------------------ Local Speech Recognition ------------------ */
-  const startLocalRecognition = useCallback(() => {
-    const w = window as unknown as SafariWindow;
-    const RecognitionClass = w.SpeechRecognition || w.webkitSpeechRecognition;
-    if (!RecognitionClass) return;
-    if (recognitionRef.current) return;
-
-    try {
-      const recognition = new RecognitionClass();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = "en-US";
-
-      recognition.onstart = () => {
-        setParticipants((prev) =>
-          prev.map((p) =>
-            p.socketId === "me" ? { ...p, isSpeaking: true } : p
-          )
-        );
-      };
-
-      recognition.onend = () => {
-        setParticipants((prev) =>
-          prev.map((p) =>
-            p.socketId === "me" ? { ...p, isSpeaking: false } : p
-          )
-        );
-        if (!isMutedRef.current && (socketRef.current?.connected ?? true)) {
-          setTimeout(() => {
-            try {
-              recognition.start();
-            } catch {
-              /* ignore */
-            }
-          }, 200);
-        }
-      };
-
-      recognition.onresult = (event: SpeechRecognitionEvent) => {
-        let interimTranscript = "";
-        let finalTranscript = "";
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const result = event.results[i];
-          if (result.isFinal) {
-            finalTranscript += result[0].transcript;
-          } else {
-            interimTranscript += result[0].transcript;
-          }
-        }
-
-        if (interimTranscript.trim().length > 0) {
-          const interimId = interimIdRef.current || makeId();
-          interimIdRef.current = interimId;
-          const item: TranscriptItem = {
-            id: interimId,
-            speaker: "나",
-            text: interimTranscript,
-            timestamp: new Date(),
-            interim: true,
-            isAnalyzing: false,
-          };
-
-          setTranscript((prev) => {
-            const exists = prev.find((t) => t.id === interimId);
-            if (exists) {
-              return prev.map((t) => (t.id === interimId ? item : t));
-            } else {
-              transcriptIdsRef.current.add(interimId);
-              return [...prev, item];
-            }
-          });
-        }
-
-        if (finalTranscript.trim().length > 0) {
-          const currentId = interimIdRef.current || makeId();
-
-          const finalItem: TranscriptItem = {
-            id: currentId,
-            speaker: "나",
-            text: finalTranscript.trim(),
-            timestamp: new Date(),
-            interim: false,
-            isAnalyzing: false,
-          };
-
-          setTranscript((prev) => {
-            const index = prev.findIndex((t) => t.id === currentId);
-            if (index !== -1) {
-              const newArr = [...prev];
-              newArr[index] = finalItem;
-              return newArr;
-            }
-            transcriptIdsRef.current.add(currentId);
-            return [...prev, finalItem];
-          });
-
-          if (isRecordingRef.current) {
-            stopRecordingAndSend(finalItem.id);
-          }
-
-          interimIdRef.current = null;
-
-          socketRef.current?.emit("local_transcript", {
-            id: finalItem.id,
-            speaker: profileRef.current ? profileRef.current.name : "나",
-            text: finalItem.text,
-            timestamp: new Date().toISOString(),
-          });
-        }
-      };
-
-      recognitionRef.current = recognition;
-      if (!isMutedRef.current) {
-        try {
-          recognition.start();
-        } catch {
-          /* ignore */
-        }
-      }
-    } catch (e) {
-      console.warn("Failed to initialize SpeechRecognition", e);
-      recognitionRef.current = null;
-    }
-  }, [stopRecordingAndSend]);
-
-  const stopLocalRecognition = useCallback(() => {
-    const rec = recognitionRef.current;
-    if (!rec) return;
-    try {
-      rec.onresult = null;
-      rec.onend = null;
-      rec.onstart = null;
-      rec.onerror = null;
-      rec.stop();
-    } catch {
-      /* ignore */
-    }
-    recognitionRef.current = null;
-
-    if (interimIdRef.current) {
-      const idToRemove = interimIdRef.current;
-      setTranscript((prev) => prev.filter((t) => t.id !== idToRemove));
-      transcriptIdsRef.current.delete(idToRemove);
-      interimIdRef.current = null;
-    }
-  }, []);
-
   const handleKickUser = () => {
     if (!menuState) return;
     const { socketId, userId, name } = menuState;
@@ -706,7 +481,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
     setMenuState(null);
   };
 
-  /* ------------------ Main Effect (소켓 연결) ------------------ */
+  /* ------------------ Main Effect (Init & Socket) ------------------ */
   useEffect(() => {
     if (!roomId || isProfileLoading) return;
     if (!profile) {
@@ -785,6 +560,9 @@ export default function VoiceRoomDetail(): React.ReactElement {
             name: profile.name,
             isMuted: isMutedRef.current,
           });
+          if (!isMutedRef.current) {
+            startRecording();
+          }
         });
 
         socket.on("connect_error", (err) => {
@@ -794,7 +572,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
         socket.on("room_closed", () => {
           if (socketRef.current) socketRef.current.disconnect();
-          stopLocalRecognition();
+          stopRecording();
           alert("호스트가 퇴장하여 방이 종료되었습니다.");
           navigate("/voiceroom");
         });
@@ -804,7 +582,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
             socketRef.current.disconnect();
             socketRef.current = null;
           }
-          stopLocalRecognition();
+          stopRecording();
           if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach((t) => t.stop());
           }
@@ -814,7 +592,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
         socket.on("error_message", (msg: string) => {
           if (socketRef.current) socketRef.current.disconnect();
-          stopLocalRecognition();
+          stopRecording();
           alert(msg);
           navigate("/voiceroom");
         });
@@ -834,7 +612,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
           peer.on("signal", (signal) => {
             if (initiator) {
-              const payload: SignalPayload = {
+              socketRef.current?.emit("sending_signal", {
                 userToSignal: targetId,
                 callerID: socket.id || "",
                 signal,
@@ -843,8 +621,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
                   name: profile.name,
                   isMuted: isMutedRef.current,
                 },
-              };
-              socketRef.current?.emit("sending_signal", payload);
+              });
             } else {
               socketRef.current?.emit("returning_signal", {
                 signal,
@@ -853,26 +630,21 @@ export default function VoiceRoomDetail(): React.ReactElement {
             }
           });
 
-          peer.on("stream", (remoteStream) => {
-            updateParticipantStreamRef.current(targetId, remoteStream);
-          });
-
+          peer.on("stream", (rs) =>
+            updateParticipantStreamRef.current(targetId, rs)
+          );
           return peer;
         };
 
-        // 🛠 any 타입 에러 수정
         socket.on("all_users", (users: SocketUser[]) => {
           if (!socket.id) return;
           const newPeers: { peerID: string; peer: Peer.Instance }[] = [];
           const newParticipants: Participant[] = [];
-
           users.forEach((user) => {
             if (peersRef.current.find((p) => p.peerID === user.socketId))
               return;
-
             const peer = createPeer(user.socketId, true, stream);
             newPeers.push({ peerID: user.socketId, peer });
-
             newParticipants.push({
               socketId: user.socketId,
               userId: user.userId,
@@ -882,13 +654,12 @@ export default function VoiceRoomDetail(): React.ReactElement {
               isMuted: !!user.isMuted,
             });
           });
-
           peersRef.current.push(...newPeers);
           setParticipants((prev) => {
-            const uniqueNew = newParticipants.filter(
+            const unique = newParticipants.filter(
               (np) => !prev.some((p) => p.socketId === np.socketId)
             );
-            return [...prev, ...uniqueNew];
+            return [...prev, ...unique];
           });
         });
 
@@ -907,7 +678,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
               },
             ];
           });
-
           if (!peersRef.current.find((p) => p.peerID === payload.callerID)) {
             const peer = createPeer(payload.callerID, false, stream);
             peer.signal(payload.signal);
@@ -925,13 +695,13 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
         socket.on("user_left", (id: string) => {
           const peerObj = peersRef.current.find((p) => p.peerID === id);
-          if (peerObj) {
+          // ✅ [수정] 빈 catch 블록에 주석 추가하여 eslint-disable 제거
+          if (peerObj)
             try {
               peerObj.peer.destroy();
             } catch {
-              /* safe */
+              /* safe destroy */
             }
-          }
           peersRef.current = peersRef.current.filter((p) => p.peerID !== id);
           setParticipants((prev) => prev.filter((p) => p.socketId !== id));
           participantAnalyzers.current.delete(id);
@@ -951,7 +721,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
         );
 
         socket.on("transcript_item", (item: TranscriptItem) => {
-          const normalized: TranscriptItem = {
+          const normalized = {
             ...item,
             timestamp: new Date(item.timestamp),
             interim: false,
@@ -970,7 +740,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
           }) => {
             setTranscript((prev) => {
               const index = prev.findIndex((t) => t.id === payload.id);
-
               const updatedItem: TranscriptItem = {
                 id: payload.id,
                 speaker: payload.speaker,
@@ -986,19 +755,16 @@ export default function VoiceRoomDetail(): React.ReactElement {
                 newArr[index] = updatedItem;
                 return newArr;
               } else {
-                if (transcriptIdsRef.current.has(payload.id)) {
+                if (transcriptIdsRef.current.has(payload.id))
                   return [...prev, updatedItem];
-                }
                 transcriptIdsRef.current.add(payload.id);
                 return [...prev, updatedItem];
               }
             });
           }
         );
-
-        startLocalRecognition();
       } catch (err) {
-        console.error("🚨 Init Error:", err);
+        console.error("Init Error:", err);
         if (!isMounted) return;
         alert("방 입장 오류");
         navigate("/voiceroom");
@@ -1014,11 +780,10 @@ export default function VoiceRoomDetail(): React.ReactElement {
         socketRef.current.disconnect();
         socketRef.current = null;
       }
-      stopLocalRecognition();
-
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
-      }
+      stopRecording();
+      if (localStreamRef.current)
+        localStreamRef.current.getTracks().forEach((t) => t.stop());
+      // ✅ [수정] 빈 catch 블록 처리
       peersRef.current.forEach(({ peer }) => {
         try {
           peer.destroy();
@@ -1027,25 +792,13 @@ export default function VoiceRoomDetail(): React.ReactElement {
         }
       });
       peersRef.current = [];
-
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
-      if (
-        audioContextRef.current &&
-        audioContextRef.current.state !== "closed"
-      ) {
-        audioContextRef.current.close();
-      }
-
+      if (audioContextRef.current) audioContextRef.current.close();
       analyzersRef.clear();
       transcriptIds.clear();
     };
-    // 🛠 소켓 재연결 방지를 위해 deps 경고 무시
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    roomId,
-    navigate,
-    // profile, isProfileLoading 등을 제외하여 불필요한 리커넥트 방지
-  ]);
+  }, [roomId, navigate]);
 
   const toggleMute = () => {
     setIsMuted((prev) => !prev);
@@ -1055,20 +808,13 @@ export default function VoiceRoomDetail(): React.ReactElement {
     setParticipants((prev) =>
       prev.map((p) => (p.socketId === "me" ? { ...p, isMuted } : p))
     );
-
     if (!localStreamRef.current) return;
     const audioTrack = localStreamRef.current.getAudioTracks()[0];
     if (audioTrack) {
       audioTrack.enabled = !isMuted;
       socketRef.current?.emit("toggle_mute", isMuted);
-
-      if (isMuted) {
-        stopLocalRecognition();
-      } else {
-        startLocalRecognition();
-      }
     }
-  }, [isMuted, startLocalRecognition, stopLocalRecognition]);
+  }, [isMuted]);
 
   useEffect(() => {
     setTranscript([]);
@@ -1077,7 +823,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
     return () => clearInterval(t);
   }, []);
 
-  // 🛠 복잡한 의존성 해결
   const analyzingStatusKey = transcript
     .map((t) => (t.isAnalyzing ? "1" : "0"))
     .join("");
@@ -1089,10 +834,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
   }, [transcript.length, analyzingStatusKey]);
 
   const handleLeaveRoom = () => {
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-    }
-    stopLocalRecognition();
+    if (socketRef.current) socketRef.current.disconnect();
+    stopRecording();
     navigate("/voiceroom");
   };
 
@@ -1108,6 +851,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
       timestamp: new Date(),
       isAnalyzing: true,
     };
+
     addOrUpdateTranscript(newTranscript);
     setInputText("");
 
@@ -1141,19 +885,15 @@ export default function VoiceRoomDetail(): React.ReactElement {
     const rect = node.getBoundingClientRect();
     const viewportW = window.innerWidth;
     const viewportH = window.innerHeight;
-
     const desiredWidth = Math.min(rect.width, viewportW * 0.92);
     const center = rect.left + rect.width / 2;
     let left = center - desiredWidth / 2;
     left = Math.max(8, Math.min(left, viewportW - desiredWidth - 8));
-
     const estimatedCardHeight = 160;
     const spaceBelow = viewportH - rect.bottom;
     const spaceAbove = rect.top;
-
     let top: number;
     let isAbove = false;
-
     if (spaceBelow >= estimatedCardHeight + TOOLTIP_GAP_BELOW) {
       top = rect.bottom + TOOLTIP_GAP_BELOW;
       isAbove = false;
@@ -1343,7 +1083,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
                         <MicOff className="w-3 h-3 text-white" />
                       </div>
                     )}
-
                     {isHost && p.socketId !== "me" && (
                       <div className="absolute inset-0 hover:bg-black/10 rounded-full transition-colors flex items-center justify-center">
                         <MoreHorizontal className="text-white opacity-0 hover:opacity-100 transition-opacity" />
@@ -1375,11 +1114,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
             <div
               ref={transcriptRef}
               className="absolute inset-x-0 top-14 overflow-y-auto px-3"
-              style={{
-                bottom: 92,
-                paddingBottom: 12,
-                background: "white",
-              }}
+              style={{ bottom: 92, paddingBottom: 12, background: "white" }}
             >
               {transcript.map((item) => {
                 const isMe =
@@ -1454,14 +1189,16 @@ export default function VoiceRoomDetail(): React.ReactElement {
                                 const res = item.feedback
                                   ? isWordErrored(index, item.feedback)
                                   : { errored: false, kind: null };
-                                const highlight =
-                                  res.kind === "word"
-                                    ? "bg-blue-600/30 underline decoration-2 underline-offset-2"
-                                    : res.kind === "grammar"
-                                    ? "bg-purple-600/30 underline decoration-dotted"
-                                    : res.kind === "spelling"
-                                    ? "bg-orange-500/30 underline decoration-wavy"
-                                    : "";
+                                let highlight = "";
+                                if (res.kind === "word")
+                                  highlight =
+                                    "bg-blue-600/30 underline decoration-2 underline-offset-2";
+                                else if (res.kind === "grammar")
+                                  highlight =
+                                    "bg-purple-600/30 underline decoration-dotted";
+                                else if (res.kind === "spelling")
+                                  highlight =
+                                    "bg-orange-500/30 underline decoration-wavy";
 
                                 return (
                                   <span
@@ -1500,14 +1237,12 @@ export default function VoiceRoomDetail(): React.ReactElement {
                             <span>{item.text}</span>
                           )}
                         </div>
-
                         {item.isAnalyzing && (
                           <div className="mt-2 flex items-center gap-2 text-white/90 text-xs bg-white/20 rounded-lg px-2 py-1 w-fit animate-pulse">
                             <Sparkles size={12} />
                             <span>AI 분석 중...</span>
                           </div>
                         )}
-
                         {styleError && isMe && !item.isAnalyzing && (
                           <div className="mt-2 flex items-center gap-2 text-yellow-900">
                             <AlertCircle size={16} />
@@ -1582,14 +1317,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
         activeWordIndexes={activeTooltipWordIndexes}
         isAbove={cardPos.isAbove}
       />
-
-      <style>
-        {`@keyframes ringPulse {
-            0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.40); }
-            70% { box-shadow: 0 0 0 14px rgba(244, 63, 94, 0.00); }
-            100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.00); }
-          }`}
-      </style>
+      <style>{`@keyframes ringPulse { 0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.40); } 70% { box-shadow: 0 0 0 14px rgba(244, 63, 94, 0.00); } 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.00); } }`}</style>
     </div>
   );
 }

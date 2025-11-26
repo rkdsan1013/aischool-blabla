@@ -6,60 +6,86 @@ import { useAITalkRecorder } from "../hooks/useAITalkRecorder";
 
 // --- 더미 데이터 및 상수 ---
 const DUMMY_AI_AUDIO_DURATION = 3000;
-const MAX_TURNS = 3; // 더미 테스트: 3번 대화 후 종료 (사용자에게는 보이지 않음)
+const MAX_TURNS = 3;
 
 const LevelTestPage: React.FC = () => {
   const navigate = useNavigate();
 
-  // --- 상태 관리 ---
-  const [turnCount, setTurnCount] = useState(0);
+  // --- [1] 로직 제어용 Ref (값이 바뀌어도 리렌더링 안됨, 함수 재생성 방지) ---
+  const turnCountRef = useRef(0);
+  const isProcessingRef = useRef(false);
+  const isAISpeakingRef = useRef(false);
+  const isUnmountedRef = useRef(false);
+
+  // --- [2] UI 렌더링용 State ---
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [isConversationEnded, setIsConversationEnded] = useState(false);
   const [statusText, setStatusText] = useState("테스트 준비 중...");
 
-  const isGuestMode = true;
-  const isUnmountedRef = useRef(false);
-
-  // [DEBUG] 턴 진행 상황 콘솔 출력 (turnCount 미사용 경고 방지 및 디버깅)
-  useEffect(() => {
-    console.log(`Current Turn: ${turnCount} (Hidden from UI)`);
-  }, [turnCount]);
+  // 게스트 모드 여부 (테스트용)
+  const isGuestMode = false;
 
   // -----------------------------------------------------------------------
-  // [1] 더미 AI 발화 시뮬레이션
+  // [3] AI 발화 시뮬레이션 (Ref 사용)
   // -----------------------------------------------------------------------
   const simulateAISpeaking = useCallback(() => {
+    // 로직 상태 업데이트
+    isAISpeakingRef.current = true;
+
+    // UI 업데이트
     setStatusText("AI가 질문하고 있습니다...");
     setIsAISpeaking(true);
 
     setTimeout(() => {
       if (isUnmountedRef.current) return;
+
+      // 로직 상태 해제
+      isAISpeakingRef.current = false;
+
+      // UI 업데이트
       setIsAISpeaking(false);
       setStatusText("답변을 말씀해주세요");
     }, DUMMY_AI_AUDIO_DURATION);
   }, []);
 
   // -----------------------------------------------------------------------
-  // [2] 더미 메시지 전송 핸들러
+  // [4] 더미 메시지 전송 핸들러 (Ref 기반 로직 판별)
   // -----------------------------------------------------------------------
-  const handleSendAudio = useCallback(async () => {
-    if (isUnmountedRef.current || isProcessing || isAISpeaking) return;
+  // 의존성 배열을 비워 함수가 절대 재생성되지 않도록 함 -> 녹음 훅 끊김 방지
+  const handleSendAudio = useCallback(
+    async () => {
+      // 1. Ref 값을 통해 현재 상태를 즉시 확인 (Stale Closure 방지)
+      if (
+        isUnmountedRef.current ||
+        isProcessingRef.current ||
+        isAISpeakingRef.current ||
+        isConversationEnded // 이미 끝났으면 무시
+      ) {
+        return;
+      }
 
-    setIsProcessing(true);
-    setStatusText("답변을 분석 중입니다...");
+      // 2. 처리 중 상태로 변경
+      isProcessingRef.current = true;
+      setIsProcessing(true); // UI 반영
+      setStatusText("답변을 분석 중입니다...");
 
-    // 2초간 분석 시뮬레이션
-    setTimeout(() => {
-      if (isUnmountedRef.current) return;
-      setIsProcessing(false);
+      // 2초간 분석 시뮬레이션
+      setTimeout(() => {
+        if (isUnmountedRef.current) return;
 
-      setTurnCount((prev) => {
-        const nextTurn = prev + 1;
+        // 처리 완료
+        isProcessingRef.current = false;
+        setIsProcessing(false); // UI 반영
 
-        // 더미 로직: 일정 횟수 이상이면 AI가 종료 판단을 내린 것으로 간주
-        if (nextTurn >= MAX_TURNS) {
+        // 턴 증가 (Ref 사용)
+        turnCountRef.current += 1;
+        const currentTurn = turnCountRef.current;
+        console.log(`Turn Completed: ${currentTurn} / ${MAX_TURNS}`);
+
+        // 종료 조건 체크
+        if (currentTurn >= MAX_TURNS) {
           setIsConversationEnded(true);
           setStatusText("AI가 대화를 종료했습니다. 결과를 분석 중입니다...");
 
@@ -73,21 +99,20 @@ const LevelTestPage: React.FC = () => {
             };
             navigate("/ai-talk/level-test/result", { state: dummyResult });
           }, 2000);
-
-          return nextTurn;
         } else {
-          // 대화 계속 진행
+          // 다음 턴 AI 발화 시작
           setTimeout(() => {
             simulateAISpeaking();
           }, 500);
-          return nextTurn;
         }
-      });
-    }, 2000);
-  }, [isProcessing, isAISpeaking, navigate, simulateAISpeaking, isGuestMode]);
+      }, 2000);
+    },
+    // 의존성을 비워둠: 내부에서 Ref를 쓰므로 외부 값이 변해도 로직은 최신 값을 참조함
+    [navigate, simulateAISpeaking, isConversationEnded, isGuestMode]
+  );
 
   // -----------------------------------------------------------------------
-  // [3] 녹음 훅
+  // [5] 녹음 훅
   // -----------------------------------------------------------------------
   const {
     start: startRecording,
@@ -96,6 +121,9 @@ const LevelTestPage: React.FC = () => {
     isTalking,
   } = useAITalkRecorder(handleSendAudio);
 
+  // -----------------------------------------------------------------------
+  // [6] 자동 녹음 제어 (State 변경에 따라 반응)
+  // -----------------------------------------------------------------------
   useEffect(() => {
     if (!isConversationEnded && !isProcessing && !isAISpeaking && !isLoading) {
       startRecording();
@@ -112,19 +140,23 @@ const LevelTestPage: React.FC = () => {
   ]);
 
   // -----------------------------------------------------------------------
-  // [4] 초기화
+  // [7] 초기화
   // -----------------------------------------------------------------------
   useEffect(() => {
     isUnmountedRef.current = false;
+
     const initTest = () => {
       setIsLoading(true);
       setStatusText("AI와 연결 중입니다...");
+
       setTimeout(() => {
         setIsLoading(false);
-        simulateAISpeaking();
+        simulateAISpeaking(); // 첫 턴 시작
       }, 1500);
     };
+
     initTest();
+
     return () => {
       isUnmountedRef.current = true;
       stopRecording();
@@ -162,8 +194,6 @@ const LevelTestPage: React.FC = () => {
       {/* 메인 컨텐츠 */}
       <main className="flex-1 flex flex-col items-center justify-center p-6 z-10 relative">
         <div className="mb-12 sm:mb-20 text-center space-y-3 h-24 flex flex-col justify-end pb-4">
-          {/* ✅ 수정: 고정된 카운트 표시(Question X/Y) 제거 */}
-
           <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-gray-900 animate-fade-in">
             {isLoading
               ? "Loading..."
@@ -180,7 +210,6 @@ const LevelTestPage: React.FC = () => {
 
         {/* 비주얼라이저 */}
         <div className="relative flex items-center justify-center">
-          {/* AI 말하기 상태: 파란색/보라색 파동 */}
           {isAISpeaking && (
             <>
               <div
@@ -191,7 +220,6 @@ const LevelTestPage: React.FC = () => {
             </>
           )}
 
-          {/* 유저 말하기 상태: 붉은색 파동 */}
           {isRecording && !isAISpeaking && !isProcessing && (
             <>
               <div
@@ -211,7 +239,6 @@ const LevelTestPage: React.FC = () => {
             </>
           )}
 
-          {/* 중앙 원형 컨테이너 */}
           <div
             className={`relative w-32 h-32 sm:w-44 sm:h-44 rounded-full flex items-center justify-center shadow-xl transition-all duration-500 border-4 
             ${

@@ -20,24 +20,23 @@ type Props = {
   show: boolean;
   top: number;
   left: number;
-  width: number;
+  width: number; // 이 값은 이제 position 계산의 참조용으로만 사용하거나 무시합니다.
   onClose: () => void;
   mobile: boolean;
   feedback?: FeedbackPayload;
   activeWordIndexes: number[]; // [] => sentence-level(style) feedback
-  isAbove?: boolean; // ✅ [추가] 카드가 말풍선 위에 있는지 여부
+  isAbove?: boolean;
 };
 
 export default function FloatingFeedbackCard({
   show,
   top,
   left,
-  width,
   onClose,
   mobile,
   feedback,
   activeWordIndexes,
-  isAbove = false, // ✅ [추가] 기본값 false
+  isAbove = false,
 }: Props) {
   const isStyleOnly = activeWordIndexes.length === 0;
 
@@ -45,6 +44,24 @@ export default function FloatingFeedbackCard({
     e.stopPropagation();
     e.preventDefault();
   }
+
+  // ✅ [수정] 스타일 계산 로직 분리
+  // 1. 데스크탑: 말풍선 위치(left)를 따르되, 최소 너비(320px)를 보장합니다.
+  // 2. 모바일: 말풍선 너비와 상관없이 화면 중앙에 넓게(92vw) 띄웁니다.
+  const cardStyle: React.CSSProperties = {
+    top,
+    left: mobile ? "50%" : left, // 모바일은 무조건 중앙 정렬
+    width: mobile ? "92vw" : "auto", // 모바일은 꽉 차게, 데스크탑은 내용물에 맞게
+    minWidth: mobile ? "unset" : "320px", // ✅ [핵심] 데스크탑에서 최소 너비 보장 (짧은 스크립트 대응)
+    maxWidth: "92vw", // 화면 밖으로 나가는 것 방지
+
+    // Transform 로직:
+    // - isAbove가 true면 Y축 -100% (위로 올림)
+    // - mobile이면 X축 -50% (중앙 정렬 보정)
+    transform: `translate(${mobile ? "-50%" : "0"}, ${
+      isAbove ? "-100%" : "0"
+    })`,
+  };
 
   return (
     <>
@@ -59,40 +76,32 @@ export default function FloatingFeedbackCard({
         className={`fixed z-50 transition-opacity duration-150 ${
           show ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
-        style={{
-          top,
-          left,
-          width,
-          maxWidth: "92vw",
-          // ✅ [수정] 위쪽 배치일 경우(isAbove=true), 현재 top 위치(말풍선 바로 위)를 기준으로
-          // 자신의 높이만큼 위로(-100%) 이동시킵니다. 이렇게 하면 카드 높이가 유동적이어도 딱 붙습니다.
-          transform: isAbove ? "translateY(-100%)" : "none",
-        }}
+        style={cardStyle}
         onClick={onCardClick}
       >
-        <div className="relative rounded-lg border border-gray-200 bg-white shadow-md px-3 py-2">
+        <div className="relative rounded-lg border border-gray-200 bg-white shadow-xl px-4 py-3">
           {mobile && (
             <button
               type="button"
               aria-label="닫기"
-              className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-600"
+              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-600 z-50"
               onClick={onClose}
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           )}
 
           {!feedback ? null : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {isStyleOnly ? (
                 <>
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-start gap-3">
                     <AlertCircle
-                      className="text-yellow-500 shrink-0"
-                      size={18}
+                      className="text-yellow-500 shrink-0 mt-0.5"
+                      size={20}
                     />
-                    <div className="text-[14px] text-gray-800">
-                      <div className="font-semibold">STYLE: 문장 전체</div>
+                    <div className="text-[15px] text-gray-800 leading-snug">
+                      <div className="font-bold mb-1">STYLE: 문장 전체</div>
                       <div className="text-gray-700">
                         {
                           feedback.errors.find((e) => e.type === "style")
@@ -102,23 +111,23 @@ export default function FloatingFeedbackCard({
                     </div>
                   </div>
                   {feedback.suggestion && (
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-3 bg-emerald-50/50 p-2 rounded-md">
                       <CheckCircle2
-                        className="text-emerald-600 shrink-0"
-                        size={18}
+                        className="text-emerald-600 shrink-0 mt-0.5"
+                        size={20}
                       />
-                      <div className="text-[14px]">
-                        <span className="font-semibold text-gray-800">
-                          교정 문장:{" "}
+                      <div className="text-[15px]">
+                        <span className="font-bold text-gray-900 block mb-1">
+                          교정 문장
                         </span>
-                        <span className="text-gray-700">
+                        <span className="text-gray-800">
                           {feedback.suggestion}
                         </span>
                       </div>
                     </div>
                   )}
                   {feedback.explanation && (
-                    <div className="text-[13px] text-gray-600">
+                    <div className="text-[13px] text-gray-500 pl-8 border-l-2 border-gray-100">
                       {feedback.explanation}
                     </div>
                   )}
@@ -130,18 +139,18 @@ export default function FloatingFeedbackCard({
                       (e) => e.index === wIdx
                     );
                     return (
-                      <div key={`tip-${wIdx}`} className="space-y-2">
+                      <div key={`tip-${wIdx}`} className="space-y-3">
                         {errs.map((e, j) => (
                           <div
                             key={`err-${wIdx}-${j}`}
-                            className="flex items-start gap-2"
+                            className="flex items-start gap-3"
                           >
                             <AlertCircle
-                              className="text-rose-500 shrink-0"
-                              size={18}
+                              className="text-rose-500 shrink-0 mt-0.5"
+                              size={20}
                             />
-                            <div className="text-[14px] text-gray-800">
-                              <div className="font-semibold">
+                            <div className="text-[15px] text-gray-800 leading-snug">
+                              <div className="font-bold mb-1">
                                 {e.type.toUpperCase()}
                                 {typeof e.word === "string"
                                   ? `: ${e.word}`
@@ -152,23 +161,23 @@ export default function FloatingFeedbackCard({
                           </div>
                         ))}
                         {feedback.suggestion && (
-                          <div className="flex items-start gap-2">
+                          <div className="flex items-start gap-3 bg-emerald-50/50 p-2 rounded-md">
                             <CheckCircle2
-                              className="text-emerald-600 shrink-0"
-                              size={18}
+                              className="text-emerald-600 shrink-0 mt-0.5"
+                              size={20}
                             />
-                            <div className="text-[14px]">
-                              <span className="font-semibold text-gray-800">
-                                교정 문장:{" "}
+                            <div className="text-[15px]">
+                              <span className="font-bold text-gray-900 block mb-1">
+                                교정 제안
                               </span>
-                              <span className="text-gray-700">
+                              <span className="text-gray-800">
                                 {feedback.suggestion}
                               </span>
                             </div>
                           </div>
                         )}
                         {feedback.explanation && (
-                          <div className="text-[13px] text-gray-600">
+                          <div className="text-[13px] text-gray-500 pl-8 border-l-2 border-gray-100">
                             {feedback.explanation}
                           </div>
                         )}

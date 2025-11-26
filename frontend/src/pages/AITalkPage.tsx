@@ -1,4 +1,5 @@
 // frontend/src/pages/AITalkPage.tsx
+// cspell:ignore CEFR
 import React, { useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import {
@@ -17,6 +18,7 @@ import {
   Play,
   X,
   Pen,
+  TrendingUp,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { aiTalkService } from "../services/aiTalkService";
@@ -55,8 +57,6 @@ const AITalkPage: React.FC = () => {
 
   const [confirmScenario, setConfirmScenario] =
     useState<DisplayScenario | null>(null);
-
-  // 불필요한 ref 제거됨 (titleRef, descRef, ctxRef)
 
   const getScenarioStyle = (title: string) => {
     if (title.includes("카페")) {
@@ -123,7 +123,6 @@ const AITalkPage: React.FC = () => {
         const official: DisplayScenario[] = [];
         const custom: DisplayScenario[] = [];
 
-        // any 타입 제거 및 ApiScenario 인터페이스 적용
         data.forEach((item: ApiScenario) => {
           const style = getScenarioStyle(item.title);
 
@@ -175,15 +174,13 @@ const AITalkPage: React.FC = () => {
     };
   }, [modalScenario, confirmScenario]);
 
-  // 불필요한 handleScenarioClick 제거됨
-
   const handleCreateNavigate = () => navigate("/ai-talk/custom-scenario");
+
+  const handleLevelTestNavigate = () => navigate("/ai-talk/level-test");
 
   const openModal = (s: DisplayScenario) => {
     setModalScenario(s);
   };
-
-  // 불필요한 closeModal 제거됨 (인라인 함수로 대체되어 사용 중이거나 불필요)
 
   const startConversation = (s: DisplayScenario) => {
     setModalScenario(null);
@@ -235,9 +232,7 @@ const AITalkPage: React.FC = () => {
   };
 
   /**
-   * ModalCard
-   * - 읽기 모드: 상황 설명 컨테이너만 스크롤 가능(모달은 스크롤 없음)
-   * - 편집 모드: 초기 작성 내용(제목/설명/컨텍스트) 모두 숨기고 인풋 컨테이너만 표시
+   * ModalCard Component
    */
   const ModalCard: React.FC<{
     scenario: DisplayScenario;
@@ -319,7 +314,6 @@ const AITalkPage: React.FC = () => {
       onRequestDelete(scenario);
     };
 
-    // 읽기 모드에서만 사용되는 상황 설명 컨테이너 스타일
     const contextScrollStyle: React.CSSProperties = {
       maxHeight: "9rem",
       overflowY: "auto",
@@ -348,12 +342,10 @@ const AITalkPage: React.FC = () => {
             className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-4 sm:p-5"
             style={{
               border: "1px solid rgba(0,0,0,0.06)",
-              // 모달 자체는 스크롤 없음
               maxHeight: "80vh",
             }}
           >
             {localIsEditing ? (
-              // 편집 모드: 초기 내용 모두 숨기고 인풋 컨테이너만 표시
               <>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-semibold text-base sm:text-lg text-foreground">
@@ -437,7 +429,6 @@ const AITalkPage: React.FC = () => {
                 </div>
               </>
             ) : (
-              // 읽기 모드: 헤더 + 상황 설명(컨테이너 스크롤) + 액션들
               <>
                 <div className="flex items-start gap-3">
                   <div
@@ -631,6 +622,40 @@ const AITalkPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-background pb-20">
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {/* CEFR 레벨 테스트 배너 섹션 */}
+        <section className="mb-8 sm:mb-12">
+          <div
+            onClick={handleLevelTestNavigate}
+            // 수정됨: bg-gradient-to-r -> bg-linear-to-r
+            className="w-full bg-linear-to-r from-violet-600 to-indigo-600 rounded-2xl p-5 sm:p-6 text-white shadow-lg cursor-pointer hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex items-center justify-between relative overflow-hidden group"
+            role="button"
+            aria-label="CEFR 레벨 테스트 하러가기"
+          >
+            {/* 장식용 배경 원 */}
+            <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl group-hover:opacity-20 transition-opacity"></div>
+
+            <div className="relative z-10 flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="bg-white/20 px-2 py-0.5 rounded text-xs font-medium backdrop-blur-sm">
+                  AI LEVEL TEST
+                </span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold mb-1">
+                내 영어 회화 레벨은?
+              </h2>
+              <p className="text-indigo-100 text-sm sm:text-base opacity-90 text-pretty mt-1">
+                CEFR 기준으로 내 실력을 측정하고
+                <br className="hidden sm:block" /> 맞춤형 학습 시나리오를
+                추천받으세요.
+              </p>
+            </div>
+
+            <div className="relative z-10 bg-white/20 p-3 rounded-full backdrop-blur-sm ml-4 group-hover:bg-white/30 transition-colors">
+              <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
+            </div>
+          </div>
+        </section>
+
         <section className="mb-8 sm:mb-12">
           <div className="mb-4 sm:mb-6">
             <h2 className="text-xl sm:text-2xl font-bold mb-1 sm:mb-2">

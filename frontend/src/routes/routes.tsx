@@ -19,7 +19,8 @@ import AITalkCustomScenario from "../pages/AITalkCustomScenario";
 import MyPageHistory from "../pages/MyPageHistory";
 import MyPageProfile from "../pages/MyPageProfile";
 import HomeLeaderBoard from "../pages/HomeLeaderBoard";
-import LevelTestPage from "../pages/LevelTestPage"; // 레벨 테스트 페이지 임포트 추가
+import LevelTestPage from "../pages/LevelTestPage";
+import LevelTestResultPage from "../pages/LevelTestResultPage"; // ✅ 결과 페이지 임포트 추가
 
 import PublicOnlyRoute from "./PublicOnlyRoute";
 import ProtectedRoute from "./ProtectedRoute";
@@ -55,6 +56,11 @@ export const routes: RouteObject[] = [
       {
         path: "/ai-talk/level-test",
         element: <LevelTestPage />,
+      },
+      // ✅ [Open Access] 레벨 테스트 결과 페이지 추가
+      {
+        path: "/ai-talk/level-test/result",
+        element: <LevelTestResultPage />,
       },
 
       // [Protected] 로그인 필요 (미로그인 시 /auth로 리다이렉트)

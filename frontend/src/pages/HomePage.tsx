@@ -22,8 +22,8 @@ interface TrainingStep {
   title: string;
   description: string;
   icon: React.ReactNode;
-  color: string;
-  colorHex: string;
+  color: string; // bg class
+  borderClass: string; // border color class
   repeatsToday: number;
   startType: TrainingType;
 }
@@ -110,7 +110,7 @@ const HomePage: React.FC = () => {
       description: "새로운 단어를 배우고 복습하세요",
       icon: <BookOpen className="w-4 h-4 sm:w-4 sm:h-4" />,
       color: "bg-rose-500",
-      colorHex: "#ef4444",
+      borderClass: "border-rose-500",
       repeatsToday: 2,
       startType: "vocabulary",
     },
@@ -120,7 +120,7 @@ const HomePage: React.FC = () => {
       description: "단어를 올바른 순서로 배열하세요",
       icon: <ListOrdered className="w-4 h-4 sm:w-4 sm:h-4" />,
       color: "bg-rose-400",
-      colorHex: "#fb7185",
+      borderClass: "border-rose-400",
       repeatsToday: 1,
       startType: "sentence",
     },
@@ -130,7 +130,7 @@ const HomePage: React.FC = () => {
       description: "단어와 뜻을 연결하세요",
       icon: <Link2 className="w-4 h-4 sm:w-4 sm:h-4" />,
       color: "bg-pink-500",
-      colorHex: "#ec4899",
+      borderClass: "border-pink-500",
       repeatsToday: 0,
       startType: "blank",
     },
@@ -140,7 +140,7 @@ const HomePage: React.FC = () => {
       description: "문장을 직접 작성해보세요",
       icon: <PenTool className="w-4 h-4 sm:w-4 sm:h-4" />,
       color: "bg-rose-300",
-      colorHex: "#fda4af",
+      borderClass: "border-rose-300",
       repeatsToday: 0,
       startType: "writing",
     },
@@ -150,7 +150,7 @@ const HomePage: React.FC = () => {
       description: "AI가 발음을 교정해드립니다",
       icon: <Mic className="w-4 h-4 sm:w-4 sm:h-4" />,
       color: "bg-indigo-500",
-      colorHex: "#6366f1",
+      borderClass: "border-indigo-500",
       repeatsToday: 3,
       startType: "speaking",
     },
@@ -238,13 +238,6 @@ const HomePage: React.FC = () => {
     return String(rank);
   };
 
-  const getRankGradient = (rank: number) => {
-    if (rank === 1) return "from-amber-400 to-yellow-500";
-    if (rank === 2) return "from-slate-300 to-gray-400";
-    if (rank === 3) return "from-orange-400 to-amber-500";
-    return "from-gray-200 to-gray-300";
-  };
-
   // compute podium order from fetched topUsers (2,1,3)
   const podiumOrder = (() => {
     if (!topUsers || topUsers.length === 0) return [];
@@ -299,7 +292,7 @@ const HomePage: React.FC = () => {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4 text-rose-600">
+        <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4 text-gray-900">
           오늘의 유닛
         </h2>
 
@@ -310,13 +303,12 @@ const HomePage: React.FC = () => {
                 type="button"
                 onClick={() => handleNavigateToTraining(s.startType)}
                 onMouseEnter={() => prefetchQuestions(s.startType)}
-                className="border border-gray-200 group relative bg-white rounded-2xl p-3 sm:p-4 text-left cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1 w-full"
                 aria-label={s.title}
+                className="group relative bg-white rounded-2xl p-3 sm:p-4 text-left cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1 w-full border border-gray-300"
               >
                 <div className="flex items-center gap-3 sm:gap-4">
                   <div
-                    className={`w-10 h-10 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${s.color} text-white shadow-sm group-hover:scale-105 transition-transform duration-300 flex-shrink-0`}
-                    style={{ border: `1px solid ${s.colorHex}` }}
+                    className={`w-10 h-10 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${s.color} text-white shadow-sm group-hover:scale-105 transition-transform duration-300 flex-shrink-0 ${s.borderClass} border`}
                   >
                     {s.icon}
                   </div>
@@ -360,7 +352,7 @@ const HomePage: React.FC = () => {
         {/* --- 통합된 리더보드 프리뷰 (실제 데이터 사용, 포디엄 하단 정렬 보정) --- */}
         <section className="mt-10 sm:mt-12">
           <div className="mb-6">
-            <h2 className="text-2xl font-bold flex items-center gap-2 text-gray-900">
+            <h2 className="sm:text-xl font-bold flex items-center gap-2 text-gray-900">
               <Trophy className="w-6 h-6 text-amber-500" />
               주간 리더보드
             </h2>
@@ -369,31 +361,40 @@ const HomePage: React.FC = () => {
             </p>
           </div>
 
-          <div className="bg-white rounded-3xl shadow border border-gray-100 p-6 sm:p-8">
+          <div className="bg-white rounded-2xl border border-gray-300 p-5 pb-0">
             {leaderLoading ? (
-              <div className="flex items-center justify-center p-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500" />
-              </div>
+              <div className="flex items-center justify-center p-8"></div>
             ) : !topUsers || topUsers.length === 0 ? (
               <div className="p-6 text-sm text-gray-500">
                 리더보드 정보를 불러올 수 없습니다.
               </div>
             ) : (
               <div className="flex items-end justify-center gap-4">
-                {podiumOrder.map((user, idx) => {
+                {podiumOrder.map((user) => {
                   const isFirst = user.rank === 1;
-                  // fixed visual heights for podium columns
-                  const columnHeight = isFirst
-                    ? 240
+                  const columnHeightClass = isFirst
+                    ? "h-[240px]"
                     : user.rank === 2
-                    ? 200
-                    : 180;
+                    ? "h-[200px]"
+                    : "h-[180px]";
+
+                  const podiumBlockHeightClass = isFirst
+                    ? "h-[100px]"
+                    : user.rank === 2
+                    ? "h-[80px]"
+                    : "h-[70px]";
+
+                  const podiumBgClass =
+                    user.rank === 1
+                      ? "bg-gradient-to-b from-yellow-300 to-yellow-500"
+                      : user.rank === 2
+                      ? "bg-gradient-to-b from-slate-200 to-gray-400"
+                      : "bg-gradient-to-b from-orange-300 to-amber-500";
 
                   return (
                     <div
                       key={user.rank}
-                      className={`flex-1 max-w-[140px] flex flex-col justify-between items-center transition-transform duration-200 hover:scale-105 overflow-hidden`}
-                      style={{ height: columnHeight }}
+                      className={`flex-1 max-w-[140px] flex flex-col justify-between items-center overflow-hidden ${columnHeightClass}`}
                     >
                       {/* Top area: medal, name, score, streak */}
                       <div className="px-2 pt-3 w-full flex flex-col items-center gap-2">
@@ -416,26 +417,12 @@ const HomePage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Podium block: stick to bottom using mt-auto and no negative margins */}
+                      {/* Podium block: stick to bottom using mt-auto */}
                       <div
-                        className={`w-full mt-auto flex items-center justify-center shadow-md`}
-                        style={{
-                          height: isFirst ? 100 : user.rank === 2 ? 80 : 70,
-                          borderTopLeftRadius: 16,
-                          borderTopRightRadius: 16,
-                          overflow: "hidden",
-                        }}
+                        className={`w-full mt-auto flex items-center justify-center shadow-md ${podiumBlockHeightClass} rounded-t-2xl overflow-hidden`}
                       >
                         <div
-                          className={`w-full h-full flex items-center justify-center text-2xl font-extrabold text-white`}
-                          style={{
-                            background:
-                              user.rank === 1
-                                ? "linear-gradient(to bottom, #f6c84a, #f59e0b)"
-                                : user.rank === 2
-                                ? "linear-gradient(to bottom, #e6e7ea, #9ca3af)"
-                                : "linear-gradient(to bottom, #fb923c, #f59e0b)",
-                          }}
+                          className={`w-full h-full flex items-center justify-center text-2xl font-extrabold text-white ${podiumBgClass}`}
                         >
                           {user.rank}
                         </div>
@@ -447,13 +434,12 @@ const HomePage: React.FC = () => {
             )}
           </div>
 
-          <div className="block mt-6">
+          <div className="block mt-4">
             <button
               onClick={() => navigate("/leaderboard")}
-              className="w-full bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-700 hover:to-rose-600 text-white py-4 rounded-2xl font-semibold text-base shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 border border-rose-600/20"
+              className="w-full bg-rose-500 text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2 "
             >
               전체 순위 보기
-              <ChevronRight className="w-5 h-5" />
             </button>
           </div>
         </section>

@@ -72,15 +72,46 @@ const HomePage: React.FC = () => {
         // get top 3 from service (service handles normalization, sorting, ranking)
         const data = await getLeaderboard({ limit: 3 });
         if (!mounted) return;
-        // map service LeaderItem -> LeaderboardUser (streak is optional; default 0)
-        const mapped: LeaderboardUser[] = (data ?? []).map((d) => ({
-          id: d.id,
-          rank: d.rank ?? 0,
-          name: d.name ?? "익명",
-          tier: d.tier,
-          score: d.score ?? 0,
-          streak: 0,
-        }));
+
+        // determine current profile id for fallback streak mapping
+        const profileId =
+          (profile as any)?.user_id ??
+          (profile as any)?.userId ??
+          (profile as any)?.id ??
+          null;
+
+        // map service LeaderItem -> LeaderboardUser
+        const mapped: LeaderboardUser[] = (data ?? []).map((d) => {
+          // service may provide streak_count or streakCount or nothing
+          const raw: any = d as any;
+          const streakFromService =
+            typeof raw.streak_count === "number"
+              ? raw.streak_count
+              : typeof raw.streakCount === "number"
+              ? raw.streakCount
+              : undefined;
+
+          // if service didn't provide streak, and this entry is current user, use profile.streak_count
+          const fallbackStreak =
+            (d.id && profileId && String(d.id) === String(profileId)) ||
+            (!d.id && profileId)
+              ? (profile as any)?.streak_count ??
+                (profile as any)?.streakCount ??
+                0
+              : 0;
+
+          return {
+            id: d.id,
+            rank: d.rank ?? 0,
+            name: d.name ?? "익명",
+            tier: d.tier,
+            score: d.score ?? 0,
+            streak:
+              typeof streakFromService === "number"
+                ? streakFromService
+                : fallbackStreak,
+          };
+        });
         setTopUsers(mapped);
       } catch {
         if (mounted) setTopUsers([]);
@@ -92,7 +123,8 @@ const HomePage: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+    // include profile in deps so that when profile becomes available we can map streak for current user
+  }, [profile]);
 
   if (profileLoading) {
     return (
@@ -293,7 +325,7 @@ const HomePage: React.FC = () => {
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4 text-gray-900">
-          오늘의 유닛
+          학습 세션
         </h2>
 
         <ul className="space-y-3 sm:space-y-4">
@@ -351,17 +383,30 @@ const HomePage: React.FC = () => {
 
         {/* --- 통합된 리더보드 프리뷰 (실제 데이터 사용, 포디엄 하단 정렬 보정) --- */}
         <section className="mt-10 sm:mt-12">
-          <div className="mb-6">
-            <h2 className="sm:text-xl font-bold flex items-center gap-2 text-gray-900">
-              <Trophy className="w-6 h-6 text-amber-500" />
-              주간 리더보드
-            </h2>
-            <p className="text-sm text-gray-600 mt-1">
-              상위 학습자들과 경쟁해보세요
-            </p>
+          <div className="mb-6 flex items-start justify-between">
+            <div>
+              <h2 className="sm:text-xl font-bold flex items-center gap-2 text-gray-900">
+                <Trophy className="w-5 h-5 text-amber-500" />
+                리더보드
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                상위 학습자들과 경쟁해보세요
+              </p>
+            </div>
+
+            {/* "더보기" 버튼을 h2와 평행선상에 배치 */}
+            <div className="ml-4 flex items-center">
+              <button
+                onClick={() => navigate("/leaderboard")}
+                className="text-sm font-medium text-rose-500 hover:underline px-3 py-1 rounded-md"
+                aria-label="전체 순위 보기"
+              >
+                전체 순위 확인하기
+              </button>
+            </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-300 p-5 pb-0">
+          <div className="bg-white rounded-2xl border border-gray-300 p-5 pb-0 pt-2">
             {leaderLoading ? (
               <div className="flex items-center justify-center p-8"></div>
             ) : !topUsers || topUsers.length === 0 ? (
@@ -373,10 +418,10 @@ const HomePage: React.FC = () => {
                 {podiumOrder.map((user) => {
                   const isFirst = user.rank === 1;
                   const columnHeightClass = isFirst
-                    ? "h-[240px]"
+                    ? "h-[250px]"
                     : user.rank === 2
-                    ? "h-[200px]"
-                    : "h-[180px]";
+                    ? "h-[225px]"
+                    : "h-[200px]";
 
                   const podiumBlockHeightClass = isFirst
                     ? "h-[100px]"
@@ -409,7 +454,7 @@ const HomePage: React.FC = () => {
                             {user.score.toLocaleString()}P
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 bg-rose-50 px-2 py-1 rounded-full border border-rose-100 mt-2">
+                        <div className="flex items-center gap-1 bg-rose-50 px-2 py-1 rounded-full border border-rose-100 mt-2 mb-2">
                           <Flame className="w-3 h-3 text-rose-500" />
                           <span className="font-semibold text-xs text-rose-700">
                             {user.streak ?? 0}
@@ -434,14 +479,7 @@ const HomePage: React.FC = () => {
             )}
           </div>
 
-          <div className="block mt-4">
-            <button
-              onClick={() => navigate("/leaderboard")}
-              className="w-full bg-rose-500 text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2 "
-            >
-              전체 순위 보기
-            </button>
-          </div>
+          {/* 하단의 전체 순위 보기 버튼은 제거하고, 상단의 더보기 버튼으로 대체했습니다 */}
         </section>
       </main>
     </div>

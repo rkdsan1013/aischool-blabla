@@ -6,6 +6,24 @@ import {
 } from "../services/leaderboardService";
 
 /**
+ * Helper: normalize streak field names from various sources
+ */
+function normalizeStreakField<T extends Record<string, any>>(obj: T) {
+  const streak =
+    typeof obj.streak_count === "number"
+      ? obj.streak_count
+      : typeof obj.streakCount === "number"
+      ? obj.streakCount
+      : typeof obj.streak === "number"
+      ? obj.streak
+      : 0;
+  return {
+    ...obj,
+    streak_count: streak,
+  };
+}
+
+/**
  * GET /api/leaderboard?limit=50
  */
 export async function handleGetLeaderboard(
@@ -19,8 +37,16 @@ export async function handleGetLeaderboard(
       typeof limitParam === "string"
         ? parseInt(limitParam, 10)
         : Number(limitParam) || 50;
+
     const data = await getLeaderboard(limit);
-    return res.json({ data });
+
+    // 안전하게 배열인지 확인하고 streak 필드 정규화
+    const normalized =
+      Array.isArray(data) && data.length > 0
+        ? data.map((item) => normalizeStreakField(item as Record<string, any>))
+        : [];
+
+    return res.json({ data: normalized });
   } catch (err) {
     next(err);
   }
@@ -47,7 +73,10 @@ export async function handleGetLeaderboardById(
       return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
     }
 
-    return res.json({ data: item });
+    // streak 필드 정규화
+    const normalizedItem = normalizeStreakField(item as Record<string, any>);
+
+    return res.json({ data: normalizedItem });
   } catch (err) {
     next(err);
   }

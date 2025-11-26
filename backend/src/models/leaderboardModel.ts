@@ -10,6 +10,7 @@ export type RawProfileRow = RowDataPacket & {
   name: string;
   score: number;
   tier: string;
+  streak_count: number;
 };
 
 /**
@@ -19,7 +20,7 @@ export async function fetchProfiles(limit = 50): Promise<RawProfileRow[]> {
   const lim = Number(limit) || 50;
 
   const sql = `
-    SELECT user_id, name, score, tier
+    SELECT user_id, name, score, tier, COALESCE(streak_count, 0) AS streak_count
     FROM user_profiles
     ORDER BY score DESC, user_id ASC
     LIMIT ?
@@ -36,7 +37,7 @@ export async function fetchProfileById(
   userId: number
 ): Promise<RawProfileRow | null> {
   const sql = `
-    SELECT user_id, name, score, tier
+    SELECT user_id, name, score, tier, COALESCE(streak_count, 0) AS streak_count
     FROM user_profiles
     WHERE user_id = ?
     LIMIT 1

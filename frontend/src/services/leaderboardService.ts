@@ -7,6 +7,7 @@ export type LeaderItem = {
   name: string;
   score: number;
   tier?: string;
+  streak_count?: number;
   rank?: number;
 };
 
@@ -48,7 +49,14 @@ export async function getLeaderboard({
       id: d.id ?? d.userId ?? `u-${i}`,
       name: d.name ?? d.username ?? "익명",
       score: typeof d.score === "number" ? d.score : Number(d.score ?? 0),
-      tier: d.tier ?? "Bronze",
+      tier: d.tier ?? d.user_tier ?? "Bronze",
+      // 서버가 snake_case 또는 camelCase로 보낼 수 있으므로 둘 다 처리
+      streak_count:
+        typeof d.streak_count === "number"
+          ? d.streak_count
+          : typeof d.streakCount === "number"
+          ? d.streakCount
+          : Number(d.streak_count ?? d.streakCount ?? 0),
       rank: undefined,
     }));
 

@@ -7,6 +7,7 @@ export type LeaderItem = {
   score: number;
   tier: string;
   rank: number;
+  streak_count?: number;
 };
 
 const TIER_ORDER = [
@@ -33,18 +34,31 @@ function tierPriority(tier?: string) {
 export async function getLeaderboard(limit = 50): Promise<LeaderItem[]> {
   const raw = await fetchProfiles(limit);
 
-  // 정규화: id, name, score, tier 모두 보장
+  // 정규화: id, name, score, tier, streak_count 모두 보장
   const normalized: {
     id: string;
     name: string;
     score: number;
     tier: string;
-  }[] = raw.map((r) => ({
-    id: String(r.user_id),
-    name: r.name ?? "익명",
-    score: Number(r.score ?? 0),
-    tier: r.tier ?? "Bronze",
-  }));
+    streak_count: number;
+  }[] = raw.map((r) => {
+    const streak =
+      typeof (r as any).streak_count === "number"
+        ? (r as any).streak_count
+        : typeof (r as any).streakCount === "number"
+        ? (r as any).streakCount
+        : typeof (r as any).streak === "number"
+        ? (r as any).streak
+        : 0;
+
+    return {
+      id: String((r as any).user_id ?? (r as any).id ?? ""),
+      name: (r as any).name ?? "익명",
+      score: Number((r as any).score ?? 0),
+      tier: (r as any).tier ?? "Bronze",
+      streak_count: Number(streak ?? 0),
+    };
+  });
 
   // 정렬: score desc, tier 우선순위 (높은 우선순위가 먼저)
   normalized.sort((a, b) => {
@@ -59,9 +73,7 @@ export async function getLeaderboard(limit = 50): Promise<LeaderItem[]> {
   let prevRank = 0;
 
   for (let i = 0; i < normalized.length; i++) {
-    const cur = normalized[i]; // cur is guaranteed defined here
-    // 타입스크립트 경고를 피하기 위해 non-null assertion is not needed because index is in-bounds
-    // 하지만 be explicit for clarity:
+    const cur = normalized[i];
     if (!cur) continue;
 
     let rankToAssign: number;
@@ -79,6 +91,7 @@ export async function getLeaderboard(limit = 50): Promise<LeaderItem[]> {
       score: cur.score,
       tier: cur.tier,
       rank: rankToAssign,
+      streak_count: cur.streak_count,
     };
 
     result.push(item);

@@ -1,6 +1,6 @@
 // src/pages/HomeLeaderBoard.tsx
 import React, { useEffect, useState } from "react";
-import { Crown, X } from "lucide-react";
+import { Crown, X, Flame } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getLeaderboard } from "../services/leaderboardService";
 
@@ -10,6 +10,7 @@ type LeaderItem = {
   score: number;
   tier?: string;
   rank?: number;
+  streak_count?: number;
 };
 
 const tierStyles: Record<
@@ -67,10 +68,15 @@ const Avatar: React.FC<{
     .slice(0, 2)
     .toUpperCase();
 
-  // Tailwind로 가능한 부분은 클래스화, 동적 크기/그로우/링은 style로 처리
   const px = `${size}px`;
   const textSize =
-    size >= 80 ? "text-xl" : size >= 64 ? "text-base" : "text-sm";
+    size >= 96
+      ? "text-2xl"
+      : size >= 80
+      ? "text-xl"
+      : size >= 64
+      ? "text-base"
+      : "text-sm";
 
   const style: React.CSSProperties = {
     width: px,
@@ -143,6 +149,43 @@ const rankColorInfo = (rank?: number) => {
   };
 };
 
+/** Tier + Score badge (header-style compact)
+ *  size: "md" (default large), "sm" (small), "xs" (extra small, compact)
+ */
+const TierScoreBadge: React.FC<{
+  tier?: string;
+  score?: number;
+  size?: "sm" | "md" | "xs";
+}> = ({ tier = "Bronze", score = 0, size = "sm" }) => {
+  const ts = tierStyles[tier] ?? tierStyles.Bronze;
+
+  // 사이즈별 패딩/텍스트 크기
+  const padding =
+    size === "md"
+      ? "px-3 py-1.5 text-sm"
+      : size === "sm"
+      ? "px-2 py-0.5 text-xs"
+      : "px-1.5 py-0.5 text-[11px]";
+  const scoreTextClass =
+    size === "md" ? "text-sm" : size === "sm" ? "text-xs" : "text-[11px]";
+  const gapClass = size === "md" ? "gap-2" : "gap-1";
+
+  return (
+    <div
+      className={`${ts.bgClass} rounded-full ${padding} font-semibold flex items-center ${gapClass} border border-white/10 whitespace-nowrap`}
+      title={`티어: ${ts.label} · 점수: ${Math.round(score)}pt`}
+      aria-hidden="true"
+    >
+      <span className={`${ts.textClass} truncate`}>{ts.label}</span>
+      <span
+        className={`ml-1 bg-white/20 px-2 py-0.5 rounded-full ${scoreTextClass} whitespace-nowrap`}
+      >
+        <span className={ts.textClass}>{Math.round(score)}pt</span>
+      </span>
+    </div>
+  );
+};
+
 const HomeLeaderBoard: React.FC = () => {
   const navigate = useNavigate();
   const [items, setItems] = useState<LeaderItem[]>([]);
@@ -158,6 +201,7 @@ const HomeLeaderBoard: React.FC = () => {
         const data = await getLeaderboard({ limit: 500 });
         if (!mounted) return;
         const arr: LeaderItem[] = Array.isArray(data) ? data : [];
+        // ensure rank ordering
         arr.sort((a, b) => {
           if (typeof a.rank === "number" && typeof b.rank === "number")
             return a.rank - b.rank;
@@ -166,6 +210,8 @@ const HomeLeaderBoard: React.FC = () => {
         const normalized = arr.map((it, idx) => ({
           ...it,
           rank: it.rank ?? idx + 1,
+          streak_count:
+            typeof it.streak_count === "number" ? it.streak_count : 0,
         }));
         setItems(normalized);
       } catch (err: any) {
@@ -215,19 +261,23 @@ const HomeLeaderBoard: React.FC = () => {
 
           {/* Top3 영역 */}
           <div className="w-full mt-8">
+            {/* items-end로 하단 기준선 통일: avatar 크기 차이로 1>2>3 높이 표현 */}
             <div className="flex justify-center items-end gap-10">
-              {/* 2위 */}
+              {/* 2위 (중간 높이) */}
               <div className="flex flex-col items-center">
                 <div
-                  className="relative rounded-full w-18 h-18 md:w-20 md:h-20 lg:w-24 lg:h-24 flex items-center justify-center transform md:scale-105 lg:scale-110"
+                  className="relative rounded-full flex items-center justify-center"
                   style={{
+                    width: "88px",
+                    height: "88px",
                     backgroundImage: rankColorInfo(top2?.rank).bgGradient,
                     boxShadow: `0 8px 22px ${rankColorInfo(top2?.rank).glow}`,
+                    borderRadius: "9999px",
                   }}
                 >
                   <Avatar
                     name={top2?.name}
-                    size={64}
+                    size={80}
                     glowColor={rankColorInfo(top2?.rank).glow}
                     ringColor={rankColorInfo(top2?.rank).ring}
                   />
@@ -241,23 +291,31 @@ const HomeLeaderBoard: React.FC = () => {
                   <span className="truncate">{top2?.name ?? "—"}</span>
                 </div>
 
-                <div className="text-xs md:text-sm text-foreground/60 mt-1">
-                  {Math.round(top2?.score ?? 0)}pt
+                {/* tier + score 합쳐서 표시 (compact) - streak 없음 */}
+                <div className="mt-2">
+                  <TierScoreBadge
+                    tier={top2?.tier}
+                    score={top2?.score}
+                    size="xs"
+                  />
                 </div>
               </div>
 
-              {/* 1위 */}
+              {/* 1위 (가장 높음) */}
               <div className="flex flex-col items-center">
                 <div
-                  className="relative rounded-full w-28 h-28 md:w-36 md:h-36 lg:w-44 lg:h-44 flex items-center justify-center transform md:scale-105 lg:scale-110"
+                  className="relative rounded-full flex items-center justify-center"
                   style={{
+                    width: "128px",
+                    height: "128px",
                     backgroundImage: rankColorInfo(top1?.rank).bgGradient,
                     boxShadow: `0 12px 36px ${rankColorInfo(top1?.rank).glow}`,
+                    borderRadius: "9999px",
                   }}
                 >
                   <Avatar
                     name={top1?.name}
-                    size={96}
+                    size={112}
                     glowColor={rankColorInfo(top1?.rank).glow}
                     ringColor={rankColorInfo(top1?.rank).ring}
                   />
@@ -271,18 +329,26 @@ const HomeLeaderBoard: React.FC = () => {
                   <span className="truncate">{top1?.name ?? "—"}</span>
                 </div>
 
-                <div className="text-sm md:text-base text-foreground/60 mt-1">
-                  {Math.round(top1?.score ?? 0)}pt
+                {/* tier + score 합쳐서 표시 (sm) - streak 없음 */}
+                <div className="mt-2">
+                  <TierScoreBadge
+                    tier={top1?.tier}
+                    score={top1?.score}
+                    size="sm"
+                  />
                 </div>
               </div>
 
-              {/* 3위 */}
+              {/* 3위 (가장 낮음) */}
               <div className="flex flex-col items-center">
                 <div
-                  className="relative rounded-full w-18 h-18 md:w-20 md:h-20 lg:w-24 lg:h-24 flex items-center justify-center transform md:scale-105 lg:scale-110"
+                  className="relative rounded-full flex items-center justify-center"
                   style={{
+                    width: "72px",
+                    height: "72px",
                     backgroundImage: rankColorInfo(top3?.rank).bgGradient,
                     boxShadow: `0 8px 22px ${rankColorInfo(top3?.rank).glow}`,
+                    borderRadius: "9999px",
                   }}
                 >
                   <Avatar
@@ -301,8 +367,13 @@ const HomeLeaderBoard: React.FC = () => {
                   <span className="truncate">{top3?.name ?? "—"}</span>
                 </div>
 
-                <div className="text-xs md:text-sm text-foreground/60 mt-1">
-                  {Math.round(top3?.score ?? 0)}pt
+                {/* tier + score 합쳐서 표시 (compact) - streak 없음 */}
+                <div className="mt-2">
+                  <TierScoreBadge
+                    tier={top3?.tier}
+                    score={top3?.score}
+                    size="xs"
+                  />
                 </div>
               </div>
             </div>
@@ -338,13 +409,23 @@ const HomeLeaderBoard: React.FC = () => {
                   key={it.id}
                   className="w-full grid grid-cols-12 gap-4 items-center px-4 md:px-6 py-4 hover:bg-rose-50 transition-colors"
                 >
+                  {/* rank */}
                   <div
                     className={`col-span-1 text-sm font-bold ${medal.color}`}
                   >
                     {it.rank}
                   </div>
 
-                  <div className="col-span-6 flex items-center gap-4 min-w-0">
+                  {/* streak: 리스트 하단에서는 표시 */}
+                  <div className="col-span-1 flex items-center justify-center">
+                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-100">
+                      <Flame className="w-3 h-3" aria-hidden />
+                      <span>{it.streak_count ?? 0}</span>
+                    </div>
+                  </div>
+
+                  {/* avatar + name */}
+                  <div className="col-span-5 flex items-center gap-4 min-w-0">
                     <div
                       className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-white bg-rose-500`}
                       style={
@@ -362,27 +443,29 @@ const HomeLeaderBoard: React.FC = () => {
                     </div>
 
                     <div className="min-w-0 flex items-center gap-2">
-                      {it.rank && it.rank <= 3 ? (
-                        <Crown
-                          className="w-4 h-4"
-                          style={{ color: rankInfo.crown }}
-                          aria-hidden
-                        />
-                      ) : null}
                       <div className="font-medium truncate">{it.name}</div>
                     </div>
                   </div>
 
-                  <div className="col-span-3">
-                    <span
-                      className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${tierStyle.bgClass} ${tierStyle.textClass}`}
-                    >
-                      {tierStyle.label}
-                    </span>
-                  </div>
-
-                  <div className="col-span-2 text-right font-semibold">
-                    {Math.round(it.score)}pt
+                  {/* tier + score combined, wider space */}
+                  <div className="col-span-5 flex items-center justify-end gap-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`${tierStyle.bgClass} rounded-full px-3 py-1 text-xs font-semibold flex items-center gap-2 ${tierStyle.textClass}`}
+                        title={`티어: ${tierStyle.label} · 점수: ${Math.round(
+                          it.score
+                        )}pt`}
+                      >
+                        <span className={tierStyle.textClass}>
+                          {tierStyle.label}
+                        </span>
+                        <span className="ml-1 bg-white/20 px-2 py-0.5 rounded-full text-xs">
+                          <span className={tierStyle.textClass}>
+                            {Math.round(it.score)}pt
+                          </span>
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               );

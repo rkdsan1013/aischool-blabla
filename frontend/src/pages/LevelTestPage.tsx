@@ -6,7 +6,7 @@ import { useAITalkRecorder } from "../hooks/useAITalkRecorder";
 
 // --- 더미 데이터 및 상수 ---
 const DUMMY_AI_AUDIO_DURATION = 3000;
-const MAX_TURNS = 3;
+const MAX_TURNS = 1;
 
 const LevelTestPage: React.FC = () => {
   const navigate = useNavigate();
@@ -91,9 +91,9 @@ const LevelTestPage: React.FC = () => {
 
           setTimeout(() => {
             const dummyResult = {
-              level: "B1",
+              level: "C2",
               prevProgress: 40,
-              currentProgress: 75,
+              currentProgress: 10,
               score: 850,
               isGuest: isGuestMode,
             };

@@ -488,12 +488,12 @@ const MyPageProfile: React.FC = () => {
           aria-modal="true"
         >
           <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl">
-            <div className="flex items-center justify-center w-16 h-16 rounded-full mx-auto mb-4 bg-rose-100">
-              <AlertTriangle className="w-8 h-8 text-rose-600" />
-            </div>
-
+            {/* 아이콘을 단계별로 분리하여 한 번에 하나만 렌더링하도록 수정 */}
             {deleteStep === 1 && (
               <>
+                <div className="flex items-center justify-center w-16 h-16 rounded-full mx-auto mb-4 bg-rose-100">
+                  <AlertTriangle className="w-8 h-8 text-rose-600" />
+                </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-gray-900 text-center mb-2">
                   회원 탈퇴 안내
                 </h3>
@@ -548,7 +548,7 @@ const MyPageProfile: React.FC = () => {
                     type="button"
                     aria-disabled={loadingDelete}
                   >
-                    {loadingDelete ? "탈퇴 진행중..." : "최종 탈퇴"}
+                    {loadingDelete ? "탈퇴 진행중..." : "탈퇴하기"}
                   </button>
                 </div>
               </>

@@ -351,7 +351,7 @@ const HomePage: React.FC = () => {
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4 text-gray-900 flex items-center gap-2">
-          <Layers className="w-5 h-5 text-rose-500" aria-hidden="true" />
+          {/* <Layers className="w-5 h-5 text-rose-500" aria-hidden="true" /> */}
           학습 세션
         </h2>
 
@@ -423,7 +423,7 @@ const HomePage: React.FC = () => {
 
             <div className="mt-1 flex items-center justify-between">
               <p className="text-sm text-gray-600">
-                상위 학습자들과 경쟁해보세요
+                상위권 학습자들과 경쟁해보세요
               </p>
 
               <button

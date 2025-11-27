@@ -1,5 +1,9 @@
-// backend/src/services/leaderboardService.ts
-import { fetchProfiles } from "../models/leaderboardModel";
+import {
+  fetchProfiles,
+  fetchProfilesWithRank,
+  fetchProfileById,
+  fetchProfileWithRankById,
+} from "../models/leaderboardModel";
 
 export type LeaderItem = {
   id: string;
@@ -32,16 +36,10 @@ function tierPriority(tier?: string) {
  * rank를 부여하여 반환합니다.
  */
 export async function getLeaderboard(limit = 50): Promise<LeaderItem[]> {
+  // 모델에서 단순 fetchProfiles만 제공하는 환경을 고려해 기존 로직 유지
   const raw = await fetchProfiles(limit);
 
-  // 정규화: id, name, score, tier, streak_count 모두 보장
-  const normalized: {
-    id: string;
-    name: string;
-    score: number;
-    tier: string;
-    streak_count: number;
-  }[] = raw.map((r) => {
+  const normalized = raw.map((r) => {
     const streak =
       typeof (r as any).streak_count === "number"
         ? (r as any).streak_count
@@ -52,7 +50,7 @@ export async function getLeaderboard(limit = 50): Promise<LeaderItem[]> {
         : 0;
 
     return {
-      id: String((r as any).user_id ?? (r as any).id ?? ""),
+      id: String((r as any).user_id ?? (r as any).id ?? "").trim(),
       name: (r as any).name ?? "익명",
       score: Number((r as any).score ?? 0),
       tier: (r as any).tier ?? "Bronze",
@@ -63,7 +61,9 @@ export async function getLeaderboard(limit = 50): Promise<LeaderItem[]> {
   // 정렬: score desc, tier 우선순위 (높은 우선순위가 먼저)
   normalized.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
-    return tierPriority(a.tier) - tierPriority(b.tier);
+    const tp = tierPriority(a.tier) - tierPriority(b.tier);
+    if (tp !== 0) return tp;
+    return a.id.localeCompare(b.id);
   });
 
   // 순위 부여: 동점 & 동일 티어 -> 동일 rank
@@ -85,16 +85,14 @@ export async function getLeaderboard(limit = 50): Promise<LeaderItem[]> {
       rankToAssign = sameScore && sameTier ? prevRank : i + 1;
     }
 
-    const item: LeaderItem = {
+    result.push({
       id: cur.id,
       name: cur.name,
       score: cur.score,
       tier: cur.tier,
       rank: rankToAssign,
       streak_count: cur.streak_count,
-    };
-
-    result.push(item);
+    });
 
     prevScore = cur.score;
     prevTier = cur.tier;
@@ -106,14 +104,40 @@ export async function getLeaderboard(limit = 50): Promise<LeaderItem[]> {
 
 /**
  * 특정 사용자 id의 프로필과 해당 사용자의 순위를 함께 반환.
- * 주의: 현재 구현은 전체 리더보드를 가져와 순위를 계산합니다.
- * 대규모 데이터에서는 DB 레벨에서 순위를 계산하는 방식으로 변경 권장.
+ * - userId는 string | number 허용
+ * - 모델에서 rank를 직접 제공하는 함수(fetchProfileWithRankById)가 있으면 우선 사용
+ * - 없으면 전체 리더보드에서 검색
  */
 export async function getUserWithRank(
-  userId: number
+  userId: string | number
 ): Promise<LeaderItem | null> {
-  // 충분히 큰 limit을 사용해 전체를 가져옴 (운영에서는 비효율)
-  const all = await getLeaderboard(Number.MAX_SAFE_INTEGER);
-  const found = all.find((it) => Number(it.id) === Number(userId));
-  return found ?? null;
+  const normalizedIdStr = String(userId ?? "").trim();
+  if (!normalizedIdStr) return null;
+
+  // 1) 모델에서 rank 포함 단일 조회가 가능한 경우 우선 시도
+  try {
+    const profileWithRank = await fetchProfileWithRankById(normalizedIdStr);
+    if (profileWithRank) {
+      return {
+        id: String(profileWithRank.user_id),
+        name: profileWithRank.name,
+        score: profileWithRank.score,
+        tier: profileWithRank.tier,
+        rank: profileWithRank.rank,
+        streak_count: profileWithRank.streak_count,
+      };
+    }
+  } catch (err) {
+    // 폴백으로 전체 조회 진행 (치명적 에러는 상위에서 처리)
+  }
+
+  // 2) 폴백: 전체 리더보드에서 해당 id를 찾아 반환 (rank 포함)
+  try {
+    const all = await getLeaderboard(Number.MAX_SAFE_INTEGER);
+    const found =
+      all.find((it) => String(it.id).trim() === normalizedIdStr) ?? null;
+    return found;
+  } catch (err) {
+    throw err;
+  }
 }

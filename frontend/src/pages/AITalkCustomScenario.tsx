@@ -218,10 +218,11 @@ const AITalkCustomScenario: React.FC = () => {
   return (
     <div className="h-dvh bg-white flex flex-col">
       {/* 헤더: VoiceRoomCreate와 동일한 높이, 폰트, 버튼 스타일 적용 */}
-      <header className="w-full bg-rose-500 text-white flex-shrink-0">
+      <header className="w-full bg-rose-500 text-white shrink-0">
         <div className="max-w-5xl mx-auto flex items-center justify-between px-4 sm:px-6 py-4">
           {/* 좌측: 헤더 타이틀 */}
           <h1 className="text-lg font-semibold">
+            ``
             {editId ? "시나리오 수정" : "나만의 시나리오 만들기"}
           </h1>
 
@@ -317,7 +318,7 @@ const AITalkCustomScenario: React.FC = () => {
       </main>
 
       {/* 푸터: VoiceRoomCreate와 동일한 버튼 높이(h-12) 및 폰트 사이즈 적용 */}
-      <footer className="w-full bg-white border-t border-gray-200 flex-shrink-0">
+      <footer className="w-full bg-white border-t border-gray-200 shrink-0">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex flex-row gap-3">
             <button

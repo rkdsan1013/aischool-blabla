@@ -9,8 +9,11 @@ import {
   Home,
   Sparkles,
   ArrowRight,
+  X,
+  Share2,
 } from "lucide-react";
 
+// --- 타입 정의 ---
 type Level = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 
 interface ResultState {
@@ -19,6 +22,7 @@ interface ResultState {
   currentProgress: number;
   score: number;
   isGuest: boolean;
+  selectedBaseLevel?: string;
 }
 
 const LevelTestResultPage: React.FC = () => {
@@ -30,26 +34,27 @@ const LevelTestResultPage: React.FC = () => {
     if (location.state) {
       setResult(location.state as ResultState);
     } else {
-      navigate("/home");
+      navigate("/");
     }
   }, [location, navigate]);
 
   if (!result) return null;
 
+  // --- 레벨별 설명 ---
   const getLevelDescription = (level: Level) => {
     switch (level) {
       case "A1":
-        return "기초적인 단어와 문장으로 소통할 수 있는 단계입니다.";
+        return "기초적인 단어와 문장으로 소통해요.";
       case "A2":
-        return "일상적인 주제에 대해 간단한 대화가 가능한 단계입니다.";
+        return "일상적인 주제로 간단히 대화해요.";
       case "B1":
-        return "친숙한 주제에 대해 문장을 만들어 대화할 수 있는 단계입니다.";
+        return "여행 상황을 스스로 해결할 수 있어요.";
       case "B2":
-        return "다양한 주제에 대해 구체적이고 유창하게 대화할 수 있습니다.";
+        return "다양한 주제로 구체적인 토론이 가능해요.";
       case "C1":
-        return "복잡한 주제에 대해서도 유연하고 효과적으로 대처합니다.";
+        return "복잡한 주제도 유연하게 대처해요.";
       case "C2":
-        return "원어민 수준의 자연스럽고 정확한 구사 능력을 갖췄습니다.";
+        return "원어민 수준의 정교한 구사력이에요.";
       default:
         return "";
     }
@@ -58,146 +63,176 @@ const LevelTestResultPage: React.FC = () => {
   const isLevelUp = result.currentProgress >= result.prevProgress;
   const progressDiff = result.currentProgress - result.prevProgress;
 
+  const handleExit = () => {
+    navigate("/");
+  };
+
+  const handleShare = () => {
+    alert("결과 이미지 저장/공유 기능이 실행됩니다.");
+  };
+
   return (
-    <div className="min-h-screen bg-white text-gray-900 flex flex-col items-center py-12 px-4 sm:px-6 animate-fade-in">
-      {/* 상단 타이틀 */}
-      <div className="text-center mb-10">
-        <div className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
-          <CheckCircle2 size={18} />
-          <span>분석 완료</span>
-        </div>
-        <h1 className="text-3xl sm:text-4xl font-bold mb-2">
-          당신의 회화 레벨 분석 결과
-        </h1>
-        <p className="text-gray-500">
-          AI가 발음, 문법, 표현력을 종합적으로 분석했습니다.
-        </p>
+    <div className="h-screen w-full bg-slate-50 text-gray-900 flex flex-col relative overflow-hidden">
+      {/* --- [배경 레이어] --- */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-rose-200/40 rounded-full blur-3xl opacity-60" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-200/40 rounded-full blur-3xl opacity-60" />
       </div>
 
-      <div className="w-full max-w-lg space-y-6">
-        {/* 1. 레벨 카드 (공통) */}
-        <div className="bg-white border border-gray-200 rounded-3xl p-8 shadow-xl shadow-gray-100 text-center relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300">
-          {/* ✅ Tailwind 수정: bg-gradient -> bg-linear */}
-          <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-violet-500 to-indigo-500" />
-
-          {/* ✅ Tailwind 수정: bg-gradient -> bg-linear */}
-          <div className="mb-4 inline-flex items-center justify-center w-24 h-24 rounded-full bg-linear-to-br from-violet-100 to-indigo-100 text-indigo-600 shadow-inner">
-            <span className="text-4xl font-black tracking-tighter">
-              {result.level}
-            </span>
-          </div>
-
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            {result.level} Level
-          </h2>
-          <p className="text-gray-600 text-sm sm:text-base mb-4 text-pretty break-keep">
-            {getLevelDescription(result.level)}
-          </p>
-
-          <div className="flex justify-center gap-2">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Sparkles
-                key={star}
-                className={`w-5 h-5 ${
-                  star <= 3
-                    ? "text-yellow-400 fill-yellow-400"
-                    : "text-gray-200"
-                }`}
-              />
-            ))}
-          </div>
+      {/* --- [헤더] --- */}
+      <header className="absolute top-0 left-0 w-full h-16 px-6 flex justify-between items-center z-50 bg-white/10 backdrop-blur-md border-b border-white/20">
+        <div className="flex items-center gap-2">
+          <span className="bg-white/80 border border-white/50 shadow-sm px-3 py-1 rounded-full text-xs font-bold text-rose-500 backdrop-blur-md">
+            RESULT
+          </span>
         </div>
+        <button
+          onClick={handleExit}
+          className="p-2.5 rounded-full bg-white/40 hover:bg-white/80 border border-white/20 transition text-gray-600 hover:text-gray-900"
+        >
+          <X size={20} />
+        </button>
+      </header>
 
-        {/* 2. 분기 처리: 게스트 vs 유저 */}
-        {result.isGuest ? (
-          /* --- 게스트용 화면: 회원가입 유도 --- */
-          <div className="bg-rose-50 border border-rose-100 rounded-2xl p-6 text-center">
-            <h3 className="text-lg font-bold text-rose-900 mb-2">
-              이 결과를 저장하고 싶으신가요?
-            </h3>
-            <p className="text-rose-700/80 text-sm mb-6 break-keep">
-              회원가입하고 학습 진척도를 관리하세요.
-              <br />
-              나만의 맞춤형 시나리오도 추천받을 수 있습니다.
+      {/* --- [메인 컨텐츠] --- */}
+      <main className="relative z-10 w-full h-full flex flex-col items-center justify-center px-4 pb-safe pt-16">
+        <div className="w-full max-w-md flex flex-col items-center gap-6 sm:gap-8 animate-fade-in">
+          {/* 1. 상단 텍스트 */}
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center gap-1.5 bg-green-100/80 text-green-700 px-3 py-1 rounded-full text-xs font-bold mb-2 backdrop-blur-sm border border-green-200/50">
+              <CheckCircle2 size={14} />
+              <span>분석 완료</span>
+            </div>
+            <h1 className="text-2xl sm:text-4xl font-extrabold text-gray-900">
+              당신의 레벨은{" "}
+              <span className="text-rose-500">{result.level}</span> 입니다
+            </h1>
+            <p className="text-gray-500 text-sm sm:text-base">
+              AI가 발음, 문법, 표현력을 분석했습니다.
             </p>
-
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={() =>
-                  navigate("/auth?mode=signup", {
-                    state: { level: result.level, score: result.score },
-                  })
-                }
-                className="w-full py-3.5 bg-rose-500 text-white rounded-xl font-semibold shadow-md hover:bg-rose-600 hover:shadow-lg transition-all flex items-center justify-center gap-2"
-              >
-                <UserPlus size={20} />
-                <span>결과 저장하고 회원가입</span>
-              </button>
-
-              <button
-                onClick={() => navigate("/")}
-                className="w-full py-3.5 bg-white text-gray-500 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition"
-              >
-                괜찮아요, 홈으로 갈게요
-              </button>
-            </div>
           </div>
-        ) : (
-          /* --- 유저용 화면: 진척도 표시 --- */
-          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-gray-900">Level Progress</h3>
-              <div
-                className={`flex items-center gap-1 text-sm font-semibold ${
-                  isLevelUp ? "text-green-600" : "text-red-500"
-                }`}
+
+          {/* 2. 결과 메인 카드 (Glass Effect) */}
+          <div className="w-full bg-white/70 backdrop-blur-xl border border-white/60 rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden group">
+            {/* 공유 버튼 (로그인 유저) */}
+            {!result.isGuest && (
+              <button
+                onClick={handleShare}
+                className="absolute top-4 right-4 p-2 rounded-full bg-white/50 hover:bg-white text-rose-400 hover:text-rose-600 transition shadow-sm z-10"
+                aria-label="결과 공유하기"
               >
-                {isLevelUp ? (
-                  <TrendingUp size={16} />
-                ) : (
-                  <TrendingDown size={16} />
-                )}
-                <span>
-                  {progressDiff > 0 ? "+" : ""}
-                  {progressDiff}%
-                </span>
+                <Share2 size={18} />
+              </button>
+            )}
+
+            {/* 상단 데코 라인 */}
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-linear-to-r from-rose-400 to-rose-600" />
+
+            <div className="flex flex-col items-center text-center">
+              {/* 레벨 뱃지 */}
+              <div className="relative mb-4">
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-linear-to-br from-rose-100 to-white border-4 border-white shadow-inner flex items-center justify-center">
+                  <span className="text-4xl sm:text-5xl font-black text-transparent bg-clip-text bg-linear-to-br from-rose-600 to-rose-400 tracking-tighter">
+                    {result.level}
+                  </span>
+                </div>
+                <div className="absolute -bottom-2 -right-2 bg-yellow-400 p-2 rounded-full text-white shadow-md animate-bounce">
+                  <Sparkles size={16} fill="white" />
+                </div>
               </div>
+
+              {/* 설명 */}
+              <h2 className="text-xl font-bold text-gray-900 mb-2">
+                {result.level} Level
+              </h2>
+              <p className="text-gray-600 text-sm break-keep leading-relaxed">
+                {getLevelDescription(result.level)}
+              </p>
             </div>
 
-            {/* 프로그레스 바 */}
-            <div className="relative h-4 bg-gray-200 rounded-full overflow-hidden mb-2">
-              {/* 이전 진척도 (배경처럼 깔림) */}
-              <div
-                className="absolute top-0 left-0 h-full bg-gray-300 transition-all duration-1000"
-                style={{ width: `${result.prevProgress}%` }}
-              />
-              {/* 현재 진척도 (메인) */}
-              <div
-                className={`absolute top-0 left-0 h-full transition-all duration-1000 ease-out ${
-                  isLevelUp ? "bg-indigo-500" : "bg-rose-500"
-                }`}
-                style={{ width: `${result.currentProgress}%` }}
-              />
-            </div>
-
-            <div className="flex justify-between text-xs text-gray-500 font-medium mb-6">
-              <span>Previous: {result.prevProgress}%</span>
-              <span className={isLevelUp ? "text-indigo-600" : "text-rose-600"}>
-                Current: {result.currentProgress}%
-              </span>
-            </div>
-
-            <button
-              onClick={() => navigate("/home")}
-              className="w-full py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
-            >
-              <Home size={18} />
-              <span>대시보드로 이동</span>
-              <ArrowRight size={18} className="opacity-70" />
-            </button>
+            {/* --- [User Mode Only] 진척도 그래프 --- */}
+            {!result.isGuest && (
+              <div className="mt-6 pt-6 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-gray-500">
+                    레벨 달성도
+                  </span>
+                  <div
+                    className={`flex items-center gap-1 text-xs font-bold ${
+                      isLevelUp ? "text-green-600" : "text-rose-500"
+                    }`}
+                  >
+                    {isLevelUp ? (
+                      <TrendingUp size={14} />
+                    ) : (
+                      <TrendingDown size={14} />
+                    )}
+                    <span>
+                      {progressDiff > 0 ? "+" : ""}
+                      {progressDiff}%
+                    </span>
+                  </div>
+                </div>
+                <div className="relative h-3 bg-gray-100 rounded-full overflow-hidden">
+                  {/* 이전 (회색) */}
+                  <div
+                    className="absolute top-0 left-0 h-full bg-gray-300/50"
+                    style={{ width: `${result.prevProgress}%` }}
+                  />
+                  {/* 현재 (Rose 그라데이션) */}
+                  <div
+                    className="absolute top-0 left-0 h-full bg-linear-to-r from-rose-400 to-rose-600 transition-all duration-1000"
+                    style={{ width: `${result.currentProgress}%` }}
+                  />
+                </div>
+                <div className="flex justify-between mt-1 text-[10px] text-gray-400 font-medium">
+                  <span>이전: {result.prevProgress}%</span>
+                  <span className="text-rose-500">
+                    현재: {result.currentProgress}%
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+
+          {/* 3. 하단 액션 버튼 */}
+          <div className="w-full flex flex-col gap-3 mb-6">
+            {result.isGuest ? (
+              // --- [Guest] 회원가입 유도 ---
+              <>
+                <button
+                  onClick={() =>
+                    navigate("/auth?mode=signup", {
+                      state: { level: result.level, score: result.score },
+                    })
+                  }
+                  className="w-full py-4 bg-rose-500 text-white rounded-2xl font-bold text-lg shadow-lg shadow-rose-200 hover:bg-rose-600 hover:shadow-xl transition-all flex items-center justify-center gap-2 active:scale-95"
+                >
+                  <UserPlus size={20} />
+                  <span>결과 저장하고 시작하기</span>
+                </button>
+
+                <button
+                  onClick={() => navigate("/")}
+                  className="w-full py-4 bg-white text-gray-500 border border-gray-200 rounded-2xl font-bold text-lg hover:bg-gray-50 transition-all active:scale-95"
+                >
+                  그냥 홈으로 갈게요
+                </button>
+              </>
+            ) : (
+              // --- [User] 대시보드 이동 ---
+              <button
+                onClick={() => navigate("/home")}
+                className="w-full py-4 bg-rose-500 text-white rounded-2xl font-bold text-lg shadow-lg shadow-rose-200 hover:bg-rose-600 hover:shadow-xl transition-all flex items-center justify-center gap-2 active:scale-95"
+              >
+                <Home size={20} />
+                <span>홈으로 이동</span>
+                <ArrowRight size={18} className="opacity-70" />
+              </button>
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   );
 };

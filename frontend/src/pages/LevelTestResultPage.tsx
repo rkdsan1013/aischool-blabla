@@ -20,7 +20,7 @@ interface ResultState {
   level: Level;
   prevProgress: number;
   currentProgress: number;
-  score: number;
+  // score: number; // ✅ 제거됨
   isGuest: boolean;
   selectedBaseLevel?: string;
 }
@@ -203,7 +203,8 @@ const LevelTestResultPage: React.FC = () => {
                 <button
                   onClick={() =>
                     navigate("/auth?mode=signup", {
-                      state: { level: result.level, score: result.score },
+                      // ✅ [수정됨] score 제거, level만 전달
+                      state: { level: result.level },
                     })
                   }
                   className="w-full py-4 bg-rose-500 text-white rounded-2xl font-bold text-lg shadow-lg shadow-rose-200 hover:bg-rose-600 hover:shadow-xl transition-all flex items-center justify-center gap-2 active:scale-95"

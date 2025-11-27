@@ -1,6 +1,7 @@
-// src/pages/AuthPage.tsx
+// frontend/src/pages/AuthPage.tsx
+// cspell:ignore Blabla
 import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   login as loginService,
   signup as signupService,
@@ -90,7 +91,23 @@ function Tabs({
 }
 
 export default function AuthPage() {
-  const [tab, setTab] = useState<"login" | "signup">("login");
+  const navigate = useNavigate();
+  // Location Hook 사용 (LevelTestResultPage에서 보낸 state 수신)
+  const location = useLocation();
+
+  // URL 쿼리 파라미터 확인 (?mode=signup 처리)
+  // 초기 로드 시 한 번만 확인하도록 useState 초기값으로 사용
+  const [tab, setTab] = useState<"login" | "signup">(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("mode") === "signup" ? "signup" : "login";
+  });
+
+  // 레벨 테스트 결과가 있다면 가져오기 (score는 무시)
+  const resultState = location.state as {
+    level?: string;
+    score?: number;
+  } | null;
+  const initialLevel = resultState?.level;
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -102,7 +119,6 @@ export default function AuthPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const navigate = useNavigate();
 
   // Auth and Profile contexts
   const { isAuthLoading } = useAuth();
@@ -122,6 +138,15 @@ export default function AuthPage() {
     }
   }, [isLoggedIn, isLoading, navigate]);
 
+  // ✅ [수정됨] mode 쿼리 파라미터 변경 감지 및 탭 전환
+  // 의존성 배열 문제를 해결하기 위해 searchParams 변수를 Effect 내부에서 생성
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const mode = params.get("mode");
+    if (mode === "signup") setTab("signup");
+    else if (mode === "login") setTab("login");
+  }, [location.search]);
+
   const handleLogin = async () => {
     try {
       const data = await loginService(loginEmail, loginPassword);
@@ -129,7 +154,6 @@ export default function AuthPage() {
 
       // 로그인 성공 후 프로필 갱신하여 전역 상태를 최신화
       await refreshProfile();
-      // refreshProfile가 완료되면 useEffect에서 리디렉션 처리
     } catch (err: unknown) {
       if (err instanceof ServiceError) {
         setError(err.message);
@@ -143,14 +167,26 @@ export default function AuthPage() {
 
   const handleSignup = async () => {
     try {
-      await signupService(signupName, signupEmail, signupPassword);
+      // signup 호출 시 initialLevel만 전달 (score 제외)
+      await signupService(
+        signupName,
+        signupEmail,
+        signupPassword,
+        initialLevel // 테스트 결과 레벨 (없으면 undefined)
+      );
+
+      // 회원가입 성공 후 바로 로그인 탭으로 전환 및 이메일 자동 입력
       setTab("login");
       setLoginEmail(signupEmail);
       setLoginPassword("");
+
+      // 입력 필드 초기화
       setSignupName("");
       setSignupEmail("");
       setSignupPassword("");
       setSignupConfirmPassword("");
+
+      alert("회원가입이 완료되었습니다! 로그인해주세요.");
     } catch (err: unknown) {
       if (err instanceof ServiceError) {
         setError(err.message);
@@ -208,7 +244,16 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-white lg:flex">
+    <div className="min-h-screen w-full bg-white lg:flex relative">
+      {/* 테스트 결과 적용 안내 배너 (회원가입 탭일 때만) */}
+      {tab === "signup" && initialLevel && (
+        <div className="hidden lg:block absolute top-8 right-8 animate-fade-in z-20">
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl shadow-sm text-sm font-medium">
+            🎉 레벨 테스트 결과(<strong>{initialLevel}</strong>)가 적용됩니다!
+          </div>
+        </div>
+      )}
+
       {/* 데스크톱 좌측 */}
       <div className="hidden lg:flex lg:w-1/2 bg-rose-500 text-white">
         <div className="w-full flex items-center justify-center p-16">
@@ -243,11 +288,13 @@ export default function AuthPage() {
             <Tabs tab={tab} setTab={setTab} />
           </div>
 
-          {/* 설명 텍스트 */}
+          {/* 설명 텍스트 (레벨 적용 문구 포함) */}
           <div className="px-4 lg:px-8 pt-6 pb-2">
             <p className="text-sm text-gray-600">
               {tab === "login"
                 ? "계정에 로그인하여 계속 진행하세요."
+                : initialLevel
+                ? `가입 시 레벨 테스트 결과(${initialLevel})가 자동으로 저장됩니다.`
                 : "몇 가지 정보만 입력하면 바로 시작할 수 있어요."}
             </p>
           </div>

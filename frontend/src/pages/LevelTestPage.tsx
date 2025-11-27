@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAITalkRecorder } from "../hooks/useAITalkRecorder";
-// ✅ 변경: useAuth 대신 useProfile 사용 (Source of Truth)
+// useAuth 대신 useProfile 사용 (Source of Truth)
 import { useProfile } from "../hooks/useProfile";
 
 // --- 상수: CEFR 레벨 정보 ---
@@ -32,7 +32,7 @@ const MAX_TURNS = 1;
 const LevelTestPage: React.FC = () => {
   const navigate = useNavigate();
 
-  // ✅ [수정 핵심] ProfileContext에서 유저 정보와 로딩 상태를 가져옵니다.
+  // ProfileContext에서 유저 정보와 로딩 상태를 가져옵니다.
   const { profile, isProfileLoading } = useProfile();
 
   // profile 객체가 존재하면 로그인 상태, 아니면 게스트 상태
@@ -58,7 +58,7 @@ const LevelTestPage: React.FC = () => {
   // 모달 상태
   const [showExitModal, setShowExitModal] = useState(false);
 
-  // ✅ [수정된 코드] 로딩이 끝나면 로그인 여부에 따라 step 결정
+  // 로딩이 끝나면 로그인 여부에 따라 step 결정
   useEffect(() => {
     if (isProfileLoading) return; // 프로필 로딩 중이면 대기
 
@@ -115,7 +115,7 @@ const LevelTestPage: React.FC = () => {
             level: "C2",
             prevProgress: 40,
             currentProgress: 10,
-            score: 850,
+            // score: 850, // ✅ 제거됨
             isGuest: isGuestMode,
             selectedBaseLevel: selectedCefr,
           };
@@ -205,7 +205,7 @@ const LevelTestPage: React.FC = () => {
     setShowExitModal(false);
   };
 
-  // ✅ [로딩 처리] 프로필 확인 중일 때 깜빡임 방지용 로더
+  // [로딩 처리] 프로필 확인 중일 때 깜빡임 방지용 로더
   if (isProfileLoading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-slate-50">
@@ -216,7 +216,6 @@ const LevelTestPage: React.FC = () => {
 
   return (
     <div className="h-screen w-full bg-slate-50 text-gray-900 flex flex-col relative overflow-hidden">
-      {/* ... (이하 JSX는 기존 코드와 동일하여 생략, 기존 return 내부 코드 그대로 사용) ... */}
       {/* --- [배경 레이어] --- */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-rose-200/40 rounded-full blur-3xl opacity-60" />

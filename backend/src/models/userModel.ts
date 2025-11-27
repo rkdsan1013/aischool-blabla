@@ -28,7 +28,7 @@ export type UserWithProfile = User & {
   last_study_date: Date | null;
 };
 
-// [추가] 통합 히스토리 아이템 타입
+// 통합 히스토리 아이템 타입
 export interface UserHistoryItem {
   id: string;
   type: "TRAINING" | "CONVERSATION";
@@ -67,16 +67,19 @@ export async function findUserWithProfileById(
   return rows[0] ?? null;
 }
 
+// ✅ [수정됨] score 제거, level만 받음
 export async function createUserAndProfileTransaction(user: {
   name: string;
   email: string;
   password: string;
+  level?: string; // 레벨 테스트 결과 적용
 }): Promise<{ user_id: number; email: string }> {
   const connection = await pool.getConnection();
 
   try {
     await connection.beginTransaction();
 
+    // 1. users 테이블 Insert
     const [userInsertResult] = await connection.execute<ResultSetHeader>(
       "INSERT INTO users (email, password) VALUES (?, ?)",
       [user.email, user.password]
@@ -87,9 +90,15 @@ export async function createUserAndProfileTransaction(user: {
       throw new Error("유저 생성에 실패했습니다.");
     }
 
+    // 2. user_profiles 테이블 Insert
+    // score는 DB Default 값('0')을 사용하므로 INSERT 문에서 제외
+    const initialLevel = user.level || "A1";
+
     await connection.execute(
-      "INSERT INTO user_profiles (user_id, name) VALUES (?, ?)",
-      [newUserId, user.name]
+      `INSERT INTO user_profiles 
+       (user_id, name, level, level_progress) 
+       VALUES (?, ?, ?, ?)`,
+      [newUserId, user.name, initialLevel, 0]
     );
 
     await connection.commit();
@@ -197,7 +206,7 @@ export async function deleteUserTransaction(userId: number): Promise<void> {
   }
 }
 
-// 사용자의 최근 1년간 일별 학습 횟수 조회 (컬럼명 수정: completed_at -> created_at)
+// 사용자의 최근 1년간 일별 학습 횟수 조회
 export async function getUserAttendanceStats(
   userId: number
 ): Promise<{ date: string; count: number }[]> {
@@ -216,7 +225,7 @@ export async function getUserAttendanceStats(
   return rows as { date: string; count: number }[];
 }
 
-// [추가] 사용자의 모든 학습/회화 이력을 통합 조회
+// 사용자의 모든 학습/회화 이력을 통합 조회
 export async function getUserHistoryStats(
   userId: number
 ): Promise<UserHistoryItem[]> {

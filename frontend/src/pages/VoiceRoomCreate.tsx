@@ -1,8 +1,9 @@
 // frontend/src/pages/VoiceRoomCreate.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { X } from "lucide-react";
+import { X, Mic, AlignLeft, Users, BarChart3, ChevronLeft } from "lucide-react";
 import VoiceRoomService from "../services/voiceroomService";
+import { useAuth } from "../hooks/useAuth"; // 실제 훅 사용
 
 // 레벨 타입 정의
 type VoiceRoomLevel = "ANY" | "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
@@ -24,19 +25,10 @@ interface ApiErrorResponse {
   message?: string;
 }
 
-// Mock Auth
-function useAuth() {
-  const [isLoading] = useState<boolean>(false);
-  const [user] = useState<{ id: string; name: string } | null>({
-    id: "1",
-    name: "TestUser",
-  });
-  return { user, isLoading };
-}
-
 const VoiceRoomCreate: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isLoading } = useAuth();
+  // 실제 인증 훅 사용 (없으면 로그인 페이지로)
+  const { isAuthLoading } = useAuth(); // user 객체가 필요하다면 useProfile 등 활용
 
   const [formData, setFormData] = useState<FormState>({
     name: "",
@@ -47,9 +39,7 @@ const VoiceRoomCreate: React.FC = () => {
 
   const [submitting, setSubmitting] = useState<boolean>(false);
 
-  useEffect(() => {
-    // if (!isLoading && !user) navigate("/login");
-  }, [user, isLoading, navigate]);
+  // 로딩 체크 등 필요한 로직이 있다면 추가 (AuthGuard는 보통 상위에서 처리 권장)
 
   // 폼 제출 처리
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -95,111 +85,151 @@ const VoiceRoomCreate: React.FC = () => {
     navigate("/voiceroom");
   };
 
-  const levelOptions: { value: VoiceRoomLevel; label: string }[] = [
-    { value: "ANY", label: "제한 없음" },
-    { value: "A1", label: "A1" },
-    { value: "A2", label: "A2" },
-    { value: "B1", label: "B1" },
-    { value: "B2", label: "B2" },
-    { value: "C1", label: "C1" },
-    { value: "C2", label: "C2" },
-  ];
+  const levelOptions: { value: VoiceRoomLevel; label: string; desc: string }[] =
+    [
+      { value: "ANY", label: "Any", desc: "누구나 참여" },
+      { value: "A1", label: "A1", desc: "입문" },
+      { value: "A2", label: "A2", desc: "초급" },
+      { value: "B1", label: "B1", desc: "중급" },
+      { value: "B2", label: "B2", desc: "중상급" },
+      { value: "C1", label: "C1", desc: "고급" },
+      { value: "C2", label: "C2", desc: "원어민" },
+    ];
 
-  if (isLoading || !user) {
+  if (isAuthLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
       </div>
     );
   }
 
   return (
-    <div className="h-dvh bg-white flex flex-col">
-      <header className="w-full bg-rose-500 text-white shrink-0">
-        <div className="max-w-5xl mx-auto flex items-center justify-between px-4 sm:px-6 py-4">
-          <h1 className="text-lg font-semibold">새로운 방 만들기</h1>
+    <div className="min-h-screen bg-slate-50 pb-20 text-gray-900">
+      {/* --- Header --- */}
+      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleCancel}
+              className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-600"
+              aria-label="뒤로 가기"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">
+              새로운 방 만들기
+            </h1>
+          </div>
           <button
-            type="button"
             onClick={handleCancel}
-            className="inline-flex items-center text-white hover:bg-white/10 rounded px-2 py-1"
+            className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500"
             aria-label="닫기"
           >
-            <X className="w-5 h-5" aria-hidden="true" />
+            <X className="w-5 h-5" />
           </button>
         </div>
       </header>
 
-      <main className="w-full flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24">
-          <section className="w-full p-0">
-            <div className="mb-4 sm:mb-6">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
-                방 설정
+      {/* --- Main Content --- */}
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Card: Basic Info */}
+          <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden p-6 sm:p-8">
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Mic className="w-5 h-5 text-rose-500" />
+                기본 정보
               </h2>
-              <p className="text-sm sm:text-base text-gray-600">
-                다른 학습자들과 함께할 방을 만들어보세요
+              <p className="text-sm text-gray-500 mt-1">
+                방의 주제와 설명을 입력해주세요.
               </p>
             </div>
 
-            <form
-              id="room-create-form"
-              onSubmit={handleSubmit}
-              className="space-y-6"
-            >
-              <div className="space-y-2">
+            <div className="space-y-5">
+              <div>
                 <label
                   htmlFor="name"
-                  className="block text-sm font-medium text-gray-900"
+                  className="block text-sm font-bold text-gray-700 mb-1.5 ml-1"
                 >
                   방 이름
                 </label>
-                <input
-                  id="name"
-                  name="name"
-                  placeholder="예: 초보자 환영방"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  required
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
-                />
+                <div className="relative">
+                  <input
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    placeholder="예: 초보자 프리토킹 환영합니다"
+                    required
+                    className="w-full rounded-2xl bg-gray-50 border border-gray-200 px-4 py-3.5 text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-2">
+              <div>
                 <label
                   htmlFor="description"
-                  className="block text-sm font-medium text-gray-900"
+                  className="block text-sm font-bold text-gray-700 mb-1.5 ml-1"
                 >
                   방 설명
                 </label>
-                <input
-                  id="description"
-                  name="description"
-                  placeholder="예: 일상 대화 연습"
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  required
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
-                />
+                <div className="relative">
+                  <AlignLeft className="absolute left-4 top-4 w-5 h-5 text-gray-400" />
+                  <textarea
+                    id="description"
+                    name="description"
+                    value={formData.description}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
+                    placeholder="어떤 대화를 나누고 싶으신가요?"
+                    required
+                    rows={3}
+                    className="w-full rounded-2xl bg-gray-50 border border-gray-200 pl-11 pr-4 py-3.5 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all resize-none"
+                  />
+                </div>
               </div>
+            </div>
+          </section>
 
-              <div className="space-y-2">
-                <label
-                  htmlFor="maxParticipants"
-                  className="block text-sm font-medium text-gray-900"
-                >
-                  최대 참여 인원 (2~8명)
-                </label>
-                <div className="mt-1">
+          {/* Card: Settings */}
+          <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden p-6 sm:p-8">
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Users className="w-5 h-5 text-indigo-500" />
+                참여 설정
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                인원 제한과 난이도를 설정하세요.
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              {/* 인원 수 */}
+              <div>
+                <div className="flex justify-between items-center mb-1.5 ml-1">
+                  <label
+                    htmlFor="maxParticipants"
+                    className="text-sm font-bold text-gray-700"
+                  >
+                    최대 인원
+                  </label>
+                  <span className="text-sm font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md">
+                    {formData.maxParticipants}명
+                  </span>
+                </div>
+                <div className="relative flex items-center gap-4 bg-gray-50 rounded-2xl p-4 border border-gray-200">
+                  <Users className="w-5 h-5 text-gray-400 shrink-0" />
                   <input
                     id="maxParticipants"
                     name="maxParticipants"
-                    type="number"
-                    min={2} // ✅ 수정: 최소 2명
-                    max={8} // ✅ 수정: 최대 8명
+                    type="range"
+                    min={2}
+                    max={8}
+                    step={1}
                     value={formData.maxParticipants}
                     onChange={(e) =>
                       setFormData((p) => ({
@@ -207,74 +237,78 @@ const VoiceRoomCreate: React.FC = () => {
                         maxParticipants: e.target.value,
                       }))
                     }
-                    required
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
                   />
+                  <span className="text-xs text-gray-400 shrink-0">8명</span>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-900">
+              {/* 레벨 선택 */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2 ml-1 flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-gray-400" />
                   권장 레벨
                 </label>
-                <div className="mt-1">
-                  <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 sm:grid sm:grid-cols-7 sm:overflow-visible">
-                    {levelOptions.map((opt) => {
-                      const isSelected = formData.level === opt.value;
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() =>
-                            setFormData((p) => ({ ...p, level: opt.value }))
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                  {levelOptions.map((opt) => {
+                    const isSelected = formData.level === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() =>
+                          setFormData((p) => ({ ...p, level: opt.value }))
+                        }
+                        className={`
+                          flex flex-col items-center justify-center p-2 rounded-xl border transition-all duration-200 relative overflow-hidden
+                          ${
+                            isSelected
+                              ? "bg-rose-500 border-rose-600 text-white shadow-md scale-105 z-10"
+                              : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300"
                           }
-                          className={`
-                            shrink-0 px-4 py-2.5 sm:px-0 rounded-lg text-sm font-medium border transition-all
-                            focus:outline-none focus:ring-2 focus:ring-rose-300 whitespace-nowrap
-                            ${
-                              isSelected
-                                ? "bg-rose-500 border-rose-500 text-white shadow-md"
-                                : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
-                            }
-                          `}
+                        `}
+                      >
+                        <span
+                          className={`text-sm font-bold ${
+                            isSelected ? "text-white" : "text-gray-900"
+                          }`}
                         >
                           {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1 sm:hidden">
-                    좌우로 스크롤하여 선택할 수 있습니다.
-                  </p>
+                        </span>
+                        <span
+                          className={`text-[10px] mt-0.5 ${
+                            isSelected ? "text-rose-100" : "text-gray-400"
+                          }`}
+                        >
+                          {opt.desc}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            </form>
+            </div>
           </section>
-        </div>
-      </main>
 
-      <footer className="w-full bg-white border-t border-gray-200 shrink-0">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="flex-1 h-12 rounded-lg border border-gray-200 bg-white text-gray-700 text-lg font-semibold hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 transition"
-              disabled={submitting}
-            >
-              취소
-            </button>
+          {/* Submit Button */}
+          <div className="pt-2">
             <button
               type="submit"
-              form="room-create-form"
-              className="flex-1 h-12 rounded-lg bg-rose-500 text-white text-lg font-semibold shadow-lg hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-300 transition disabled:opacity-60"
               disabled={submitting}
+              className="w-full rounded-2xl bg-rose-500 text-white px-6 py-4 text-base font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {submitting ? "생성 중..." : "방 만들기"}
+              {submitting ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  생성 중...
+                </>
+              ) : (
+                "방 만들기 완료"
+              )}
             </button>
           </div>
-        </div>
-      </footer>
+        </form>
+      </main>
     </div>
   );
 };

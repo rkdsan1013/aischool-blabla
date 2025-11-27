@@ -87,7 +87,7 @@ const Avatar: React.FC<{
 
   return (
     <div
-      className={`rounded-full overflow-hidden flex items-center justify-center bg-rose-500 text-white font-bold`}
+      className={`rounded-full overflow-hidden flex items-center justify-center bg-rose-500 text-white font-bold flex-shrink-0`}
       style={style}
       aria-hidden="true"
     >
@@ -266,7 +266,7 @@ const HomeLeaderBoard: React.FC = () => {
               {/* 2위 (중간 높이) */}
               <div className="flex flex-col items-center">
                 <div
-                  className="relative rounded-full flex items-center justify-center"
+                  className="relative rounded-full flex items-center justify-center flex-shrink-0"
                   style={{
                     width: "88px",
                     height: "88px",
@@ -304,7 +304,7 @@ const HomeLeaderBoard: React.FC = () => {
               {/* 1위 (가장 높음) */}
               <div className="flex flex-col items-center">
                 <div
-                  className="relative rounded-full flex items-center justify-center"
+                  className="relative rounded-full flex items-center justify-center flex-shrink-0"
                   style={{
                     width: "128px",
                     height: "128px",
@@ -342,7 +342,7 @@ const HomeLeaderBoard: React.FC = () => {
               {/* 3위 (가장 낮음) */}
               <div className="flex flex-col items-center">
                 <div
-                  className="relative rounded-full flex items-center justify-center"
+                  className="relative rounded-full flex items-center justify-center flex-shrink-0"
                   style={{
                     width: "72px",
                     height: "72px",
@@ -416,18 +416,11 @@ const HomeLeaderBoard: React.FC = () => {
                     {it.rank}
                   </div>
 
-                  {/* streak: 리스트 하단에서는 표시 */}
-                  <div className="col-span-1 flex items-center justify-center">
-                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-100">
-                      <Flame className="w-3 h-3" aria-hidden />
-                      <span>{it.streak_count ?? 0}</span>
-                    </div>
-                  </div>
-
                   {/* avatar + name */}
-                  <div className="col-span-5 flex items-center gap-4 min-w-0">
+                  <div className="col-span-5 flex items-center gap-4 min-w-0 h-[40px]">
+                    {/* avatar: 고정 크기, 절대 축소 금지 */}
                     <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-white bg-rose-500`}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-white bg-rose-500 flex-shrink-0`}
                       style={
                         it.rank && it.rank <= 3
                           ? {
@@ -442,8 +435,17 @@ const HomeLeaderBoard: React.FC = () => {
                         .toUpperCase()}
                     </div>
 
-                    <div className="min-w-0 flex items-center gap-2">
+                    {/* name: 줄임표시 적용, 부모에 min-w-0 필요 */}
+                    <div className="min-w-0 flex items-center gap-1 overflow-hidden">
                       <div className="font-medium truncate">{it.name}</div>
+                    </div>
+                  </div>
+
+                  {/* streak: 리스트 하단에서는 표시 */}
+                  <div className="col-span-1 flex items-center justify-center">
+                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-100">
+                      <Flame className="w-3 h-3" aria-hidden />
+                      <span>{it.streak_count ?? 0}</span>
                     </div>
                   </div>
 

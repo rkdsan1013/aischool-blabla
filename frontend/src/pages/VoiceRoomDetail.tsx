@@ -1055,7 +1055,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
       })}
 
       <main className="flex-1 flex flex-col min-h-0">
-        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 pt-4 pb-0 flex-1 flex flex-col gap-4">
+        {/* 수정됨: min-h-0 클래스 추가로 flex 자식 요소의 높이 제한 적용 */}
+        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 pt-4 pb-0 flex-1 flex flex-col gap-4 min-h-0">
           <div className="w-full border-b border-gray-100">
             <div
               ref={participantsRef}

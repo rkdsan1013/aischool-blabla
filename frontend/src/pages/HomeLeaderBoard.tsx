@@ -1,6 +1,6 @@
 // src/pages/HomeLeaderBoard.tsx
 import React, { useEffect, useState } from "react";
-import { Crown, X, Flame } from "lucide-react";
+import { Crown, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getLeaderboard } from "../services/leaderboardService";
 
@@ -10,7 +10,6 @@ type LeaderItem = {
   score: number;
   tier?: string;
   rank?: number;
-  streak_count?: number;
 };
 
 const tierStyles: Record<
@@ -54,13 +53,14 @@ const tierStyles: Record<
   },
 };
 
-/** Avatar: 프로필 색상 통일(rose-500) */
+/** Avatar: 프로필 색상 통일(rose-500) — 오버레이 없음 (요청에 따라 프로필마다 왕관 씌우지 않음)
+ *  glowColor만으로 은/금/동 광채를 표현 (border 제거)
+ */
 const Avatar: React.FC<{
   name?: string;
   size?: number;
   glowColor?: string | null;
-  ringColor?: string | null;
-}> = ({ name = "익명", size = 48, glowColor = null, ringColor = null }) => {
+}> = ({ name = "익명", size = 48, glowColor = null }) => {
   const initials = String(name)
     .split(" ")
     .map((s) => (s ? s[0] : ""))
@@ -78,11 +78,13 @@ const Avatar: React.FC<{
       ? "text-base"
       : "text-sm";
 
+  // glowColor이 있을 때 더 넓고 부드러운 그림자 사용
   const style: React.CSSProperties = {
     width: px,
     height: px,
-    boxShadow: glowColor ? `0 8px 22px ${glowColor}` : undefined,
-    border: ringColor ? `1.5px solid ${ringColor}` : undefined,
+    boxShadow: glowColor
+      ? `0 8px 30px ${glowColor}, 0 2px 6px rgba(0,0,0,0.06)`
+      : undefined,
   };
 
   return (
@@ -118,33 +120,42 @@ const getMedal = (rank?: number) => {
   };
 };
 
-/** rank 색상(금/은/동) — 은색은 살짝 옅게 유지 */
+/** rank 색상(금/은/동)
+ *  - 보더(테두리) 제거: 색상은 bgGradient + glow로만 표현
+ *  - 은색(rank 2)의 glow를 충분히 크게 하고 alpha를 높여 가시성 확보
+ *  - 동색(rank 3)도 적절히 강화
+ */
 const rankColorInfo = (rank?: number) => {
   if (rank === 1)
     return {
       crown: "#EAB308",
-      glow: "rgba(234,179,8,0.12)",
-      ring: "rgba(234,179,8,0.08)",
+      // gold: 강한 노란빛, 넓은 blur로 눈에 띄게
+      glow: "rgba(234,179,8,0.22)",
+      // 리스트용 작은 그림자(약간 더 연하게)
+      smallGlow: "rgba(234,179,8,0.16)",
       bgGradient: "linear-gradient(180deg,#fff8eb,#fff6e6)",
     };
   if (rank === 2)
     return {
-      crown: "#6B7280",
-      glow: "rgba(107,114,128,0.10)",
-      ring: "rgba(107,114,128,0.06)",
-      bgGradient: "linear-gradient(180deg,#f8fafc,#f3f6fa)",
+      // silver: 기존보다 밝고 푸른빛을 약간 섞어 시인성 향상
+      crown: "#9AA6B2",
+      // 은색 glow를 넓고 투명도를 높여 금색과 비슷한 존재감 부여
+      glow: "rgba(154,166,178,0.36)",
+      smallGlow: "rgba(154,166,178,0.20)",
+      bgGradient: "linear-gradient(180deg,#f6f8fa,#eef3f7)",
     };
   if (rank === 3)
     return {
       crown: "#C05621",
-      glow: "rgba(192,86,33,0.10)",
-      ring: "rgba(192,86,33,0.06)",
+      // bronze: 따뜻한 주황빛을 살리고 glow 강화
+      glow: "rgba(192,86,33,0.22)",
+      smallGlow: "rgba(192,86,33,0.16)",
       bgGradient: "linear-gradient(180deg,#fff7ef,#fff4ec)",
     };
   return {
     crown: "#94A3B8",
-    glow: "rgba(148,163,184,0.08)",
-    ring: "rgba(148,163,184,0.05)",
+    glow: "rgba(148,163,184,0.12)",
+    smallGlow: "rgba(148,163,184,0.08)",
     bgGradient: "linear-gradient(180deg,#f8fafc,#f1f5f9)",
   };
 };
@@ -159,7 +170,6 @@ const TierScoreBadge: React.FC<{
 }> = ({ tier = "Bronze", score = 0, size = "sm" }) => {
   const ts = tierStyles[tier] ?? tierStyles.Bronze;
 
-  // 사이즈별 패딩/텍스트 크기
   const padding =
     size === "md"
       ? "px-3 py-1.5 text-sm"
@@ -201,7 +211,6 @@ const HomeLeaderBoard: React.FC = () => {
         const data = await getLeaderboard({ limit: 500 });
         if (!mounted) return;
         const arr: LeaderItem[] = Array.isArray(data) ? data : [];
-        // ensure rank ordering
         arr.sort((a, b) => {
           if (typeof a.rank === "number" && typeof b.rank === "number")
             return a.rank - b.rank;
@@ -210,8 +219,6 @@ const HomeLeaderBoard: React.FC = () => {
         const normalized = arr.map((it, idx) => ({
           ...it,
           rank: it.rank ?? idx + 1,
-          streak_count:
-            typeof it.streak_count === "number" ? it.streak_count : 0,
         }));
         setItems(normalized);
       } catch (err: any) {
@@ -235,10 +242,9 @@ const HomeLeaderBoard: React.FC = () => {
 
   return (
     <div className="min-h-screen w-full bg-white">
-      {/* 상단 히어로: 웹에서는 중앙 max-width 유지, 모바일에서는 좌우 꽉 채움 */}
+      {/* 상단 히어로 */}
       <header className="w-full bg-gradient-to-b from-rose-100/90 via-white/60 to-white">
         <div className="relative w-full md:max-w-5xl md:mx-auto px-0 md:px-4 lg:px-6 py-6 sm:py-8 pb-0 text-center">
-          {/* 우측 상단 X 유지 (위치: top-4로 살짝 올림) */}
           <div className="absolute right-4 top-4">
             <button
               aria-label="닫기"
@@ -249,7 +255,6 @@ const HomeLeaderBoard: React.FC = () => {
             </button>
           </div>
 
-          {/* 제목 */}
           <div className="mt-6 sm:mt-8 lg:mt-10">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 leading-tight">
               리더보드에서
@@ -259,31 +264,30 @@ const HomeLeaderBoard: React.FC = () => {
             </h1>
           </div>
 
-          {/* Top3 영역 */}
+          {/* Top3 영역 (왕관 아이콘 유지, 보더 제거 — glow로만 표현) */}
           <div className="w-full mt-8">
-            {/* items-end로 하단 기준선 통일: avatar 크기 차이로 1>2>3 높이 표현 */}
-            <div className="flex justify-center items-end gap-10">
-              {/* 2위 (중간 높이) */}
+            <div className="flex justify-center items-end gap-10 px-4 md:px-8">
+              {/* 2위 */}
               <div className="flex flex-col items-center">
                 <div
                   className="relative rounded-full flex items-center justify-center flex-shrink-0"
                   style={{
-                    width: "88px",
-                    height: "88px",
+                    width: "84px",
+                    height: "84px",
                     backgroundImage: rankColorInfo(top2?.rank).bgGradient,
-                    boxShadow: `0 8px 22px ${rankColorInfo(top2?.rank).glow}`,
+                    // border 제거: glow로만 강조
+                    boxShadow: `0 10px 40px ${rankColorInfo(top2?.rank).glow}`,
                     borderRadius: "9999px",
                   }}
                 >
                   <Avatar
                     name={top2?.name}
-                    size={80}
+                    size={72}
                     glowColor={rankColorInfo(top2?.rank).glow}
-                    ringColor={rankColorInfo(top2?.rank).ring}
                   />
                 </div>
 
-                <div className="mt-3 flex items-center gap-2 text-sm md:text-base font-semibold text-foreground truncate max-w-[160px]">
+                <div className="mt-3 flex items-center gap-2 text-sm md:text-base font-semibold text-foreground truncate max-w-[150px]">
                   <Crown
                     className="w-4 h-4 md:w-5 md:h-5"
                     style={{ color: rankColorInfo(top2?.rank).crown }}
@@ -291,7 +295,6 @@ const HomeLeaderBoard: React.FC = () => {
                   <span className="truncate">{top2?.name ?? "—"}</span>
                 </div>
 
-                {/* tier + score 합쳐서 표시 (compact) - streak 없음 */}
                 <div className="mt-2">
                   <TierScoreBadge
                     tier={top2?.tier}
@@ -301,27 +304,26 @@ const HomeLeaderBoard: React.FC = () => {
                 </div>
               </div>
 
-              {/* 1위 (가장 높음) */}
+              {/* 1위 */}
               <div className="flex flex-col items-center">
                 <div
                   className="relative rounded-full flex items-center justify-center flex-shrink-0"
                   style={{
-                    width: "128px",
-                    height: "128px",
+                    width: "120px",
+                    height: "120px",
                     backgroundImage: rankColorInfo(top1?.rank).bgGradient,
-                    boxShadow: `0 12px 36px ${rankColorInfo(top1?.rank).glow}`,
+                    boxShadow: `0 18px 60px ${rankColorInfo(top1?.rank).glow}`,
                     borderRadius: "9999px",
                   }}
                 >
                   <Avatar
                     name={top1?.name}
-                    size={112}
+                    size={104}
                     glowColor={rankColorInfo(top1?.rank).glow}
-                    ringColor={rankColorInfo(top1?.rank).ring}
                   />
                 </div>
 
-                <div className="mt-4 flex items-center gap-2 text-lg md:text-2xl lg:text-3xl font-extrabold text-foreground truncate max-w-[260px]">
+                <div className="mt-4 flex items-center gap-2 text-lg md:text-2xl lg:text-3xl font-extrabold text-foreground truncate max-w-[240px]">
                   <Crown
                     className="w-5 h-5 md:w-6 md:h-6"
                     style={{ color: rankColorInfo(top1?.rank).crown }}
@@ -329,7 +331,6 @@ const HomeLeaderBoard: React.FC = () => {
                   <span className="truncate">{top1?.name ?? "—"}</span>
                 </div>
 
-                {/* tier + score 합쳐서 표시 (sm) - streak 없음 */}
                 <div className="mt-2">
                   <TierScoreBadge
                     tier={top1?.tier}
@@ -339,27 +340,26 @@ const HomeLeaderBoard: React.FC = () => {
                 </div>
               </div>
 
-              {/* 3위 (가장 낮음) */}
+              {/* 3위 */}
               <div className="flex flex-col items-center">
                 <div
                   className="relative rounded-full flex items-center justify-center flex-shrink-0"
                   style={{
-                    width: "72px",
-                    height: "72px",
+                    width: "64px",
+                    height: "64px",
                     backgroundImage: rankColorInfo(top3?.rank).bgGradient,
-                    boxShadow: `0 8px 22px ${rankColorInfo(top3?.rank).glow}`,
+                    boxShadow: `0 10px 36px ${rankColorInfo(top3?.rank).glow}`,
                     borderRadius: "9999px",
                   }}
                 >
                   <Avatar
                     name={top3?.name}
-                    size={64}
+                    size={56}
                     glowColor={rankColorInfo(top3?.rank).glow}
-                    ringColor={rankColorInfo(top3?.rank).ring}
                   />
                 </div>
 
-                <div className="mt-3 flex items-center gap-2 text-sm md:text-base font-semibold text-foreground truncate max-w-[140px]">
+                <div className="mt-3 flex items-center gap-2 text-sm md:text-base font-semibold text-foreground truncate max-w-[130px]">
                   <Crown
                     className="w-4 h-4 md:w-5 md:h-5"
                     style={{ color: rankColorInfo(top3?.rank).crown }}
@@ -367,7 +367,6 @@ const HomeLeaderBoard: React.FC = () => {
                   <span className="truncate">{top3?.name ?? "—"}</span>
                 </div>
 
-                {/* tier + score 합쳐서 표시 (compact) - streak 없음 */}
                 <div className="mt-2">
                   <TierScoreBadge
                     tier={top3?.tier}
@@ -381,7 +380,7 @@ const HomeLeaderBoard: React.FC = () => {
         </div>
       </header>
 
-      {/* 리스트 영역: 웹은 중앙 max-width 유지, 모바일은 좌우 꽉 채움 */}
+      {/* 리스트 영역: 하단에서 1/2/3 숫자 자리에 상단과 동일한 왕관 아이콘을 배치 */}
       <main className="w-full bg-white">
         <div className="w-full md:max-w-5xl md:pb-24 md:mx-auto px-0 md:px-4 lg:px-6 py-6 sm:py-8 pb-0 divide-y divide-gray-100">
           {loading ? (
@@ -409,23 +408,32 @@ const HomeLeaderBoard: React.FC = () => {
                   key={it.id}
                   className="w-full grid grid-cols-12 gap-4 items-center px-4 md:px-6 py-4 hover:bg-rose-50 transition-colors"
                 >
-                  {/* rank */}
+                  {/* rank: 1/2/3이면 상단과 동일한 Crown 아이콘을 표시, 그 외는 숫자 */}
                   <div
-                    className={`col-span-1 text-sm font-bold ${medal.color}`}
+                    className={`col-span-1 text-sm font-bold ${medal.color} flex items-center justify-center`}
                   >
-                    {it.rank}
+                    {it.rank && it.rank <= 3 ? (
+                      <Crown
+                        className="w-5 h-5 md:w-5 md:h-5"
+                        style={{ color: rankInfo.crown }}
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <span>{it.rank}</span>
+                    )}
                   </div>
 
                   {/* avatar + name */}
-                  <div className="col-span-5 flex items-center gap-4 min-w-0 h-[40px]">
-                    {/* avatar: 고정 크기, 절대 축소 금지 */}
+                  <div className="col-span-5 flex items-center gap-4 min-w-0 h-[40px] w-[170px]">
                     <div
                       className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-white bg-rose-500 flex-shrink-0`}
                       style={
                         it.rank && it.rank <= 3
                           ? {
-                              boxShadow: `0 8px 22px ${rankInfo.glow}`,
-                              border: `1.5px solid ${rankInfo.ring}`,
+                              // 리스트용은 작은 glow 사용
+                              boxShadow: `0 6px 18px ${
+                                rankInfo.smallGlow ?? rankInfo.glow
+                              }`,
                             }
                           : undefined
                       }
@@ -435,21 +443,15 @@ const HomeLeaderBoard: React.FC = () => {
                         .toUpperCase()}
                     </div>
 
-                    {/* name: 줄임표시 적용, 부모에 min-w-0 필요 */}
-                    <div className="min-w-0 flex items-center gap-1 overflow-hidden">
+                    <div className="min-w-0 flex items-center gap-1 overflow-hidden w-[100]">
                       <div className="font-medium truncate">{it.name}</div>
                     </div>
                   </div>
 
-                  {/* streak: 리스트 하단에서는 표시 */}
-                  <div className="col-span-1 flex items-center justify-center">
-                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-100">
-                      <Flame className="w-3 h-3" aria-hidden />
-                      <span>{it.streak_count ?? 0}</span>
-                    </div>
-                  </div>
+                  {/* spacer */}
+                  <div className="col-span-1" />
 
-                  {/* tier + score combined, wider space */}
+                  {/* tier + score combined */}
                   <div className="col-span-5 flex items-center justify-end gap-3">
                     <div className="flex items-center gap-3">
                       <div

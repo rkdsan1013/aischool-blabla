@@ -1,4 +1,5 @@
 // frontend/src/pages/VoiceRoomDetail.tsx
+// cspell:ignore voiceroom
 import { Buffer } from "buffer";
 
 if (typeof window !== "undefined") {
@@ -41,6 +42,7 @@ import {
   UserMinus,
   MoreHorizontal,
   Sparkles,
+  VolumeX,
 } from "lucide-react";
 import io, { Socket } from "socket.io-client";
 import Peer from "simple-peer";
@@ -110,6 +112,7 @@ const SPEECH_THRESHOLD = 0.02;
 const SPEECH_HOLD_TIME = 1000;
 const TOOLTIP_GAP_BELOW = 12;
 const TOOLTIP_GAP_ABOVE = 6;
+const HEADER_HEIGHT = 70;
 
 function formatTime(seconds: number) {
   const mins = Math.floor(seconds / 60);
@@ -188,7 +191,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
   const participantsRef = useRef<HTMLDivElement | null>(null);
   const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const transcriptIdsRef = useRef<Set<string>>(new Set());
-
   const transcriptStateRef = useRef<TranscriptItem[]>([]);
 
   // --- State ---
@@ -216,6 +218,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
   const [activeTooltipWordIndexes, setActiveTooltipWordIndexes] = useState<
     number[]
   >([]);
+
   const [cardPos, setCardPos] = useState<{
     top: number;
     left: number;
@@ -240,7 +243,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
     transcriptStateRef.current = transcript;
   }, [transcript]);
 
-  // addOrUpdateTranscript: 컴포넌트 레벨에서 정의
   const addOrUpdateTranscript = useCallback((item: TranscriptItem) => {
     setTranscript((prev) => {
       const index = prev.findIndex((t) => t.id === item.id);
@@ -284,17 +286,20 @@ export default function VoiceRoomDetail(): React.ReactElement {
   }, []);
 
   const onFinalResult = useCallback((text: string, id: string) => {
-    const finalItem: TranscriptItem = {
-      id,
-      speaker: "나",
-      text: text.trim(),
-      timestamp: new Date(),
-      interim: false,
-      isAnalyzing: false,
-    };
-
     setTranscript((prev) => {
       const index = prev.findIndex((t) => t.id === id);
+      // 기존 항목이 있다면 isAnalyzing 상태를 유지
+      const wasAnalyzing = index !== -1 ? prev[index].isAnalyzing : false;
+
+      const finalItem: TranscriptItem = {
+        id,
+        speaker: "나",
+        text: text.trim(),
+        timestamp: new Date(),
+        interim: false,
+        isAnalyzing: wasAnalyzing,
+      };
+
       if (index !== -1) {
         const newArr = [...prev];
         newArr[index] = { ...newArr[index], ...finalItem };
@@ -306,9 +311,9 @@ export default function VoiceRoomDetail(): React.ReactElement {
     });
 
     socketRef.current?.emit("local_transcript", {
-      id: finalItem.id,
+      id,
       speaker: profileRef.current ? profileRef.current.name : "나",
-      text: finalItem.text,
+      text: text.trim(),
       timestamp: new Date().toISOString(),
     });
   }, []);
@@ -695,7 +700,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
         socket.on("user_left", (id: string) => {
           const peerObj = peersRef.current.find((p) => p.peerID === id);
-          // ✅ [수정] 빈 catch 블록에 주석 추가하여 eslint-disable 제거
           if (peerObj)
             try {
               peerObj.peer.destroy();
@@ -747,7 +751,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
                 timestamp: index !== -1 ? prev[index].timestamp : new Date(),
                 feedback: payload.feedback,
                 interim: false,
-                isAnalyzing: false,
+                isAnalyzing: false, // ✅ 분석 완료 -> 상태 해제
               };
 
               if (index !== -1) {
@@ -783,7 +787,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
       stopRecording();
       if (localStreamRef.current)
         localStreamRef.current.getTracks().forEach((t) => t.stop());
-      // ✅ [수정] 빈 catch 블록 처리
       peersRef.current.forEach(({ peer }) => {
         try {
           peer.destroy();
@@ -797,8 +800,16 @@ export default function VoiceRoomDetail(): React.ReactElement {
       analyzersRef.clear();
       transcriptIds.clear();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId, navigate]);
+  }, [
+    roomId,
+    navigate,
+    profile,
+    isProfileLoading,
+    startRecording,
+    stopRecording,
+    startAudioAnalysis,
+    addOrUpdateTranscript,
+  ]);
 
   const toggleMute = () => {
     setIsMuted((prev) => !prev);
@@ -879,39 +890,40 @@ export default function VoiceRoomDetail(): React.ReactElement {
     }
   };
 
-  const updateCardPosition = useCallback((msgId: string) => {
-    const node = bubbleRefs.current[msgId];
-    if (!node) return;
-    const rect = node.getBoundingClientRect();
-    const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
-    const desiredWidth = Math.min(rect.width, viewportW * 0.92);
-    const center = rect.left + rect.width / 2;
-    let left = center - desiredWidth / 2;
-    left = Math.max(8, Math.min(left, viewportW - desiredWidth - 8));
-    const estimatedCardHeight = 160;
-    const spaceBelow = viewportH - rect.bottom;
-    const spaceAbove = rect.top;
-    let top: number;
-    let isAbove = false;
-    if (spaceBelow >= estimatedCardHeight + TOOLTIP_GAP_BELOW) {
-      top = rect.bottom + TOOLTIP_GAP_BELOW;
-      isAbove = false;
-    } else if (spaceAbove >= estimatedCardHeight + TOOLTIP_GAP_ABOVE) {
-      isAbove = true;
-      top = rect.top - TOOLTIP_GAP_ABOVE;
-    } else {
-      isAbove = spaceAbove >= spaceBelow;
-      if (isAbove) {
+  // --- 툴팁 위치 로직 ---
+  const updateCardPosition = useCallback(
+    (msgId: string) => {
+      if (isMobile) return;
+
+      const node = bubbleRefs.current[msgId];
+      if (!node) return;
+
+      const rect = node.getBoundingClientRect();
+      const viewportW = window.innerWidth;
+      // [수정] 미사용 변수 제거
+      // const viewportH = window.innerHeight;
+
+      const desiredWidth = 360;
+      const center = rect.left + rect.width / 2;
+      let left = center - desiredWidth / 2;
+      left = Math.max(8, Math.min(left, viewportW - desiredWidth - 8));
+
+      const estimatedCardHeight = 200;
+
+      const spaceAbove = rect.top - HEADER_HEIGHT;
+      const preferAbove = spaceAbove >= estimatedCardHeight + TOOLTIP_GAP_ABOVE;
+
+      let top;
+      if (preferAbove) {
         top = rect.top - TOOLTIP_GAP_ABOVE;
       } else {
-        const maxAllowedTop = Math.max(8, viewportH - estimatedCardHeight - 8);
-        top = Math.min(rect.bottom + TOOLTIP_GAP_BELOW, maxAllowedTop);
+        top = rect.bottom + TOOLTIP_GAP_BELOW;
       }
-    }
-    setCardPos({ top, left, width: desiredWidth, isAbove });
-    if (rect.bottom < 0 || rect.top > viewportH) closeTooltip();
-  }, []);
+
+      setCardPos({ top, left, width: desiredWidth, isAbove: preferAbove });
+    },
+    [isMobile]
+  );
 
   function onWordInteract(
     msgId: string,
@@ -923,7 +935,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
     if (errorsForWord.length === 0) return;
     setActiveTooltipMsgId(msgId);
     setActiveTooltipWordIndexes([wordIndex]);
-    updateCardPosition(msgId);
+    requestAnimationFrame(() => updateCardPosition(msgId));
   }
 
   function onSentenceInteract(msgId: string, feedback?: FeedbackPayload) {
@@ -931,7 +943,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
     if (!hasStyleError(feedback)) return;
     setActiveTooltipMsgId(msgId);
     setActiveTooltipWordIndexes([]);
-    updateCardPosition(msgId);
+    requestAnimationFrame(() => updateCardPosition(msgId));
   }
 
   function closeTooltip() {
@@ -939,12 +951,15 @@ export default function VoiceRoomDetail(): React.ReactElement {
     setActiveTooltipWordIndexes([]);
   }
 
+  // 스크롤/리사이즈 시 툴팁 위치 업데이트
   useEffect(() => {
     function onScroll() {
-      if (activeTooltipMsgId) updateCardPosition(activeTooltipMsgId);
+      if (activeTooltipMsgId && !isMobile)
+        updateCardPosition(activeTooltipMsgId);
     }
     function onResize() {
-      if (activeTooltipMsgId) updateCardPosition(activeTooltipMsgId);
+      if (activeTooltipMsgId && !isMobile)
+        updateCardPosition(activeTooltipMsgId);
     }
     const scrollContainer = transcriptRef.current;
     if (scrollContainer)
@@ -955,7 +970,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
         scrollContainer.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
     };
-  }, [activeTooltipMsgId, updateCardPosition]);
+  }, [activeTooltipMsgId, updateCardPosition, isMobile]);
 
   if (isProfileLoading || (isLoading && !roomInfo)) {
     return (
@@ -992,17 +1007,21 @@ export default function VoiceRoomDetail(): React.ReactElement {
               className={`p-2.5 rounded-full flex items-center justify-center ${
                 isSpeakerOn
                   ? "bg-rose-50 text-rose-600"
-                  : "bg-gray-50 text-gray-500"
-              } hover:brightness-95`}
+                  : "bg-gray-100 text-gray-500"
+              } hover:brightness-95 transition-colors`}
               style={{ width: 40, height: 40 }}
             >
-              <Volume2 className="w-5 h-5" />
+              {isSpeakerOn ? (
+                <Volume2 className="w-5 h-5" />
+              ) : (
+                <VolumeX className="w-5 h-5" />
+              )}
             </button>
             <button
               onClick={toggleMute}
               className={`p-2.5 rounded-full flex items-center justify-center ${
-                isMuted ? "bg-red-50 text-red-600" : "bg-gray-50 text-gray-700"
-              } hover:brightness-95`}
+                isMuted ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-700"
+              } hover:brightness-95 transition-colors`}
               style={{ width: 40, height: 40 }}
             >
               {isMuted ? (
@@ -1013,12 +1032,12 @@ export default function VoiceRoomDetail(): React.ReactElement {
             </button>
             <button
               onClick={handleLeaveRoom}
-              className="flex items-center gap-1 px-4.5 py-1.5 rounded-full bg-red-600 text-white text-sm hover:bg-red-700"
+              className="flex items-center gap-1 px-4 py-1.5 rounded-full bg-red-600 text-white text-sm hover:bg-red-700 transition-colors"
             >
-              <div className="w-8 h-8 flex items-center justify-center">
+              <div className="w-5 h-5 flex items-center justify-center">
                 <PhoneOff className="w-4 h-4 text-white" />
               </div>
-              <span className="hidden sm:inline">나가기</span>
+              <span className="hidden sm:inline font-medium">나가기</span>
             </button>
           </div>
         </div>
@@ -1040,13 +1059,13 @@ export default function VoiceRoomDetail(): React.ReactElement {
           <div className="w-full border-b border-gray-100">
             <div
               ref={participantsRef}
-              className="flex gap-3 overflow-x-auto py-3 px-3 no-scrollbar"
+              className="flex gap-3 overflow-x-auto py-3 px-3 scrollbar-hide"
               style={{ WebkitOverflowScrolling: "touch" }}
             >
               {participants.map((p) => (
                 <div
                   key={p.socketId}
-                  className="flex-none w-20 text-center relative"
+                  className="flex-none w-20 text-center relative group"
                 >
                   <div
                     className="relative mx-auto w-14 h-14 cursor-pointer"
@@ -1072,8 +1091,10 @@ export default function VoiceRoomDetail(): React.ReactElement {
                       <div className="absolute inset-0 rounded-full ring-4 ring-rose-400 ring-opacity-60 animate-pulse" />
                     )}
                     <div
-                      className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold shadow-md ${
-                        p.socketId === "me" ? "bg-rose-500" : "bg-gray-300"
+                      className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold shadow-md border-2 border-white ${
+                        p.socketId === "me"
+                          ? "bg-linear-to-br from-rose-400 to-rose-600"
+                          : "bg-gray-300"
                       }`}
                     >
                       {p.name.charAt(0)}
@@ -1084,8 +1105,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
                       </div>
                     )}
                     {isHost && p.socketId !== "me" && (
-                      <div className="absolute inset-0 hover:bg-black/10 rounded-full transition-colors flex items-center justify-center">
-                        <MoreHorizontal className="text-white opacity-0 hover:opacity-100 transition-opacity" />
+                      <div className="absolute inset-0 hover:bg-black/20 rounded-full transition-colors flex items-center justify-center group-hover:opacity-100 opacity-0">
+                        <MoreHorizontal className="text-white" />
                       </div>
                     )}
                   </div>
@@ -1097,24 +1118,23 @@ export default function VoiceRoomDetail(): React.ReactElement {
             </div>
           </div>
 
-          <section className="flex-1 relative min-h-0">
-            <div className="flex items-center justify-between px-1 py-2 border-b border-gray-100">
+          <section className="flex-1 relative min-h-0 flex flex-col">
+            <div className="flex items-center justify-between px-1 py-2 border-b border-gray-100 mb-2">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-rose-500" />
-                <span className="text-sm font-bold">
-                  실시간 자막 & AI 피드백
+                <span className="text-sm font-bold text-gray-800">
+                  실시간 자막 & 피드백
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-rose-600">
-                <div className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse" />
+              <div className="flex items-center gap-2 text-xs text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">
+                <div className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
                 <span className="font-medium">LIVE</span>
               </div>
             </div>
 
             <div
               ref={transcriptRef}
-              className="absolute inset-x-0 top-14 overflow-y-auto px-3"
-              style={{ bottom: 92, paddingBottom: 12, background: "white" }}
+              className="flex-1 overflow-y-auto px-2 pb-4 scrollbar-hide"
             >
               {transcript.map((item) => {
                 const isMe =
@@ -1132,19 +1152,19 @@ export default function VoiceRoomDetail(): React.ReactElement {
                     } mb-4`}
                   >
                     <div
-                      className={`w-full max-w-[90%] ${
+                      className={`w-full max-w-[85%] sm:max-w-[75%] ${
                         isMe ? "items-end" : "items-start"
-                      } flex flex-col gap-2`}
+                      } flex flex-col gap-1`}
                     >
                       <div
                         className={`flex items-center gap-2 ${
                           isMe ? "flex-row-reverse justify-end" : ""
                         }`}
                       >
-                        <span className="text-xs font-medium text-gray-600">
+                        <span className="text-xs font-bold text-gray-700">
                           {item.speaker}
                         </span>
-                        <span className="text-xs text-gray-400">
+                        <span className="text-[10px] text-gray-400">
                           {item.timestamp.toLocaleTimeString("ko-KR", {
                             hour: "2-digit",
                             minute: "2-digit",
@@ -1155,13 +1175,18 @@ export default function VoiceRoomDetail(): React.ReactElement {
                         ref={(el) => {
                           bubbleRefs.current[item.id] = el;
                         }}
-                        className={`${
+                        className={`rounded-2xl px-4 py-3 text-[15px] sm:text-base leading-relaxed shadow-sm transition-all
+                        ${
                           isMe
-                            ? "bg-rose-500 text-white"
-                            : "bg-gray-100 text-gray-900"
-                        } rounded-2xl p-3 ${
-                          styleError && isMe ? "ring-2 ring-yellow-300" : ""
-                        } ${item.interim ? "opacity-80 italic" : ""}`}
+                            ? "bg-rose-500 text-white rounded-tr-none"
+                            : "bg-white text-gray-800 border border-gray-200 rounded-tl-none"
+                        } 
+                        ${
+                          styleError && isMe
+                            ? "ring-2 ring-yellow-300 cursor-pointer hover:ring-4"
+                            : ""
+                        }
+                        ${item.interim ? "opacity-80" : ""}`}
                         onMouseEnter={() =>
                           !isMobile &&
                           styleError &&
@@ -1176,35 +1201,35 @@ export default function VoiceRoomDetail(): React.ReactElement {
                           onSentenceInteract(item.id, item.feedback)
                         }
                       >
-                        <div className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word">
+                        <div className="whitespace-pre-wrap wrap-break-word">
                           {isMe ? (
                             <span>
                               {tokens.map(({ token, index }, i) => {
                                 if (index === -1)
-                                  return (
-                                    <span key={`${item.id}-ws-${i}`}>
-                                      {token}
-                                    </span>
-                                  );
+                                  return <span key={i}>{token}</span>;
+
                                 const res = item.feedback
                                   ? isWordErrored(index, item.feedback)
                                   : { errored: false, kind: null };
+
                                 let highlight = "";
                                 if (res.kind === "word")
                                   highlight =
-                                    "bg-blue-600/30 underline decoration-2 underline-offset-2";
+                                    "bg-red-400/40 underline decoration-red-200 decoration-2";
                                 else if (res.kind === "grammar")
                                   highlight =
-                                    "bg-purple-600/30 underline decoration-dotted";
+                                    "bg-yellow-400/40 underline decoration-yellow-200 decoration-2";
                                 else if (res.kind === "spelling")
                                   highlight =
-                                    "bg-orange-500/30 underline decoration-wavy";
+                                    "bg-orange-400/40 underline decoration-orange-200 decoration-2";
 
                                 return (
                                   <span
-                                    key={`${item.id}-w-${index}`}
-                                    className={`rounded-sm px-0.5 inline-block ${highlight} ${
-                                      res.errored ? "cursor-pointer" : ""
+                                    key={i}
+                                    className={`rounded-sm px-0.5 inline-block transition-colors ${highlight} ${
+                                      res.errored
+                                        ? "cursor-pointer hover:bg-opacity-60"
+                                        : ""
                                     }`}
                                     onMouseEnter={() =>
                                       !isMobile &&
@@ -1218,15 +1243,16 @@ export default function VoiceRoomDetail(): React.ReactElement {
                                     onMouseLeave={() =>
                                       !isMobile && closeTooltip()
                                     }
-                                    onClick={() =>
-                                      isMobile &&
-                                      res.errored &&
-                                      onWordInteract(
-                                        item.id,
-                                        index,
-                                        item.feedback
-                                      )
-                                    }
+                                    onClick={(e) => {
+                                      if (res.errored && isMobile) {
+                                        e.stopPropagation();
+                                        onWordInteract(
+                                          item.id,
+                                          index,
+                                          item.feedback
+                                        );
+                                      }
+                                    }}
                                   >
                                     {token}
                                   </span>
@@ -1240,14 +1266,14 @@ export default function VoiceRoomDetail(): React.ReactElement {
                         {item.isAnalyzing && (
                           <div className="mt-2 flex items-center gap-2 text-white/90 text-xs bg-white/20 rounded-lg px-2 py-1 w-fit animate-pulse">
                             <Sparkles size={12} />
-                            <span>AI 분석 중...</span>
+                            <span>분석 중...</span>
                           </div>
                         )}
                         {styleError && isMe && !item.isAnalyzing && (
-                          <div className="mt-2 flex items-center gap-2 text-yellow-900">
-                            <AlertCircle size={16} />
-                            <span className="text-[13px]">
-                              문장 전체 스타일 개선 필요
+                          <div className="mt-2 flex items-center gap-1.5 text-yellow-200 bg-yellow-900/20 px-2 py-1 rounded-md border border-yellow-200/30 w-fit">
+                            <AlertCircle size={14} />
+                            <span className="text-xs font-medium">
+                              표현 개선 제안
                             </span>
                           </div>
                         )}
@@ -1258,10 +1284,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
               })}
             </div>
 
-            <div
-              className="absolute left-0 right-0 bottom-0 border-t border-gray-100 bg-white flex items-center"
-              style={{ height: 92, padding: 0, boxShadow: "none" }}
-            >
+            {/* Bottom Input Area */}
+            <div className="border-t border-gray-100 bg-white py-3">
               <div className="max-w-4xl mx-auto w-full px-0 sm:px-6 flex items-center gap-3">
                 <div className="flex-1">
                   <input
@@ -1269,14 +1293,14 @@ export default function VoiceRoomDetail(): React.ReactElement {
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="메시지를 입력하세요..."
-                    className="w-full rounded-xl bg-gray-50 border border-gray-200 px-5 py-4 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200"
+                    className="w-full rounded-full bg-gray-50 border border-gray-200 px-5 py-3.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200 transition-all"
                   />
                 </div>
                 <button
                   onClick={handleSend}
-                  className="w-12 h-12 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-md hover:bg-rose-600"
+                  className="w-11 h-11 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-md hover:bg-rose-600 transition-colors active:scale-95"
                 >
-                  <Send className="w-4.5 h-4.5" />
+                  <Send className="w-5 h-5 ml-0.5" />
                 </button>
               </div>
             </div>
@@ -1284,6 +1308,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
         </div>
       </main>
 
+      {/* User Menu Popup */}
       {menuState && (
         <div
           style={{
@@ -1293,12 +1318,12 @@ export default function VoiceRoomDetail(): React.ReactElement {
             transform: "translateX(-50%)",
             zIndex: 9999,
           }}
-          className="bg-white rounded-lg shadow-xl border border-gray-100 py-1 min-w-[120px] overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+          className="bg-white rounded-xl shadow-xl border border-gray-100 py-1 min-w-[140px] overflow-hidden animate-in fade-in zoom-in-95 duration-100"
           onClick={(e) => e.stopPropagation()}
         >
           <button
             onClick={handleKickUser}
-            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
           >
             <UserMinus className="w-4 h-4" />
             강퇴하기
@@ -1306,6 +1331,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
         </div>
       )}
 
+      {/* Feedback Card */}
       <FloatingFeedbackCard
         show={Boolean(activeTooltipMsgId)}
         top={cardPos.top}
@@ -1317,7 +1343,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
         activeWordIndexes={activeTooltipWordIndexes}
         isAbove={cardPos.isAbove}
       />
-      <style>{`@keyframes ringPulse { 0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.40); } 70% { box-shadow: 0 0 0 14px rgba(244, 63, 94, 0.00); } 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.00); } }`}</style>
     </div>
   );
 }

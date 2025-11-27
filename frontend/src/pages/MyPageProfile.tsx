@@ -315,7 +315,8 @@ const MyPageProfile: React.FC = () => {
               <div>
                 <label
                   htmlFor="email"
-                  className="block text-sm font-medium text-gray-700 mb-2"
+                  className="block text-sm font-medium text-gray-700 
+mb-2"
                 >
                   이메일
                 </label>
@@ -483,28 +484,32 @@ const MyPageProfile: React.FC = () => {
       {/* Delete Confirmation Modal: 중앙 배치 + 2단계 확인 */}
       {showDeleteModal && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
           role="dialog"
           aria-modal="true"
         >
-          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl">
-            {/* 아이콘을 단계별로 분리하여 한 번에 하나만 렌더링하도록 수정 */}
+          {/* Modal panel: 스타일을 플랫폼 전반 스타일에 맞게 통일 */}
+          <div className="bg-white rounded-xl shadow-lg max-w-md w-full ring-1 ring-black/5 p-6 sm:p-8">
+            {/* 단계별로 아이콘과 텍스트를 플랫폼 스타일로 정렬 */}
             {deleteStep === 1 && (
               <>
-                <div className="flex items-center justify-center w-16 h-16 rounded-full mx-auto mb-4 bg-rose-100">
-                  <AlertTriangle className="w-8 h-8 text-rose-600" />
-                </div>
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 text-center mb-2">
-                  회원 탈퇴 안내
-                </h3>
-                <p className="text-sm text-gray-600 text-center mb-6">
-                  모든 학습 데이터가 영구적으로 삭제되며 복구할 수 없습니다.
-                </p>
+                <div className="flex flex-col items-center text-center gap-3">
+                  <div className="flex items-center justify-center w-14 h-14 rounded-full bg-rose-50">
+                    <AlertTriangle className="w-7 h-7 text-rose-600" />
+                  </div>
 
-                <div className="flex gap-3">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    회원 탈퇴 안내
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    모든 학습 데이터가 영구적으로 삭제되며 복구할 수 없습니다.
+                  </p>
+                </div>
+
+                <div className="mt-6 grid grid-cols-2 gap-3">
                   <button
                     onClick={cancelDeleteFlow}
-                    className="flex-1 rounded-lg border border-gray-300 px-4 py-3 bg-white text-sm font-semibold text-gray-800 hover:bg-gray-50 transition"
+                    className="rounded-lg border border-gray-300 px-4 py-3 bg-white text-sm font-semibold text-gray-800 hover:bg-gray-50 transition"
                     type="button"
                     autoFocus
                   >
@@ -512,7 +517,7 @@ const MyPageProfile: React.FC = () => {
                   </button>
                   <button
                     onClick={proceedDeleteStep}
-                    className="flex-1 rounded-lg bg-rose-600 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-700 transition"
+                    className="rounded-lg bg-rose-500 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-600 transition"
                     type="button"
                   >
                     계속
@@ -523,20 +528,23 @@ const MyPageProfile: React.FC = () => {
 
             {deleteStep === 2 && (
               <>
-                <div className="flex items-center justify-center w-16 h-16 rounded-full mx-auto mb-4 bg-rose-100">
-                  <ShieldAlert className="w-8 h-8 text-rose-600" />
-                </div>
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 text-center mb-2">
-                  정말로 탈퇴하시겠습니까?
-                </h3>
-                <p className="text-sm text-gray-600 text-center mb-6">
-                  이 작업은 되돌릴 수 없습니다.
-                </p>
+                <div className="flex flex-col items-center text-center gap-3">
+                  <div className="flex items-center justify-center w-14 h-14 rounded-full bg-rose-50">
+                    <ShieldAlert className="w-7 h-7 text-rose-600" />
+                  </div>
 
-                <div className="flex gap-3">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    정말로 탈퇴하시겠습니까?
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    이 작업은 되돌릴 수 없습니다.
+                  </p>
+                </div>
+
+                <div className="mt-6 grid grid-cols-2 gap-3">
                   <button
                     onClick={cancelDeleteFlow}
-                    className="flex-1 rounded-lg border border-gray-300 px-4 py-3 bg-white text-sm font-semibold text-gray-800 hover:bg-gray-50 transition"
+                    className="rounded-lg border border-gray-300 px-4 py-3 bg-white text-sm font-semibold text-gray-800 hover:bg-gray-50 transition"
                     type="button"
                   >
                     취소
@@ -544,7 +552,7 @@ const MyPageProfile: React.FC = () => {
                   <button
                     onClick={handleDeleteAccount}
                     disabled={loadingDelete}
-                    className="flex-1 rounded-lg bg-rose-600 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="rounded-lg bg-rose-500 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
                     type="button"
                     aria-disabled={loadingDelete}
                   >

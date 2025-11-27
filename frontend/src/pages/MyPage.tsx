@@ -187,7 +187,7 @@ const AttendanceGrid: React.FC<{
         <div className="flex items-center gap-2">
           <Clock className="w-5 h-5 text-rose-500" />
           <span className="text-base sm:text-lg font-bold text-gray-900">
-            학습 잔디
+            학습 그리드
           </span>
         </div>
       </div>
@@ -467,7 +467,7 @@ const MyPage: React.FC = () => {
             <NavigateRow
               icon={<User className="w-6 h-6 sm:w-7 sm:h-7 text-blue-500" />}
               title="프로필 관리"
-              subtitle="개인정보 및 비밀번호 수정"
+              subtitle="개인정보 수정 및 회원탈퇴"
               onClick={handleOpenProfile}
               colorClass="bg-blue-50 border-blue-100"
             />
@@ -475,7 +475,7 @@ const MyPage: React.FC = () => {
 
           <div className="mt-8">
             <button
-              className="w-full h-14 border-2 border-gray-200 text-gray-500 rounded-2xl font-bold hover:bg-gray-50 hover:text-gray-700 hover:border-gray-300 transition-all flex items-center justify-center gap-2"
+              className="w-full h-14 border-2 border-rose-500 text-rose-500 rounded-2xl font-bold hover:bg-gray-50 hover:text-gray-700 hover:border-gray-300 transition-all flex items-center justify-center gap-2"
               onClick={handleLogout}
               type="button"
             >

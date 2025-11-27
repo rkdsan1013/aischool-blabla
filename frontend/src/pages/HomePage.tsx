@@ -11,7 +11,7 @@ import {
   Flame,
   ChevronRight,
   Repeat,
-  Sparkles, // 아이콘 추가
+  Sparkles,
 } from "lucide-react";
 import type { TrainingType } from "../services/trainingService";
 import { useProfile } from "../hooks/useProfile";
@@ -48,8 +48,9 @@ interface TrainingStep {
   title: string;
   description: string;
   icon: React.ReactNode;
-  bgClass: string; // 카드 아이콘 배경색
-  textClass: string; // 카드 아이콘 텍스트색
+  bgClass: string; // 진한 배경색 (예: bg-rose-500)
+  textClass: string; // 아이콘 색상 (예: text-white)
+  borderHex: string; // 테두리 색상 (예: #ef4444)
   repeatsToday: number;
   startType: TrainingType;
 }
@@ -82,7 +83,6 @@ const HomePage: React.FC = () => {
     null
   );
 
-  // leaderboard state
   const [leaderLoading, setLeaderLoading] = useState(false);
   const [topUsers, setTopUsers] = useState<LeaderboardUser[] | null>(null);
 
@@ -97,7 +97,6 @@ const HomePage: React.FC = () => {
       try {
         const response = await getLeaderboard({ limit: 3 });
         const data = response as unknown as RawLeaderboardItem[];
-
         if (!mounted) return;
 
         const profileId = profile
@@ -108,11 +107,9 @@ const HomePage: React.FC = () => {
           const streakFromService = d.streak_count ?? d.streakCount;
           const itemIdStr = d.id ? String(d.id) : undefined;
           const profileIdStr = profileId ? String(profileId) : undefined;
-
           const isCurrentUser =
             (itemIdStr && profileIdStr && itemIdStr === profileIdStr) ||
             (!itemIdStr && !!profileIdStr);
-
           const fallbackStreak = isCurrentUser
             ? profile?.streak_count ?? profile?.streakCount ?? 0
             : 0;
@@ -151,16 +148,16 @@ const HomePage: React.FC = () => {
   }
   if (!profile) return null;
 
-  // --- Training Steps Data ---
-  // 디자인 톤앤매너에 맞춰 색상 클래스 조정
+  // --- Data: 아이콘 스타일은 '진한 배경 + 흰색 아이콘' 유지 ---
   const steps: TrainingStep[] = [
     {
       id: "vocabulary",
       title: "단어 훈련",
       description: "새로운 단어를 배우고 복습하세요",
       icon: <BookOpen className="w-5 h-5" />,
-      bgClass: "bg-rose-100",
-      textClass: "text-rose-600",
+      bgClass: "bg-rose-500",
+      textClass: "text-white",
+      borderHex: "#ef4444",
       repeatsToday: 2,
       startType: "vocabulary",
     },
@@ -169,8 +166,9 @@ const HomePage: React.FC = () => {
       title: "문장 배열",
       description: "단어를 올바른 순서로 배열하세요",
       icon: <ListOrdered className="w-5 h-5" />,
-      bgClass: "bg-orange-100",
-      textClass: "text-orange-600",
+      bgClass: "bg-rose-400",
+      textClass: "text-white",
+      borderHex: "#fb7185",
       repeatsToday: 1,
       startType: "sentence",
     },
@@ -179,8 +177,9 @@ const HomePage: React.FC = () => {
       title: "빈칸 채우기",
       description: "문맥에 맞는 단어를 선택하세요",
       icon: <Link2 className="w-5 h-5" />,
-      bgClass: "bg-amber-100",
-      textClass: "text-amber-600",
+      bgClass: "bg-pink-500",
+      textClass: "text-white",
+      borderHex: "#ec4899",
       repeatsToday: 0,
       startType: "blank",
     },
@@ -189,8 +188,9 @@ const HomePage: React.FC = () => {
       title: "작문",
       description: "주어진 주제로 문장을 작성해보세요",
       icon: <PenTool className="w-5 h-5" />,
-      bgClass: "bg-emerald-100",
-      textClass: "text-emerald-600",
+      bgClass: "bg-rose-300",
+      textClass: "text-white",
+      borderHex: "#fda4af",
       repeatsToday: 0,
       startType: "writing",
     },
@@ -199,8 +199,9 @@ const HomePage: React.FC = () => {
       title: "말하기 연습",
       description: "AI 튜터와 발음을 교정해보세요",
       icon: <Mic className="w-5 h-5" />,
-      bgClass: "bg-indigo-100",
-      textClass: "text-indigo-600",
+      bgClass: "bg-indigo-500",
+      textClass: "text-white",
+      borderHex: "#6366f1",
       repeatsToday: 3,
       startType: "speaking",
     },
@@ -230,7 +231,6 @@ const HomePage: React.FC = () => {
   const tier = profile.tier ?? "Bronze";
   const score = profile.score ?? 0;
 
-  // Tier Styles (일관된 그라데이션 적용)
   const tierStyles: Record<
     string,
     { bgClass: string; textClass: string; label: string; iconColor: string }
@@ -299,7 +299,7 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 text-gray-900">
-      {/* --- Header --- */}
+      {/* [HEADER] 초기 스타일로 복귀 (화이트 배경, 하단 보더, 파스텔톤 칩) */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -314,7 +314,7 @@ const HomePage: React.FC = () => {
               </p>
             </div>
 
-            {/* Stats Chips */}
+            {/* Stats Chips: 초기 파스텔톤 스타일 */}
             <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
               {/* Streak */}
               <div className="flex items-center gap-1.5 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-100 shrink-0">
@@ -371,20 +371,19 @@ const HomePage: React.FC = () => {
                 className="group relative bg-white rounded-2xl p-4 text-left border border-gray-100 shadow-sm hover:shadow-md hover:border-rose-100 transition-all duration-200 active:scale-[0.99]"
               >
                 <div className="flex items-center gap-4">
-                  {/* Icon Box */}
+                  {/* Icon Box: 진한 배경 + 흰색 아이콘 + 테두리 (유지) */}
                   <div
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center ${s.bgClass} ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center ${s.bgClass} ${s.textClass} transition-transform duration-300 group-hover:scale-110 shadow-sm`}
+                    style={{ border: `1px solid ${s.borderHex}` }}
                   >
                     {s.icon}
                   </div>
 
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <h3 className="font-bold text-gray-900 text-base group-hover:text-rose-600 transition-colors">
                         {s.title}
                       </h3>
-                      {/* Loading or Count Badge */}
                       {prefetchingType === s.startType ? (
                         <span className="text-xs font-medium text-rose-500 bg-rose-50 px-2 py-1 rounded-lg animate-pulse">
                           준비중...
@@ -400,8 +399,6 @@ const HomePage: React.FC = () => {
                       {s.description}
                     </p>
                   </div>
-
-                  {/* Arrow */}
                   <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
                 </div>
               </button>
@@ -441,14 +438,12 @@ const HomePage: React.FC = () => {
               <div className="flex items-end justify-center gap-3 sm:gap-6 pt-4 pb-2">
                 {podiumOrder.map((user) => {
                   const isFirst = user.rank === 1;
-                  // 높이 계산 로직 (일관된 비율)
                   const heightClass = isFirst
                     ? "h-40 sm:h-48"
                     : user.rank === 2
                     ? "h-32 sm:h-40"
                     : "h-24 sm:h-32";
 
-                  // 색상 (금/은/동 느낌의 그라데이션)
                   const bgGradient =
                     user.rank === 1
                       ? "bg-linear-to-t from-yellow-400 to-yellow-300 border-yellow-400"
@@ -461,7 +456,6 @@ const HomePage: React.FC = () => {
                       key={user.rank}
                       className="flex-1 max-w-[120px] flex flex-col items-center group"
                     >
-                      {/* User Info (Avatar/Name) */}
                       <div className="mb-3 flex flex-col items-center gap-1 text-center transition-transform duration-300 group-hover:-translate-y-1">
                         <div className="text-3xl sm:text-4xl drop-shadow-sm">
                           {getMedalIcon(user.rank)}
@@ -473,12 +467,9 @@ const HomePage: React.FC = () => {
                           {user.score.toLocaleString()} P
                         </div>
                       </div>
-
-                      {/* Podium Bar */}
                       <div
                         className={`w-full rounded-t-2xl shadow-inner border-t border-x ${bgGradient} ${heightClass} flex items-end justify-center pb-4 relative overflow-hidden`}
                       >
-                        {/* Shine effect */}
                         <div className="absolute inset-0 bg-linear-to-tr from-transparent via-white/30 to-transparent opacity-50 pointer-events-none" />
                         <span className="text-white/90 font-black text-3xl sm:text-4xl drop-shadow-md z-10">
                           {user.rank}

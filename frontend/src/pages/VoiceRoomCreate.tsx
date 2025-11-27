@@ -1,9 +1,10 @@
 // frontend/src/pages/VoiceRoomCreate.tsx
-import React, { useEffect, useState } from "react";
+// cspell:ignore voiceroom
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Mic, AlignLeft, Users, BarChart3, ChevronLeft } from "lucide-react";
 import VoiceRoomService from "../services/voiceroomService";
-import { useAuth } from "../hooks/useAuth"; // 실제 훅 사용
+import { useAuth } from "../hooks/useAuth";
 
 // 레벨 타입 정의
 type VoiceRoomLevel = "ANY" | "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
@@ -27,8 +28,7 @@ interface ApiErrorResponse {
 
 const VoiceRoomCreate: React.FC = () => {
   const navigate = useNavigate();
-  // 실제 인증 훅 사용 (없으면 로그인 페이지로)
-  const { isAuthLoading } = useAuth(); // user 객체가 필요하다면 useProfile 등 활용
+  const { isAuthLoading } = useAuth();
 
   const [formData, setFormData] = useState<FormState>({
     name: "",
@@ -39,9 +39,6 @@ const VoiceRoomCreate: React.FC = () => {
 
   const [submitting, setSubmitting] = useState<boolean>(false);
 
-  // 로딩 체크 등 필요한 로직이 있다면 추가 (AuthGuard는 보통 상위에서 처리 권장)
-
-  // 폼 제출 처리
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (submitting) return;
@@ -54,19 +51,14 @@ const VoiceRoomCreate: React.FC = () => {
     };
 
     try {
-      // 유효성 검사
       VoiceRoomService.validateCreatePayload(payload);
-
       setSubmitting(true);
       const created = await VoiceRoomService.createRoom(payload);
-      // 방 생성 후 해당 방으로 이동
       navigate(`/voiceroom/${created.room_id}`);
     } catch (err: unknown) {
       console.error("방 생성 실패:", err);
-
       let message = "방 생성 중 오류가 발생했습니다.";
       const apiError = err as ApiErrorResponse;
-
       if (apiError.response?.data?.message) {
         message = apiError.response.data.message;
       } else if (apiError.message) {
@@ -74,7 +66,6 @@ const VoiceRoomCreate: React.FC = () => {
       } else if (err instanceof Error) {
         message = err.message;
       }
-
       alert(message);
     } finally {
       setSubmitting(false);
@@ -87,7 +78,7 @@ const VoiceRoomCreate: React.FC = () => {
 
   const levelOptions: { value: VoiceRoomLevel; label: string; desc: string }[] =
     [
-      { value: "ANY", label: "Any", desc: "누구나 참여" },
+      { value: "ANY", label: "Any", desc: "누구나" },
       { value: "A1", label: "A1", desc: "입문" },
       { value: "A2", label: "A2", desc: "초급" },
       { value: "B1", label: "B1", desc: "중급" },
@@ -106,7 +97,7 @@ const VoiceRoomCreate: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20 text-gray-900">
-      {/* --- Header --- */}
+      {/* Header */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -131,7 +122,7 @@ const VoiceRoomCreate: React.FC = () => {
         </div>
       </header>
 
-      {/* --- Main Content --- */}
+      {/* Main Content */}
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Card: Basic Info */}
@@ -168,7 +159,6 @@ const VoiceRoomCreate: React.FC = () => {
                   />
                 </div>
               </div>
-
               <div>
                 <label
                   htmlFor="description"
@@ -208,7 +198,6 @@ const VoiceRoomCreate: React.FC = () => {
             </div>
 
             <div className="space-y-6">
-              {/* 인원 수 */}
               <div>
                 <div className="flex justify-between items-center mb-1.5 ml-1">
                   <label
@@ -221,6 +210,7 @@ const VoiceRoomCreate: React.FC = () => {
                     {formData.maxParticipants}명
                   </span>
                 </div>
+                {/* [수정됨] flex로 충돌 해결 */}
                 <div className="relative flex items-center gap-4 bg-gray-50 rounded-2xl p-4 border border-gray-200">
                   <Users className="w-5 h-5 text-gray-400 shrink-0" />
                   <input
@@ -243,9 +233,8 @@ const VoiceRoomCreate: React.FC = () => {
                 </div>
               </div>
 
-              {/* 레벨 선택 */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2 ml-1 flex items-center gap-2">
+                <label className="text-sm font-bold text-gray-700 mb-2 ml-1 flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-gray-400" />
                   권장 레벨
                 </label>
@@ -259,14 +248,11 @@ const VoiceRoomCreate: React.FC = () => {
                         onClick={() =>
                           setFormData((p) => ({ ...p, level: opt.value }))
                         }
-                        className={`
-                          flex flex-col items-center justify-center p-2 rounded-xl border transition-all duration-200 relative overflow-hidden
-                          ${
-                            isSelected
-                              ? "bg-rose-500 border-rose-600 text-white shadow-md scale-105 z-10"
-                              : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300"
-                          }
-                        `}
+                        className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all duration-200 relative overflow-hidden ${
+                          isSelected
+                            ? "bg-rose-500 border-rose-600 text-white shadow-md scale-105 z-10"
+                            : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300"
+                        }`}
                       >
                         <span
                           className={`text-sm font-bold ${
@@ -290,7 +276,6 @@ const VoiceRoomCreate: React.FC = () => {
             </div>
           </section>
 
-          {/* Submit Button */}
           <div className="pt-2">
             <button
               type="submit"

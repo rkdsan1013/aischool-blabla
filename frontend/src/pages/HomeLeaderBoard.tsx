@@ -106,7 +106,12 @@ const HomeLeaderBoard: React.FC = () => {
       try {
         const data = await getLeaderboard({ limit: 100 });
         if (!mounted) return;
-        const arr: LeaderItem[] = Array.isArray(data) ? data : [];
+
+        // [수정됨] any 타입 캐스팅 제거 및 안전한 타입 가드 사용
+        const arr: LeaderItem[] = Array.isArray(data)
+          ? (data as LeaderItem[])
+          : [];
+
         arr.sort((a, b) => {
           if (typeof a.rank === "number" && typeof b.rank === "number")
             return a.rank - b.rank;
@@ -117,9 +122,13 @@ const HomeLeaderBoard: React.FC = () => {
           rank: it.rank ?? idx + 1,
         }));
         setItems(normalized);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!mounted) return;
-        setError(err?.message ?? "데이터를 불러오는 중 오류가 발생했습니다.");
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "데이터를 불러오는 중 오류가 발생했습니다.";
+        setError(msg);
         setItems([]);
       } finally {
         if (mounted) setLoading(false);
@@ -193,7 +202,8 @@ const HomeLeaderBoard: React.FC = () => {
         </div>
 
         <div className="text-center mb-2">
-          <p className="font-bold text-white text-sm sm:text-base truncate max-w-[80px] sm:max-w-[120px]">
+          {/* [수정됨] max-w-[80px] -> max-w-20 */}
+          <p className="font-bold text-white text-sm sm:text-base truncate max-w-20 sm:max-w-[120px]">
             {user.name}
           </p>
           <p className="text-white/90 text-xs sm:text-sm font-medium">
@@ -202,6 +212,7 @@ const HomeLeaderBoard: React.FC = () => {
         </div>
 
         {/* Podium Box */}
+        {/* [수정됨] bg-gradient-to-br -> bg-linear-to-br (Tailwind 최신) */}
         <div
           className={`w-20 sm:w-28 ${height} rounded-t-xl border-x border-t flex items-start justify-center pt-2 backdrop-blur-sm ${podiumColor}`}
         >
@@ -220,7 +231,8 @@ const HomeLeaderBoard: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       {/* --- Top Section (Header + Podium) --- */}
-      <div className="bg-gradient-to-br from-rose-500 to-pink-600 pb-8 rounded-b-[2.5rem] shadow-xl relative overflow-hidden">
+      {/* [수정됨] bg-gradient-to-br -> bg-linear-to-br */}
+      <div className="bg-linear-to-br from-rose-500 to-pink-600 pb-8 rounded-b-[2.5rem] shadow-xl relative overflow-hidden">
         {/* Background Decor */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] left-[-10%] w-[400px] h-[400px] bg-white/10 rounded-full blur-3xl"></div>
@@ -240,7 +252,7 @@ const HomeLeaderBoard: React.FC = () => {
               <Trophy className="w-6 h-6 text-yellow-300" />
               리더보드
             </h1>
-            <div className="w-10" /> {/* Spacer */}
+            <div className="w-10" /> {/* Spacer (우측 버튼 제거됨) */}
           </div>
 
           <div className="text-center text-white/90 mb-8 sm:mb-12">

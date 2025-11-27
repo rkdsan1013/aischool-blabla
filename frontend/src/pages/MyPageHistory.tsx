@@ -1,4 +1,5 @@
 // frontend/src/pages/MyPageHistory.tsx
+// cspell:ignore conv
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -17,7 +18,6 @@ import { getMyHistory, type HistoryRecord } from "../services/userService";
 
 // --- Components ---
 
-/* CustomDropdown: 필터 선택을 위한 드롭다운 컴포넌트 */
 const CustomDropdown: React.FC<{
   value: string;
   onChange: (v: string) => void;
@@ -31,13 +31,7 @@ const CustomDropdown: React.FC<{
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState<number>(() =>
-    options.findIndex((o) => o.value === value)
-  );
-
-  useEffect(() => {
-    setActiveIndex(options.findIndex((o) => o.value === value));
-  }, [value, options]);
+  // [수정됨] activeIndex 제거 (사용하지 않음)
 
   useEffect(() => {
     if (!open) return;
@@ -137,7 +131,7 @@ const CustomDropdown: React.FC<{
   );
 };
 
-// --- Helpers ---
+// ... (Helpers 유지)
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr);
   return date.toLocaleDateString("ko-KR", {
@@ -163,22 +157,18 @@ const formatDuration = (seconds?: number) => {
   return `${m}분 ${s}초`;
 };
 
-// --- Main Page Component ---
 const MyPageHistory: React.FC = () => {
   const navigate = useNavigate();
 
-  // 데이터 상태
   const [historyData, setHistoryData] = useState<HistoryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 필터 상태
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [subCategoryFilter, setSubCategoryFilter] = useState<string>("all");
-  const [isFilterOpen, setIsFilterOpen] = useState(false); // 모바일 필터 토글
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  // 데이터 로드
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -193,7 +183,6 @@ const MyPageHistory: React.FC = () => {
     loadData();
   }, []);
 
-  // 서브 카테고리 목록
   const allSubTypes = Array.from(new Set(historyData.map((r) => r.subType)));
   const trainingSubTypes = Array.from(
     new Set(
@@ -206,13 +195,11 @@ const MyPageHistory: React.FC = () => {
     )
   );
 
-  // 날짜 범위 계산
   const toDayStart = (d?: string) =>
     d ? new Date(d + "T00:00:00").getTime() : null;
   const toDayEnd = (d?: string) =>
     d ? new Date(d + "T23:59:59.999").getTime() : null;
 
-  // 필터링 로직
   const filteredHistory = historyData.filter((item) => {
     const itemTime = new Date(item.date).getTime();
     const s = toDayStart(startDate);
@@ -227,7 +214,6 @@ const MyPageHistory: React.FC = () => {
     return true;
   });
 
-  // 옵션 설정
   const typeOptions = [
     { value: "all", label: "전체 기록" },
     { value: "CONVERSATION", label: "회화 연습" },
@@ -299,7 +285,6 @@ const MyPageHistory: React.FC = () => {
             </h1>
           </div>
 
-          {/* 모바일 필터 토글 버튼 */}
           <button
             onClick={() => setIsFilterOpen(!isFilterOpen)}
             className={`p-2 rounded-full transition-colors sm:hidden ${

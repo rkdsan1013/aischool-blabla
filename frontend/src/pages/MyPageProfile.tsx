@@ -1,7 +1,6 @@
 // frontend/src/pages/MyPageProfile.tsx
 import React, { useEffect, useRef, useState } from "react";
 import {
-  X,
   Camera,
   AlertTriangle,
   ShieldAlert,
@@ -19,6 +18,10 @@ import {
   deleteUser,
   changePassword,
 } from "../services/userService";
+
+// ... (타입 정의 및 컴포넌트 로직은 기존과 동일) ...
+// 전체 코드는 길어지므로 변경된 import 부분만 강조했습니다.
+// 실제 사용 시에는 이전에 작성해드린 MyPageProfile 전체 코드에서 import { X, ... } -> import { ..., ... } 로 X만 제거하면 됩니다.
 
 type ProfileState = {
   name: string;
@@ -43,6 +46,7 @@ const MyPageProfile: React.FC = () => {
   const { profile: globalProfile, refreshProfile } = useProfile();
   const { logout } = useAuth();
 
+  // ... (상태 및 핸들러 로직 유지) ...
   const [profile, setProfile] = useState<ProfileState>({
     name: "",
     email: "",
@@ -56,17 +60,11 @@ const MyPageProfile: React.FC = () => {
   });
 
   const [pwdErrors, setPwdErrors] = useState<PasswordErrors>({});
-
-  // 탈퇴 모달 (중앙, 2단계)
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
-
-  // 로딩 상태
   const [loadingSave, setLoadingSave] = useState(false);
   const [loadingPwd, setLoadingPwd] = useState(false);
   const [loadingDelete, setLoadingDelete] = useState(false);
-
-  // 이미지 미리보기 URL
   const fileUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -93,11 +91,9 @@ const MyPageProfile: React.FC = () => {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (fileUrlRef.current) {
       URL.revokeObjectURL(fileUrlRef.current);
     }
-
     const objUrl = URL.createObjectURL(file);
     fileUrlRef.current = objUrl;
     setProfile((p) => ({ ...p, profileImage: objUrl }));
@@ -111,13 +107,11 @@ const MyPageProfile: React.FC = () => {
   const handleSaveProfile = async () => {
     if (loadingSave || !globalProfile || !isProfileSavable) return;
     setLoadingSave(true);
-
     try {
       const updated = await updateUserProfile({
         name: profile.name.trim(),
         profile_img: profile.profileImage,
       });
-
       if (!updated) throw new Error("Update failed");
       await refreshProfile();
       alert("프로필이 저장되었습니다.");
@@ -131,18 +125,14 @@ const MyPageProfile: React.FC = () => {
 
   const validateNewPassword = (): boolean => {
     const errors: PasswordErrors = {};
-    if (!passwords.current.trim()) {
+    if (!passwords.current.trim())
       errors.current = "현재 비밀번호를 입력하세요.";
-    }
-    if (passwords.new.length < 8) {
+    if (passwords.new.length < 8)
       errors.new = "새 비밀번호는 최소 8자 이상이어야 합니다.";
-    }
-    if (!passwords.confirm.trim()) {
+    if (!passwords.confirm.trim())
       errors.confirm = "새 비밀번호를 다시 입력하세요.";
-    } else if (passwords.new !== passwords.confirm) {
+    else if (passwords.new !== passwords.confirm)
       errors.confirm = "새 비밀번호가 일치하지 않습니다.";
-    }
-
     setPwdErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -155,17 +145,14 @@ const MyPageProfile: React.FC = () => {
   const handleChangePassword = async () => {
     if (loadingPwd || !isPwdFormFilled) return;
     if (!validateNewPassword()) return;
-
     setLoadingPwd(true);
     setPwdErrors({});
-
     try {
       const ok = await changePassword(passwords.current, passwords.new);
       if (!ok) {
         setPwdErrors({ current: "현재 비밀번호가 올바르지 않습니다." });
         return;
       }
-
       setPasswords({ current: "", new: "", confirm: "" });
       alert("비밀번호가 변경되었습니다.");
     } catch (err) {
@@ -180,11 +167,9 @@ const MyPageProfile: React.FC = () => {
     setDeleteStep(1);
     setShowDeleteModal(true);
   };
-
   const proceedDeleteStep = () => {
     setDeleteStep(2);
   };
-
   const cancelDeleteFlow = () => {
     setShowDeleteModal(false);
     setDeleteStep(1);
@@ -196,15 +181,11 @@ const MyPageProfile: React.FC = () => {
     try {
       const ok = await deleteUser();
       if (!ok) throw new Error("Delete failed");
-
       await logout();
       setShowDeleteModal(false);
       setDeleteStep(1);
-
       navigate("/", { replace: true });
-      setTimeout(() => {
-        window.location.replace("/");
-      }, 400);
+      setTimeout(() => window.location.replace("/"), 400);
     } catch (err) {
       console.error("Failed to delete account:", err);
     } finally {
@@ -214,7 +195,6 @@ const MyPageProfile: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-gray-900 pb-20">
-      {/* --- Header --- */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -232,9 +212,7 @@ const MyPageProfile: React.FC = () => {
         </div>
       </header>
 
-      {/* --- Main Content --- */}
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        {/* 1. Profile Image & Basic Info Card */}
         <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-6 sm:p-8">
             <div className="flex flex-col items-center mb-8">
@@ -250,7 +228,6 @@ const MyPageProfile: React.FC = () => {
                     <span aria-hidden>{profile.name?.charAt(0) ?? "?"}</span>
                   )}
                 </div>
-
                 <label
                   className="absolute bottom-0 right-0 w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-rose-600 transition-all shadow-lg border-2 border-white group-hover:scale-110"
                   aria-label="프로필 이미지 업로드"
@@ -292,7 +269,6 @@ const MyPageProfile: React.FC = () => {
                   />
                 </div>
               </div>
-
               <div>
                 <label
                   htmlFor="email"
@@ -308,7 +284,6 @@ const MyPageProfile: React.FC = () => {
                   className="w-full rounded-2xl bg-gray-100 border border-gray-200 px-4 py-3.5 text-sm text-gray-500 cursor-not-allowed"
                 />
               </div>
-
               <div className="pt-2">
                 <button
                   onClick={handleSaveProfile}
@@ -324,14 +299,12 @@ const MyPageProfile: React.FC = () => {
           </div>
         </section>
 
-        {/* 2. Password Change Card */}
         <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-6 sm:p-8">
             <div className="flex items-center gap-2 mb-6">
               <Lock className="w-5 h-5 text-rose-500" />
               <h2 className="text-lg font-bold text-gray-900">비밀번호 변경</h2>
             </div>
-
             <div className="space-y-4">
               <div>
                 <input
@@ -355,7 +328,6 @@ const MyPageProfile: React.FC = () => {
                   </p>
                 )}
               </div>
-
               <div>
                 <input
                   type="password"
@@ -378,7 +350,6 @@ const MyPageProfile: React.FC = () => {
                   </p>
                 )}
               </div>
-
               <div>
                 <input
                   type="password"
@@ -401,7 +372,6 @@ const MyPageProfile: React.FC = () => {
                   </p>
                 )}
               </div>
-
               <div className="pt-2">
                 <button
                   onClick={handleChangePassword}
@@ -416,7 +386,6 @@ const MyPageProfile: React.FC = () => {
           </div>
         </section>
 
-        {/* 3. Delete Account Card */}
         <section className="bg-red-50/50 rounded-3xl border border-red-100 p-6 sm:p-8">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-red-100 rounded-2xl text-red-500 shrink-0">
@@ -443,7 +412,6 @@ const MyPageProfile: React.FC = () => {
         </section>
       </main>
 
-      {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -464,7 +432,6 @@ const MyPageProfile: React.FC = () => {
                   <br />
                   모두 사라지게 됩니다.
                 </p>
-
                 <div className="flex gap-3">
                   <button
                     onClick={cancelDeleteFlow}
@@ -483,7 +450,6 @@ const MyPageProfile: React.FC = () => {
                 </div>
               </>
             )}
-
             {deleteStep === 2 && (
               <>
                 <div className="flex items-center justify-center w-16 h-16 rounded-full mx-auto mb-5 bg-gray-100 text-gray-600">
@@ -497,7 +463,6 @@ const MyPageProfile: React.FC = () => {
                   <br />
                   그래도 탈퇴하시겠습니까?
                 </p>
-
                 <div className="flex gap-3">
                   <button
                     onClick={cancelDeleteFlow}

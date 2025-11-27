@@ -1,9 +1,10 @@
 // src/pages/HomeLeaderBoard.tsx
 import React, { useEffect, useState } from "react";
-import { Crown, X } from "lucide-react";
+import { Crown, ChevronLeft, Trophy, Medal } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getLeaderboard } from "../services/leaderboardService";
 
+// --- Types ---
 type LeaderItem = {
   id: string;
   name: string;
@@ -12,55 +13,62 @@ type LeaderItem = {
   rank?: number;
 };
 
+// --- Styles ---
 const tierStyles: Record<
   string,
   { bgClass: string; textClass: string; label: string }
 > = {
   Bronze: {
-    bgClass: "bg-gradient-to-r from-amber-700 via-amber-600 to-amber-600",
-    textClass: "text-white",
-    label: "브론즈",
+    bgClass: "bg-amber-100 border-amber-200",
+    textClass: "text-amber-700",
+    label: "Bronze",
   },
   Silver: {
-    bgClass: "bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400",
-    textClass: "text-slate-800",
-    label: "실버",
+    bgClass: "bg-slate-100 border-slate-200",
+    textClass: "text-slate-700",
+    label: "Silver",
   },
   Gold: {
-    bgClass: "bg-gradient-to-r from-amber-500 via-amber-300 to-yellow-300",
-    textClass: "text-yellow-800",
-    label: "골드",
+    bgClass: "bg-yellow-100 border-yellow-200",
+    textClass: "text-yellow-700",
+    label: "Gold",
   },
   Platinum: {
-    bgClass: "bg-gradient-to-r from-teal-200 via-cyan-200 to-indigo-300",
-    textClass: "text-indigo-900",
-    label: "플래티넘",
+    bgClass: "bg-cyan-100 border-cyan-200",
+    textClass: "text-cyan-700",
+    label: "Platinum",
   },
   Diamond: {
-    bgClass: "bg-gradient-to-r from-cyan-200 via-sky-300 to-indigo-400",
-    textClass: "text-sky-900",
-    label: "다이아",
+    bgClass: "bg-sky-100 border-sky-200",
+    textClass: "text-sky-700",
+    label: "Diamond",
   },
   Master: {
-    bgClass: "bg-gradient-to-r from-purple-200 via-purple-300 to-purple-500",
-    textClass: "text-purple-900",
-    label: "마스터",
+    bgClass: "bg-purple-100 border-purple-200",
+    textClass: "text-purple-700",
+    label: "Master",
   },
   Challenger: {
-    bgClass: "bg-gradient-to-r from-pink-300 via-pink-500 to-rose-600",
-    textClass: "text-rose-900",
-    label: "챌린저",
+    bgClass: "bg-rose-100 border-rose-200",
+    textClass: "text-rose-700",
+    label: "Challenger",
   },
 };
 
-/** Avatar: 프로필 색상 통일(rose-500) — 오버레이 없음 (요청에 따라 프로필마다 왕관 씌우지 않음)
- *  glowColor만으로 은/금/동 광채를 표현 (border 제거)
+/**
+ * Avatar Component
  */
 const Avatar: React.FC<{
   name?: string;
   size?: number;
-  glowColor?: string | null;
-}> = ({ name = "익명", size = 48, glowColor = null }) => {
+  className?: string;
+  borderColor?: string;
+}> = ({
+  name = "익명",
+  size = 48,
+  className = "",
+  borderColor = "border-white",
+}) => {
   const initials = String(name)
     .split(" ")
     .map((s) => (s ? s[0] : ""))
@@ -68,130 +76,18 @@ const Avatar: React.FC<{
     .slice(0, 2)
     .toUpperCase();
 
-  const px = `${size}px`;
-  const textSize =
-    size >= 96
-      ? "text-2xl"
-      : size >= 80
-      ? "text-xl"
-      : size >= 64
-      ? "text-base"
-      : "text-sm";
-
-  // glowColor이 있을 때 더 넓고 부드러운 그림자 사용
-  const style: React.CSSProperties = {
-    width: px,
-    height: px,
-    boxShadow: glowColor
-      ? `0 8px 30px ${glowColor}, 0 2px 6px rgba(0,0,0,0.06)`
-      : undefined,
-  };
-
   return (
     <div
-      className={`rounded-full overflow-hidden flex items-center justify-center bg-rose-500 text-white font-bold flex-shrink-0`}
-      style={style}
+      className={`rounded-full flex items-center justify-center font-bold text-white shadow-md border-2 ${borderColor} ${className}`}
+      style={{
+        width: size,
+        height: size,
+        fontSize: size * 0.4,
+        background: "linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)", // Rose gradient
+      }}
       aria-hidden="true"
     >
-      <span className={textSize}>{initials}</span>
-    </div>
-  );
-};
-
-const getMedal = (rank?: number) => {
-  if (rank === 1)
-    return {
-      color: "text-yellow-500",
-      crownColor: "text-yellow-400",
-    };
-  if (rank === 2)
-    return {
-      color: "text-slate-400",
-      crownColor: "text-slate-400",
-    };
-  if (rank === 3)
-    return {
-      color: "text-amber-600",
-      crownColor: "text-amber-600",
-    };
-  return {
-    color: "text-gray-400",
-    crownColor: "text-gray-400",
-  };
-};
-
-/** rank 색상(금/은/동)
- *  - 보더(테두리) 제거: 색상은 bgGradient + glow로만 표현
- *  - 은색(rank 2)의 glow를 충분히 크게 하고 alpha를 높여 가시성 확보
- *  - 동색(rank 3)도 적절히 강화
- */
-const rankColorInfo = (rank?: number) => {
-  if (rank === 1)
-    return {
-      crown: "#EAB308",
-      // gold: 강한 노란빛, 넓은 blur로 눈에 띄게
-      glow: "rgba(234,179,8,0.22)",
-      // 리스트용 작은 그림자(약간 더 연하게)
-      smallGlow: "rgba(234,179,8,0.16)",
-      bgGradient: "linear-gradient(180deg,#fff8eb,#fff6e6)",
-    };
-  if (rank === 2)
-    return {
-      // silver: 기존보다 밝고 푸른빛을 약간 섞어 시인성 향상
-      crown: "#9AA6B2",
-      // 은색 glow를 넓고 투명도를 높여 금색과 비슷한 존재감 부여
-      glow: "rgba(154,166,178,0.36)",
-      smallGlow: "rgba(154,166,178,0.20)",
-      bgGradient: "linear-gradient(180deg,#f6f8fa,#eef3f7)",
-    };
-  if (rank === 3)
-    return {
-      crown: "#C05621",
-      // bronze: 따뜻한 주황빛을 살리고 glow 강화
-      glow: "rgba(192,86,33,0.22)",
-      smallGlow: "rgba(192,86,33,0.16)",
-      bgGradient: "linear-gradient(180deg,#fff7ef,#fff4ec)",
-    };
-  return {
-    crown: "#94A3B8",
-    glow: "rgba(148,163,184,0.12)",
-    smallGlow: "rgba(148,163,184,0.08)",
-    bgGradient: "linear-gradient(180deg,#f8fafc,#f1f5f9)",
-  };
-};
-
-/** Tier + Score badge (header-style compact)
- *  size: "md" (default large), "sm" (small), "xs" (extra small, compact)
- */
-const TierScoreBadge: React.FC<{
-  tier?: string;
-  score?: number;
-  size?: "sm" | "md" | "xs";
-}> = ({ tier = "Bronze", score = 0, size = "sm" }) => {
-  const ts = tierStyles[tier] ?? tierStyles.Bronze;
-
-  const padding =
-    size === "md"
-      ? "px-3 py-1.5 text-sm"
-      : size === "sm"
-      ? "px-2 py-0.5 text-xs"
-      : "px-1.5 py-0.5 text-[11px]";
-  const scoreTextClass =
-    size === "md" ? "text-sm" : size === "sm" ? "text-xs" : "text-[11px]";
-  const gapClass = size === "md" ? "gap-2" : "gap-1";
-
-  return (
-    <div
-      className={`${ts.bgClass} rounded-full ${padding} font-semibold flex items-center ${gapClass} border border-white/10 whitespace-nowrap`}
-      title={`티어: ${ts.label} · 점수: ${Math.round(score)}pt`}
-      aria-hidden="true"
-    >
-      <span className={`${ts.textClass} truncate`}>{ts.label}</span>
-      <span
-        className={`ml-1 bg-white/20 px-2 py-0.5 rounded-full ${scoreTextClass} whitespace-nowrap`}
-      >
-        <span className={ts.textClass}>{Math.round(score)}pt</span>
-      </span>
+      {initials}
     </div>
   );
 };
@@ -208,9 +104,14 @@ const HomeLeaderBoard: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const data = await getLeaderboard({ limit: 500 });
+        const data = await getLeaderboard({ limit: 100 });
         if (!mounted) return;
-        const arr: LeaderItem[] = Array.isArray(data) ? data : [];
+
+        // [수정됨] any 타입 캐스팅 제거 및 안전한 타입 가드 사용
+        const arr: LeaderItem[] = Array.isArray(data)
+          ? (data as LeaderItem[])
+          : [];
+
         arr.sort((a, b) => {
           if (typeof a.rank === "number" && typeof b.rank === "number")
             return a.rank - b.rank;
@@ -221,9 +122,13 @@ const HomeLeaderBoard: React.FC = () => {
           rank: it.rank ?? idx + 1,
         }));
         setItems(normalized);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!mounted) return;
-        setError(err?.message ?? "데이터를 불러오는 중 오류가 발생했습니다.");
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "데이터를 불러오는 중 오류가 발생했습니다.";
+        setError(msg);
         setItems([]);
       } finally {
         if (mounted) setLoading(false);
@@ -236,244 +141,197 @@ const HomeLeaderBoard: React.FC = () => {
     };
   }, []);
 
-  const top1 = items[0] ?? null;
-  const top2 = items[1] ?? null;
-  const top3 = items[2] ?? null;
+  const top1 = items.find((i) => i.rank === 1);
+  const top2 = items.find((i) => i.rank === 2);
+  const top3 = items.find((i) => i.rank === 3);
+  const restItems = items.filter((i) => (i.rank || 0) > 3);
 
-  return (
-    <div className="min-h-screen w-full bg-white">
-      {/* 상단 히어로 */}
-      <header className="w-full bg-gradient-to-b from-rose-100/90 via-white/60 to-white">
-        <div className="relative w-full md:max-w-5xl md:mx-auto px-0 md:px-4 lg:px-6 py-6 sm:py-8 pb-0 text-center">
-          <div className="absolute right-4 top-4">
-            <button
-              aria-label="닫기"
-              onClick={() => navigate(-1)}
-              className="p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-rose-200"
-            >
-              <X className="w-5 h-5 text-rose-400" />
-            </button>
+  // --- Render Functions ---
+
+  const renderPodium = (user: LeaderItem | undefined, rank: 1 | 2 | 3) => {
+    if (!user) return <div className="flex-1" />;
+
+    const isFirst = rank === 1;
+    const height = isFirst ? "h-36 sm:h-44" : "h-28 sm:h-36";
+    const avatarSize = isFirst ? 80 : 64;
+    const crownColor =
+      rank === 1
+        ? "text-yellow-300"
+        : rank === 2
+        ? "text-gray-300"
+        : "text-amber-600";
+
+    // Podium Styles
+    const podiumColor =
+      rank === 1
+        ? "bg-gradient-to-t from-yellow-500/20 to-yellow-300/10 border-yellow-400/30"
+        : rank === 2
+        ? "bg-gradient-to-t from-slate-400/20 to-slate-300/10 border-slate-400/30"
+        : "bg-gradient-to-t from-amber-600/20 to-amber-500/10 border-amber-500/30";
+
+    const ringColor =
+      rank === 1
+        ? "ring-yellow-400"
+        : rank === 2
+        ? "ring-slate-300"
+        : "ring-amber-600";
+
+    return (
+      <div
+        className={`flex flex-col items-center justify-end ${
+          isFirst ? "-mt-8 z-10" : ""
+        }`}
+      >
+        <div className="relative flex flex-col items-center mb-3">
+          <Crown
+            className={`w-6 h-6 sm:w-8 sm:h-8 mb-1 absolute -top-8 sm:-top-10 drop-shadow-md animate-bounce ${crownColor}`}
+            fill="currentColor"
+          />
+          <div
+            className={`rounded-full p-1 ring-2 ${ringColor} ring-offset-2 ring-offset-rose-500`}
+          >
+            <Avatar
+              name={user.name}
+              size={avatarSize}
+              borderColor="border-transparent"
+            />
           </div>
-
-          <div className="mt-6 sm:mt-8 lg:mt-10">
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 leading-tight">
-              리더보드에서
-            </h1>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-rose-500 leading-tight">
-              순위를 올려보세요
-            </h1>
-          </div>
-
-          {/* Top3 영역 (왕관 아이콘 유지, 보더 제거 — glow로만 표현) */}
-          <div className="w-full mt-8">
-            <div className="flex justify-center items-end gap-10 px-4 md:px-8">
-              {/* 2위 */}
-              <div className="flex flex-col items-center">
-                <div
-                  className="relative rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{
-                    width: "84px",
-                    height: "84px",
-                    backgroundImage: rankColorInfo(top2?.rank).bgGradient,
-                    // border 제거: glow로만 강조
-                    boxShadow: `0 10px 40px ${rankColorInfo(top2?.rank).glow}`,
-                    borderRadius: "9999px",
-                  }}
-                >
-                  <Avatar
-                    name={top2?.name}
-                    size={72}
-                    glowColor={rankColorInfo(top2?.rank).glow}
-                  />
-                </div>
-
-                <div className="mt-3 flex items-center gap-2 text-sm md:text-base font-semibold text-foreground truncate max-w-[150px]">
-                  <Crown
-                    className="w-4 h-4 md:w-5 md:h-5"
-                    style={{ color: rankColorInfo(top2?.rank).crown }}
-                  />
-                  <span className="truncate">{top2?.name ?? "—"}</span>
-                </div>
-
-                <div className="mt-2">
-                  <TierScoreBadge
-                    tier={top2?.tier}
-                    score={top2?.score}
-                    size="xs"
-                  />
-                </div>
-              </div>
-
-              {/* 1위 */}
-              <div className="flex flex-col items-center">
-                <div
-                  className="relative rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{
-                    width: "120px",
-                    height: "120px",
-                    backgroundImage: rankColorInfo(top1?.rank).bgGradient,
-                    boxShadow: `0 18px 60px ${rankColorInfo(top1?.rank).glow}`,
-                    borderRadius: "9999px",
-                  }}
-                >
-                  <Avatar
-                    name={top1?.name}
-                    size={104}
-                    glowColor={rankColorInfo(top1?.rank).glow}
-                  />
-                </div>
-
-                <div className="mt-4 flex items-center gap-2 text-lg md:text-2xl lg:text-3xl font-extrabold text-foreground truncate max-w-[240px]">
-                  <Crown
-                    className="w-5 h-5 md:w-6 md:h-6"
-                    style={{ color: rankColorInfo(top1?.rank).crown }}
-                  />
-                  <span className="truncate">{top1?.name ?? "—"}</span>
-                </div>
-
-                <div className="mt-2">
-                  <TierScoreBadge
-                    tier={top1?.tier}
-                    score={top1?.score}
-                    size="sm"
-                  />
-                </div>
-              </div>
-
-              {/* 3위 */}
-              <div className="flex flex-col items-center">
-                <div
-                  className="relative rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{
-                    width: "64px",
-                    height: "64px",
-                    backgroundImage: rankColorInfo(top3?.rank).bgGradient,
-                    boxShadow: `0 10px 36px ${rankColorInfo(top3?.rank).glow}`,
-                    borderRadius: "9999px",
-                  }}
-                >
-                  <Avatar
-                    name={top3?.name}
-                    size={56}
-                    glowColor={rankColorInfo(top3?.rank).glow}
-                  />
-                </div>
-
-                <div className="mt-3 flex items-center gap-2 text-sm md:text-base font-semibold text-foreground truncate max-w-[130px]">
-                  <Crown
-                    className="w-4 h-4 md:w-5 md:h-5"
-                    style={{ color: rankColorInfo(top3?.rank).crown }}
-                  />
-                  <span className="truncate">{top3?.name ?? "—"}</span>
-                </div>
-
-                <div className="mt-2">
-                  <TierScoreBadge
-                    tier={top3?.tier}
-                    score={top3?.score}
-                    size="xs"
-                  />
-                </div>
-              </div>
-            </div>
+          <div className="bg-rose-700/80 backdrop-blur-sm text-white text-[10px] sm:text-xs px-2 py-0.5 rounded-full -mt-3 z-10 border border-white/20">
+            {user.tier ?? "Bronze"}
           </div>
         </div>
-      </header>
 
-      {/* 리스트 영역: 하단에서 1/2/3 숫자 자리에 상단과 동일한 왕관 아이콘을 배치 */}
-      <main className="w-full bg-white">
-        <div className="w-full md:max-w-5xl md:pb-24 md:mx-auto px-0 md:px-4 lg:px-6 py-6 sm:py-8 pb-0 divide-y divide-gray-100">
+        <div className="text-center mb-2">
+          {/* [수정됨] max-w-[80px] -> max-w-20 */}
+          <p className="font-bold text-white text-sm sm:text-base truncate max-w-20 sm:max-w-[120px]">
+            {user.name}
+          </p>
+          <p className="text-white/90 text-xs sm:text-sm font-medium">
+            {user.score.toLocaleString()} P
+          </p>
+        </div>
+
+        {/* Podium Box */}
+        {/* [수정됨] bg-gradient-to-br -> bg-linear-to-br (Tailwind 최신) */}
+        <div
+          className={`w-20 sm:w-28 ${height} rounded-t-xl border-x border-t flex items-start justify-center pt-2 backdrop-blur-sm ${podiumColor}`}
+        >
+          <span
+            className={`text-2xl sm:text-4xl font-black ${
+              rank === 1 ? "text-yellow-300" : "text-white/50"
+            }`}
+          >
+            {rank}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 pb-20">
+      {/* --- Top Section (Header + Podium) --- */}
+      {/* [수정됨] bg-gradient-to-br -> bg-linear-to-br */}
+      <div className="bg-linear-to-br from-rose-500 to-pink-600 pb-8 rounded-b-[2.5rem] shadow-xl relative overflow-hidden">
+        {/* Background Decor */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] left-[-10%] w-[400px] h-[400px] bg-white/10 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[300px] h-[300px] bg-indigo-500/20 rounded-full blur-3xl"></div>
+        </div>
+
+        <div className="max-w-2xl mx-auto px-4 relative z-10">
+          {/* Navbar */}
+          <div className="flex items-center justify-between py-4 sm:py-6 text-white">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors backdrop-blur-md"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+              <Trophy className="w-6 h-6 text-yellow-300" />
+              리더보드
+            </h1>
+            <div className="w-10" /> {/* Spacer (우측 버튼 제거됨) */}
+          </div>
+
+          <div className="text-center text-white/90 mb-8 sm:mb-12">
+            <p className="text-sm sm:text-base">
+              이번 주 상위 랭커들을 확인해보세요! 🔥
+            </p>
+          </div>
+
+          {/* Podium */}
+          {!loading && !error && items.length > 0 && (
+            <div className="flex justify-center items-end gap-2 sm:gap-6">
+              {renderPodium(top2, 2)}
+              {renderPodium(top1, 1)}
+              {renderPodium(top3, 3)}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* --- List Section --- */}
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 -mt-4 relative z-20">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden min-h-[300px]">
           {loading ? (
-            <div className="w-full px-4 md:px-6 py-12 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-10 w-10 border-4 border-rose-200 border-t-rose-500" />
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-rose-500 mb-4" />
+              <p className="text-gray-400 text-sm">랭킹 불러오는 중...</p>
             </div>
           ) : error ? (
-            <div className="w-full px-4 md:px-6 py-6">
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-500 text-sm">
-                {error}
-              </div>
+            <div className="flex items-center justify-center py-20 text-red-500 text-sm">
+              {error}
             </div>
           ) : items.length === 0 ? (
-            <div className="w-full px-4 md:px-6 py-12 text-center text-sm text-gray-500">
-              순위 데이터가 없습니다.
+            <div className="flex items-center justify-center py-20 text-gray-400 text-sm">
+              데이터가 없습니다.
             </div>
           ) : (
-            items.map((it) => {
-              const medal = getMedal(it.rank);
-              const tier = it.tier ?? "Bronze";
-              const tierStyle = tierStyles[tier] ?? tierStyles.Bronze;
-              const rankInfo = rankColorInfo(it.rank);
-              return (
-                <div
-                  key={it.id}
-                  className="w-full grid grid-cols-12 gap-4 items-center px-4 md:px-6 py-4 hover:bg-rose-50 transition-colors"
-                >
-                  {/* rank: 1/2/3이면 상단과 동일한 Crown 아이콘을 표시, 그 외는 숫자 */}
-                  <div
-                    className={`col-span-1 text-sm font-bold ${medal.color} flex items-center justify-center`}
+            <ul className="divide-y divide-gray-50">
+              {restItems.map((item) => {
+                const ts =
+                  tierStyles[item.tier ?? "Bronze"] ?? tierStyles.Bronze;
+                return (
+                  <li
+                    key={item.id}
+                    className="flex items-center gap-3 sm:gap-4 p-4 sm:p-5 hover:bg-rose-50/50 transition-colors group"
                   >
-                    {it.rank && it.rank <= 3 ? (
-                      <Crown
-                        className="w-5 h-5 md:w-5 md:h-5"
-                        style={{ color: rankInfo.crown }}
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <span>{it.rank}</span>
-                    )}
-                  </div>
-
-                  {/* avatar + name */}
-                  <div className="col-span-5 flex items-center gap-4 min-w-0 h-[40px] w-[170px]">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-white bg-rose-500 flex-shrink-0`}
-                      style={
-                        it.rank && it.rank <= 3
-                          ? {
-                              // 리스트용은 작은 glow 사용
-                              boxShadow: `0 6px 18px ${
-                                rankInfo.smallGlow ?? rankInfo.glow
-                              }`,
-                            }
-                          : undefined
-                      }
-                    >
-                      {String(it.name || "익명")
-                        .slice(0, 1)
-                        .toUpperCase()}
+                    <div className="w-8 text-center font-bold text-gray-400 text-lg sm:text-xl shrink-0">
+                      {item.rank}
                     </div>
 
-                    <div className="min-w-0 flex items-center gap-1 overflow-hidden w-[100]">
-                      <div className="font-medium truncate">{it.name}</div>
-                    </div>
-                  </div>
+                    <Avatar name={item.name} size={42} className="shrink-0" />
 
-                  {/* spacer */}
-                  <div className="col-span-1" />
-
-                  {/* tier + score combined */}
-                  <div className="col-span-5 flex items-center justify-end gap-3">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`${tierStyle.bgClass} rounded-full px-3 py-1 text-xs font-semibold flex items-center gap-2 ${tierStyle.textClass}`}
-                        title={`티어: ${tierStyle.label} · 점수: ${Math.round(
-                          it.score
-                        )}pt`}
-                      >
-                        <span className={tierStyle.textClass}>
-                          {tierStyle.label}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-gray-900 truncate">
+                          {item.name}
                         </span>
-                        <span className="ml-1 bg-white/20 px-2 py-0.5 rounded-full text-xs">
-                          <span className={tierStyle.textClass}>
-                            {Math.round(it.score)}pt
-                          </span>
+                        {item.rank && item.rank <= 10 && (
+                          <Medal className="w-4 h-4 text-rose-400" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${ts.bgClass} ${ts.textClass}`}
+                        >
+                          {ts.label}
                         </span>
                       </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })
+
+                    <div className="text-right">
+                      <span className="block font-bold text-rose-600 sm:text-lg">
+                        {item.score.toLocaleString()}
+                      </span>
+                      <span className="text-xs text-gray-400">Points</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       </main>

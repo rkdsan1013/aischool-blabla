@@ -1,6 +1,15 @@
 // frontend/src/pages/MyPageProfile.tsx
 import React, { useEffect, useRef, useState } from "react";
-import { X, Camera, AlertTriangle, ShieldAlert } from "lucide-react";
+import {
+  Camera,
+  AlertTriangle,
+  ShieldAlert,
+  ChevronLeft,
+  Save,
+  Lock,
+  User,
+  Trash2,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useProfile } from "../hooks/useProfile";
 import { useAuth } from "../hooks/useAuth";
@@ -9,6 +18,10 @@ import {
   deleteUser,
   changePassword,
 } from "../services/userService";
+
+// ... (타입 정의 및 컴포넌트 로직은 기존과 동일) ...
+// 전체 코드는 길어지므로 변경된 import 부분만 강조했습니다.
+// 실제 사용 시에는 이전에 작성해드린 MyPageProfile 전체 코드에서 import { X, ... } -> import { ..., ... } 로 X만 제거하면 됩니다.
 
 type ProfileState = {
   name: string;
@@ -33,6 +46,7 @@ const MyPageProfile: React.FC = () => {
   const { profile: globalProfile, refreshProfile } = useProfile();
   const { logout } = useAuth();
 
+  // ... (상태 및 핸들러 로직 유지) ...
   const [profile, setProfile] = useState<ProfileState>({
     name: "",
     email: "",
@@ -46,17 +60,11 @@ const MyPageProfile: React.FC = () => {
   });
 
   const [pwdErrors, setPwdErrors] = useState<PasswordErrors>({});
-
-  // 탈퇴 모달 (중앙, 2단계)
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
-
-  // 로딩 상태
   const [loadingSave, setLoadingSave] = useState(false);
   const [loadingPwd, setLoadingPwd] = useState(false);
   const [loadingDelete, setLoadingDelete] = useState(false);
-
-  // 이미지 미리보기 URL
   const fileUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -83,39 +91,33 @@ const MyPageProfile: React.FC = () => {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (fileUrlRef.current) {
       URL.revokeObjectURL(fileUrlRef.current);
     }
-
     const objUrl = URL.createObjectURL(file);
     fileUrlRef.current = objUrl;
     setProfile((p) => ({ ...p, profileImage: objUrl }));
   };
 
-  // 이름 저장 버튼 활성화 조건:
-  // - 이름이 비어있지 않고
-  // - 현재 글로벌 프로필의 이름과 달라야 함(변경사항 있을 때만 활성화)
   const isProfileSavable =
     profile.name.trim().length > 0 &&
-    profile.name.trim() !== (globalProfile?.name || "").trim();
+    (profile.name.trim() !== (globalProfile?.name || "").trim() ||
+      profile.profileImage !== globalProfile?.profile_img);
 
   const handleSaveProfile = async () => {
     if (loadingSave || !globalProfile || !isProfileSavable) return;
     setLoadingSave(true);
-
     try {
       const updated = await updateUserProfile({
         name: profile.name.trim(),
         profile_img: profile.profileImage,
       });
-
       if (!updated) throw new Error("Update failed");
-
-      // 최신 프로필 다시 불러오면 버튼은 자동 비활성화됨(변경사항가 없음 상태로 복귀)
       await refreshProfile();
+      alert("프로필이 저장되었습니다.");
     } catch (err) {
       console.error("Failed to update profile:", err);
+      alert("프로필 저장에 실패했습니다.");
     } finally {
       setLoadingSave(false);
     }
@@ -123,23 +125,18 @@ const MyPageProfile: React.FC = () => {
 
   const validateNewPassword = (): boolean => {
     const errors: PasswordErrors = {};
-    if (!passwords.current.trim()) {
+    if (!passwords.current.trim())
       errors.current = "현재 비밀번호를 입력하세요.";
-    }
-    if (passwords.new.length < 8) {
+    if (passwords.new.length < 8)
       errors.new = "새 비밀번호는 최소 8자 이상이어야 합니다.";
-    }
-    if (!passwords.confirm.trim()) {
+    if (!passwords.confirm.trim())
       errors.confirm = "새 비밀번호를 다시 입력하세요.";
-    } else if (passwords.new !== passwords.confirm) {
+    else if (passwords.new !== passwords.confirm)
       errors.confirm = "새 비밀번호가 일치하지 않습니다.";
-    }
-
     setPwdErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  // 비밀번호 버튼 활성화 조건: 모든 입력창이 채워져 있어야 함
   const isPwdFormFilled =
     passwords.current.trim().length > 0 &&
     passwords.new.trim().length > 0 &&
@@ -148,19 +145,16 @@ const MyPageProfile: React.FC = () => {
   const handleChangePassword = async () => {
     if (loadingPwd || !isPwdFormFilled) return;
     if (!validateNewPassword()) return;
-
     setLoadingPwd(true);
     setPwdErrors({});
-
     try {
       const ok = await changePassword(passwords.current, passwords.new);
       if (!ok) {
         setPwdErrors({ current: "현재 비밀번호가 올바르지 않습니다." });
         return;
       }
-
-      // 성공 시 입력값 초기화 -> 버튼 자동 비활성화
       setPasswords({ current: "", new: "", confirm: "" });
+      alert("비밀번호가 변경되었습니다.");
     } catch (err) {
       console.error("Failed to change password:", err);
       setPwdErrors({ current: "현재 비밀번호가 올바르지 않습니다." });
@@ -173,11 +167,9 @@ const MyPageProfile: React.FC = () => {
     setDeleteStep(1);
     setShowDeleteModal(true);
   };
-
   const proceedDeleteStep = () => {
     setDeleteStep(2);
   };
-
   const cancelDeleteFlow = () => {
     setShowDeleteModal(false);
     setDeleteStep(1);
@@ -189,15 +181,11 @@ const MyPageProfile: React.FC = () => {
     try {
       const ok = await deleteUser();
       if (!ok) throw new Error("Delete failed");
-
       await logout();
       setShowDeleteModal(false);
       setDeleteStep(1);
-
       navigate("/", { replace: true });
-      setTimeout(() => {
-        window.location.replace("/");
-      }, 400);
+      setTimeout(() => window.location.replace("/"), 400);
     } catch (err) {
       console.error("Failed to delete account:", err);
     } finally {
@@ -206,42 +194,30 @@ const MyPageProfile: React.FC = () => {
   };
 
   return (
-    <div className="h-dvh bg-gray-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-rose-500 text-white shrink-0">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">개인정보 수정</h1>
-            <p className="text-white/90 text-sm">프로필 정보를 관리하세요</p>
+    <div className="min-h-screen bg-slate-50 text-gray-900 pb-20">
+      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-600"
+              aria-label="뒤로 가기"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">
+              프로필 수정
+            </h1>
           </div>
-          <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 rounded-lg transition"
-            aria-label="닫기"
-            type="button"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
       </header>
 
-      {/* Content */}
-      <main className="w-full flex-1 overflow-y-auto">
-        {/* Section: Profile Image */}
-        <section className="w-full bg-white border-b border-gray-200">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-            <header className="mb-6">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
-                프로필 사진
-              </h2>
-              <p className="text-sm sm:text-base text-gray-600">
-                표시될 프로필 사진을 관리합니다.
-              </p>
-            </header>
-
-            <div className="flex flex-col sm:flex-row items-center gap-6">
-              <div className="relative">
-                <div className="w-32 h-32 rounded-full bg-rose-500 flex items-center justify-center text-4xl font-bold text-white overflow-hidden shadow-inner">
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+        <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-6 sm:p-8">
+            <div className="flex flex-col items-center mb-8">
+              <div className="relative group">
+                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-rose-100 flex items-center justify-center text-4xl font-bold text-rose-500 overflow-hidden shadow-inner border-4 border-white ring-1 ring-gray-100">
                   {profile.profileImage ? (
                     <img
                       src={profile.profileImage}
@@ -252,9 +228,8 @@ const MyPageProfile: React.FC = () => {
                     <span aria-hidden>{profile.name?.charAt(0) ?? "?"}</span>
                   )}
                 </div>
-
                 <label
-                  className="absolute bottom-0 right-0 w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-rose-600 transition shadow-md border-2 border-white"
+                  className="absolute bottom-0 right-0 w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-rose-600 transition-all shadow-lg border-2 border-white group-hover:scale-110"
                   aria-label="프로필 이미지 업로드"
                 >
                   <Camera className="w-5 h-5 text-white" />
@@ -267,56 +242,37 @@ const MyPageProfile: React.FC = () => {
                   />
                 </label>
               </div>
-
-              <div className="flex-1 text-center sm:text-left">
-                <p className="text-sm text-gray-600 mb-2">
-                  프로필 사진을 변경하려면 카메라 아이콘을 클릭하세요
-                </p>
-                <p className="text-xs text-gray-500">
-                  JPG, PNG 형식 / 최대 5MB (현재 로컬 미리보기만 지원)
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Section: Basic Info */}
-        <section className="w-full bg-white border-b border-gray-200">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-            <header className="mb-6">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
-                기본 정보
-              </h2>
-              <p className="text-sm sm:text-base text-gray-600">
-                계정의 기본 정보를 수정합니다.
+              <p className="mt-3 text-sm text-gray-500 font-medium">
+                프로필 사진 변경
               </p>
-            </header>
+            </div>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
                 <label
                   htmlFor="name"
-                  className="block text-sm font-medium text-gray-700 mb-2"
+                  className="block text-sm font-bold text-gray-700 mb-1.5 ml-1"
                 >
                   이름
                 </label>
-                <input
-                  id="name"
-                  type="text"
-                  value={profile.name}
-                  onChange={(e) =>
-                    setProfile((p) => ({ ...p, name: e.target.value }))
-                  }
-                  className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300"
-                  placeholder="이름을 입력하세요"
-                />
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    id="name"
+                    type="text"
+                    value={profile.name}
+                    onChange={(e) =>
+                      setProfile((p) => ({ ...p, name: e.target.value }))
+                    }
+                    className="w-full rounded-2xl bg-gray-50 border border-gray-200 pl-11 pr-4 py-3.5 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                    placeholder="이름을 입력하세요"
+                  />
+                </div>
               </div>
-
               <div>
                 <label
                   htmlFor="email"
-                  className="block text-sm font-medium text-gray-700 
-mb-2"
+                  className="block text-sm font-bold text-gray-700 mb-1.5 ml-1"
                 >
                   이메일
                 </label>
@@ -325,226 +281,192 @@ mb-2"
                   type="email"
                   value={profile.email}
                   disabled
-                  className="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-gray-100 text-gray-500 cursor-not-allowed"
+                  className="w-full rounded-2xl bg-gray-100 border border-gray-200 px-4 py-3.5 text-sm text-gray-500 cursor-not-allowed"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  이메일은 변경할 수 없습니다
-                </p>
               </div>
-
-              <button
-                onClick={handleSaveProfile}
-                disabled={!isProfileSavable || loadingSave}
-                className="w-full mt-4 rounded-lg bg-rose-500 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                type="button"
-                aria-disabled={!isProfileSavable || loadingSave}
-              >
-                {loadingSave ? "저장 중..." : "저장하기"}
-              </button>
+              <div className="pt-2">
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={!isProfileSavable || loadingSave}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-500 text-white px-4 py-3.5 text-sm font-bold shadow-md shadow-rose-200 hover:bg-rose-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                  type="button"
+                >
+                  <Save className="w-4 h-4" />
+                  {loadingSave ? "저장 중..." : "변경사항 저장"}
+                </button>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Section: Password (필드별 에러, 버튼 활성/비활성 제어) */}
-        <section className="w-full bg-white border-b border-gray-200">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-            <header className="mb-6">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
-                비밀번호 변경
-              </h2>
-              <p className="text-sm sm:text-base text-gray-600">
-                로그인 비밀번호를 새로 설정합니다.
-              </p>
-            </header>
-
+        <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-6 sm:p-8">
+            <div className="flex items-center gap-2 mb-6">
+              <Lock className="w-5 h-5 text-rose-500" />
+              <h2 className="text-lg font-bold text-gray-900">비밀번호 변경</h2>
+            </div>
             <div className="space-y-4">
-              {/* 현재 비밀번호 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  현재 비밀번호
-                </label>
                 <input
                   type="password"
                   value={passwords.current}
                   onChange={(e) => {
                     setPasswords((s) => ({ ...s, current: e.target.value }));
-                    if (pwdErrors.current) {
+                    if (pwdErrors.current)
                       setPwdErrors((prev) => ({ ...prev, current: undefined }));
-                    }
                   }}
-                  className={`mt-1 block w-full rounded-lg border px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 ${
+                  className={`w-full rounded-2xl bg-gray-50 border px-4 py-3.5 text-sm focus:outline-none focus:ring-2 transition-all ${
                     pwdErrors.current
-                      ? "border-red-400 focus:ring-red-300"
-                      : "border-gray-200 focus:ring-rose-300"
+                      ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                      : "border-gray-200 focus:border-rose-500 focus:ring-rose-500/20"
                   }`}
-                  placeholder="현재 비밀번호를 입력하세요"
+                  placeholder="현재 비밀번호"
                 />
                 {pwdErrors.current && (
-                  <p className="mt-1 text-xs text-red-600">
+                  <p className="mt-1.5 text-xs text-red-500 ml-1 font-medium">
                     {pwdErrors.current}
                   </p>
                 )}
               </div>
-
-              {/* 새 비밀번호 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  새 비밀번호
-                </label>
                 <input
                   type="password"
                   value={passwords.new}
                   onChange={(e) => {
                     setPasswords((s) => ({ ...s, new: e.target.value }));
-                    if (pwdErrors.new) {
+                    if (pwdErrors.new)
                       setPwdErrors((prev) => ({ ...prev, new: undefined }));
-                    }
                   }}
-                  className={`mt-1 block w-full rounded-lg border px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 ${
+                  className={`w-full rounded-2xl bg-gray-50 border px-4 py-3.5 text-sm focus:outline-none focus:ring-2 transition-all ${
                     pwdErrors.new
-                      ? "border-red-400 focus:ring-red-300"
-                      : "border-gray-200 focus:ring-rose-300"
+                      ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                      : "border-gray-200 focus:border-rose-500 focus:ring-rose-500/20"
                   }`}
-                  placeholder="새 비밀번호를 입력하세요 (8자 이상)"
+                  placeholder="새 비밀번호 (8자 이상)"
                 />
                 {pwdErrors.new && (
-                  <p className="mt-1 text-xs text-red-600">{pwdErrors.new}</p>
+                  <p className="mt-1.5 text-xs text-red-500 ml-1 font-medium">
+                    {pwdErrors.new}
+                  </p>
                 )}
               </div>
-
-              {/* 새 비밀번호 확인 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  새 비밀번호 확인
-                </label>
                 <input
                   type="password"
                   value={passwords.confirm}
                   onChange={(e) => {
                     setPasswords((s) => ({ ...s, confirm: e.target.value }));
-                    if (pwdErrors.confirm) {
-                      setPwdErrors((prev) => ({
-                        ...prev,
-                        confirm: undefined,
-                      }));
-                    }
+                    if (pwdErrors.confirm)
+                      setPwdErrors((prev) => ({ ...prev, confirm: undefined }));
                   }}
-                  className={`mt-1 block w-full rounded-lg border px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 ${
+                  className={`w-full rounded-2xl bg-gray-50 border px-4 py-3.5 text-sm focus:outline-none focus:ring-2 transition-all ${
                     pwdErrors.confirm
-                      ? "border-red-400 focus:ring-red-300"
-                      : "border-gray-200 focus:ring-rose-300"
+                      ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                      : "border-gray-200 focus:border-rose-500 focus:ring-rose-500/20"
                   }`}
-                  placeholder="새 비밀번호를 다시 입력하세요"
+                  placeholder="새 비밀번호 확인"
                 />
                 {pwdErrors.confirm && (
-                  <p className="mt-1 text-xs text-red-600">
+                  <p className="mt-1.5 text-xs text-red-500 ml-1 font-medium">
                     {pwdErrors.confirm}
                   </p>
                 )}
               </div>
-
-              <button
-                onClick={handleChangePassword}
-                disabled={!isPwdFormFilled || loadingPwd}
-                className="w-full mt-4 rounded-lg bg-rose-500 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                type="button"
-                aria-disabled={!isPwdFormFilled || loadingPwd}
-              >
-                {loadingPwd ? "변경 중..." : "비밀번호 변경"}
-              </button>
+              <div className="pt-2">
+                <button
+                  onClick={handleChangePassword}
+                  disabled={!isPwdFormFilled || loadingPwd}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-gray-900 text-white px-4 py-3.5 text-sm font-bold shadow-md hover:bg-gray-800 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                  type="button"
+                >
+                  {loadingPwd ? "변경 중..." : "비밀번호 변경"}
+                </button>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Section: Delete Account */}
-        <section className="w-full bg-rose-50 border-b border-rose-100">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-            <header className="mb-4">
-              <h2 className="text-xl sm:text-2xl font-bold text-rose-600 mb-1 sm:mb-2">
+        <section className="bg-red-50/50 rounded-3xl border border-red-100 p-6 sm:p-8">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-red-100 rounded-2xl text-red-500 shrink-0">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
                 회원 탈퇴
               </h2>
-            </header>
-
-            <p className="text-sm text-gray-600 mb-4">
-              회원 탈퇴 시 모든 학습 데이터가 영구적으로 삭제되며 복구할 수
-              없습니다.
-            </p>
-
-            <button
-              onClick={openDeleteModal}
-              className="w-full rounded-lg border border-rose-500 px-4 py-3 bg-white text-sm font-semibold text-rose-600 hover:bg-rose-50 transition"
-              type="button"
-            >
-              회원 탈퇴하기
-            </button>
+              <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+                탈퇴 시 모든 학습 데이터와 기록이 영구적으로 삭제되며, 복구할 수
+                없습니다. 신중하게 결정해주세요.
+              </p>
+              <button
+                onClick={openDeleteModal}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 bg-white text-red-600 text-sm font-bold hover:bg-red-50 hover:border-red-300 transition-all active:scale-[0.98]"
+                type="button"
+              >
+                <Trash2 className="w-4 h-4" />
+                회원 탈퇴하기
+              </button>
+            </div>
           </div>
         </section>
       </main>
 
-      {/* Delete Confirmation Modal: 중앙 배치 + 2단계 확인 */}
       {showDeleteModal && (
         <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           role="dialog"
           aria-modal="true"
         >
-          {/* Modal panel: 스타일을 플랫폼 전반 스타일에 맞게 통일 */}
-          <div className="bg-white rounded-xl shadow-lg max-w-md w-full ring-1 ring-black/5 p-6 sm:p-8">
-            {/* 단계별로 아이콘과 텍스트를 플랫폼 스타일로 정렬 */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-gray-100 animate-scale-in">
             {deleteStep === 1 && (
               <>
-                <div className="flex flex-col items-center text-center gap-3">
-                  <div className="flex items-center justify-center w-14 h-14 rounded-full bg-rose-50">
-                    <AlertTriangle className="w-7 h-7 text-rose-600" />
-                  </div>
-
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    회원 탈퇴 안내
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    모든 학습 데이터가 영구적으로 삭제되며 복구할 수 없습니다.
-                  </p>
+                <div className="flex items-center justify-center w-16 h-16 rounded-full mx-auto mb-5 bg-red-50 text-red-500">
+                  <AlertTriangle className="w-8 h-8" />
                 </div>
-
-                <div className="mt-6 grid grid-cols-2 gap-3">
+                <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
+                  정말 탈퇴하시겠어요?
+                </h3>
+                <p className="text-sm text-gray-500 text-center mb-8 leading-relaxed">
+                  지금까지 쌓아온 학습 기록이
+                  <br />
+                  모두 사라지게 됩니다.
+                </p>
+                <div className="flex gap-3">
                   <button
                     onClick={cancelDeleteFlow}
-                    className="rounded-lg border border-gray-300 px-4 py-3 bg-white text-sm font-semibold text-gray-800 hover:bg-gray-50 transition"
+                    className="flex-1 rounded-xl border border-gray-200 px-4 py-3.5 bg-white text-sm font-bold text-gray-700 hover:bg-gray-50 transition active:scale-[0.98]"
                     type="button"
-                    autoFocus
                   >
                     취소
                   </button>
                   <button
                     onClick={proceedDeleteStep}
-                    className="rounded-lg bg-rose-500 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-600 transition"
+                    className="flex-1 rounded-xl bg-red-500 text-white px-4 py-3.5 text-sm font-bold hover:bg-red-600 transition active:scale-[0.98] shadow-md shadow-red-100"
                     type="button"
                   >
-                    계속
+                    계속 진행
                   </button>
                 </div>
               </>
             )}
-
             {deleteStep === 2 && (
               <>
-                <div className="flex flex-col items-center text-center gap-3">
-                  <div className="flex items-center justify-center w-14 h-14 rounded-full bg-rose-50">
-                    <ShieldAlert className="w-7 h-7 text-rose-600" />
-                  </div>
-
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    정말로 탈퇴하시겠습니까?
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    이 작업은 되돌릴 수 없습니다.
-                  </p>
+                <div className="flex items-center justify-center w-16 h-16 rounded-full mx-auto mb-5 bg-gray-100 text-gray-600">
+                  <ShieldAlert className="w-8 h-8" />
                 </div>
-
-                <div className="mt-6 grid grid-cols-2 gap-3">
+                <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
+                  마지막 확인
+                </h3>
+                <p className="text-sm text-gray-500 text-center mb-8">
+                  탈퇴 후에는 계정을 복구할 수 없습니다.
+                  <br />
+                  그래도 탈퇴하시겠습니까?
+                </p>
+                <div className="flex gap-3">
                   <button
                     onClick={cancelDeleteFlow}
-                    className="rounded-lg border border-gray-300 px-4 py-3 bg-white text-sm font-semibold text-gray-800 hover:bg-gray-50 transition"
+                    className="flex-1 rounded-xl border border-gray-200 px-4 py-3.5 bg-white text-sm font-bold text-gray-700 hover:bg-gray-50 transition active:scale-[0.98]"
                     type="button"
                   >
                     취소
@@ -552,11 +474,10 @@ mb-2"
                   <button
                     onClick={handleDeleteAccount}
                     disabled={loadingDelete}
-                    className="rounded-lg bg-rose-500 text-white px-4 py-3 text-sm font-semibold hover:bg-rose-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="flex-1 rounded-xl bg-gray-900 text-white px-4 py-3.5 text-sm font-bold hover:bg-black transition active:scale-[0.98] shadow-lg disabled:opacity-50"
                     type="button"
-                    aria-disabled={loadingDelete}
                   >
-                    {loadingDelete ? "탈퇴 진행중..." : "탈퇴하기"}
+                    {loadingDelete ? "처리 중..." : "확인 (탈퇴)"}
                   </button>
                 </div>
               </>

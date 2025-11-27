@@ -1,4 +1,3 @@
-// backend/src/controllers/leaderboardController.ts
 import { Request, Response, NextFunction } from "express";
 import {
   getLeaderboard,
@@ -63,12 +62,12 @@ export async function handleGetLeaderboardById(
 ) {
   try {
     const idParam = req.params.id;
-    const userId = Number(idParam);
-    if (Number.isNaN(userId)) {
-      return res.status(400).json({ message: "잘못된 사용자 ID입니다." });
+    if (!idParam) {
+      return res.status(400).json({ message: "사용자 ID가 필요합니다." });
     }
 
-    const item = await getUserWithRank(userId);
+    // id가 숫자형일 수도 있고 문자열일 수도 있으므로 유연하게 처리
+    const item = await getUserWithRank(idParam);
     if (!item) {
       return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
     }

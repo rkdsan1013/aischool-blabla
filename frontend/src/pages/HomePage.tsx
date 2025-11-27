@@ -11,14 +11,14 @@ import {
   Flame,
   ChevronRight,
   Repeat,
-  Layers,
+  Sparkles, // 아이콘 추가
 } from "lucide-react";
 import type { TrainingType } from "../services/trainingService";
 import { useProfile } from "../hooks/useProfile";
 import type { UserProfileResponse } from "../services/userService";
 import { getLeaderboard } from "../services/leaderboardService";
 
-// [수정됨] Omit을 사용하여 충돌하는 속성(user_id, id 등)을 제거 후 재정의
+// --- Types ---
 type ExtendedProfile = Omit<
   Partial<UserProfileResponse>,
   "user_id" | "id" | "streak_count"
@@ -33,7 +33,6 @@ type ExtendedProfile = Omit<
   score?: number;
 };
 
-// 리더보드 서비스에서 넘어오는 원본 데이터 타입 정의
 interface RawLeaderboardItem {
   id?: string | number;
   rank?: number;
@@ -49,8 +48,8 @@ interface TrainingStep {
   title: string;
   description: string;
   icon: React.ReactNode;
-  color: string; // bg class
-  borderClass: string; // border color class
+  bgClass: string; // 카드 아이콘 배경색
+  textClass: string; // 카드 아이콘 텍스트색
   repeatsToday: number;
   startType: TrainingType;
 }
@@ -96,32 +95,24 @@ const HomePage: React.FC = () => {
     const fetchTop = async () => {
       setLeaderLoading(true);
       try {
-        // get top 3 from service
-        // API 응답 타입을 알 수 없으므로 unknown 후 로컬 타입으로 단언
         const response = await getLeaderboard({ limit: 3 });
         const data = response as unknown as RawLeaderboardItem[];
 
         if (!mounted) return;
 
-        // determine current profile id for fallback streak mapping
         const profileId = profile
           ? profile.user_id ?? profile.userId ?? profile.id
           : null;
 
-        // map service LeaderItem -> LeaderboardUser
         const mapped: LeaderboardUser[] = (data ?? []).map((d) => {
-          // service may provide streak_count or streakCount or nothing
           const streakFromService = d.streak_count ?? d.streakCount;
-
-          // id 비교를 위해 문자열로 변환
           const itemIdStr = d.id ? String(d.id) : undefined;
           const profileIdStr = profileId ? String(profileId) : undefined;
 
           const isCurrentUser =
             (itemIdStr && profileIdStr && itemIdStr === profileIdStr) ||
-            (!itemIdStr && !!profileIdStr); // ID가 없는 경우 본인으로 간주하던 로직 유지
+            (!itemIdStr && !!profileIdStr);
 
-          // if service didn't provide streak, and this entry is current user, use profile.streak_count
           const fallbackStreak = isCurrentUser
             ? profile?.streak_count ?? profile?.streakCount ?? 0
             : 0;
@@ -149,26 +140,27 @@ const HomePage: React.FC = () => {
     return () => {
       mounted = false;
     };
-    // include profile in deps so that when profile becomes available we can map streak for current user
   }, [profile]);
 
   if (profileLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500" />
       </div>
     );
   }
   if (!profile) return null;
 
+  // --- Training Steps Data ---
+  // 디자인 톤앤매너에 맞춰 색상 클래스 조정
   const steps: TrainingStep[] = [
     {
       id: "vocabulary",
       title: "단어 훈련",
       description: "새로운 단어를 배우고 복습하세요",
-      icon: <BookOpen className="w-4 h-4 sm:w-4 sm:h-4" />,
-      color: "bg-rose-500",
-      borderClass: "border-rose-500",
+      icon: <BookOpen className="w-5 h-5" />,
+      bgClass: "bg-rose-100",
+      textClass: "text-rose-600",
       repeatsToday: 2,
       startType: "vocabulary",
     },
@@ -176,39 +168,39 @@ const HomePage: React.FC = () => {
       id: "sentence",
       title: "문장 배열",
       description: "단어를 올바른 순서로 배열하세요",
-      icon: <ListOrdered className="w-4 h-4 sm:w-4 sm:h-4" />,
-      color: "bg-rose-400",
-      borderClass: "border-rose-400",
+      icon: <ListOrdered className="w-5 h-5" />,
+      bgClass: "bg-orange-100",
+      textClass: "text-orange-600",
       repeatsToday: 1,
       startType: "sentence",
     },
     {
       id: "matching",
       title: "빈칸 채우기",
-      description: "단어와 뜻을 연결하세요",
-      icon: <Link2 className="w-4 h-4 sm:w-4 sm:h-4" />,
-      color: "bg-pink-500",
-      borderClass: "border-pink-500",
+      description: "문맥에 맞는 단어를 선택하세요",
+      icon: <Link2 className="w-5 h-5" />,
+      bgClass: "bg-amber-100",
+      textClass: "text-amber-600",
       repeatsToday: 0,
       startType: "blank",
     },
     {
       id: "writing",
       title: "작문",
-      description: "문장을 직접 작성해보세요",
-      icon: <PenTool className="w-4 h-4 sm:w-4 sm:h-4" />,
-      color: "bg-rose-300",
-      borderClass: "border-rose-300",
+      description: "주어진 주제로 문장을 작성해보세요",
+      icon: <PenTool className="w-5 h-5" />,
+      bgClass: "bg-emerald-100",
+      textClass: "text-emerald-600",
       repeatsToday: 0,
       startType: "writing",
     },
     {
       id: "speaking",
       title: "말하기 연습",
-      description: "AI가 발음을 교정해드립니다",
-      icon: <Mic className="w-4 h-4 sm:w-4 sm:h-4" />,
-      color: "bg-indigo-500",
-      borderClass: "border-indigo-500",
+      description: "AI 튜터와 발음을 교정해보세요",
+      icon: <Mic className="w-5 h-5" />,
+      bgClass: "bg-indigo-100",
+      textClass: "text-indigo-600",
       repeatsToday: 3,
       startType: "speaking",
     },
@@ -233,274 +225,264 @@ const HomePage: React.FC = () => {
   };
 
   const displayName = profile.name ?? "학습자";
-  const displayLevel = profile.level ?? "대기중";
+  const displayLevel = profile.level ?? "Level Test";
   const streak = profile.streak_count ?? 0;
-
   const tier = profile.tier ?? "Bronze";
   const score = profile.score ?? 0;
 
+  // Tier Styles (일관된 그라데이션 적용)
   const tierStyles: Record<
     string,
-    { bgClass: string; textClass: string; label: string; accent: string }
+    { bgClass: string; textClass: string; label: string; iconColor: string }
   > = {
     Bronze: {
-      bgClass: "bg-gradient-to-r from-amber-700 via-amber-600 to-amber-600",
-      textClass: "text-white",
+      bgClass: "from-amber-100 to-amber-50 border-amber-200",
+      textClass: "text-amber-800",
       label: "브론즈",
-      accent: "bg-amber-600",
+      iconColor: "text-amber-600",
     },
     Silver: {
-      bgClass: "bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400",
-      textClass: "text-slate-800",
+      bgClass: "from-slate-100 to-slate-50 border-slate-200",
+      textClass: "text-slate-700",
       label: "실버",
-      accent: "bg-slate-300",
+      iconColor: "text-slate-500",
     },
     Gold: {
-      bgClass: "bg-gradient-to-r from-amber-500 via-amber-300 to-yellow-300",
+      bgClass: "from-yellow-100 to-yellow-50 border-yellow-200",
       textClass: "text-yellow-800",
       label: "골드",
-      accent: "bg-yellow-400",
+      iconColor: "text-yellow-600",
     },
     Platinum: {
-      bgClass: "bg-gradient-to-r from-teal-200 via-cyan-200 to-indigo-300",
-      textClass: "text-indigo-900",
+      bgClass: "from-cyan-100 to-cyan-50 border-cyan-200",
+      textClass: "text-cyan-800",
       label: "플래티넘",
-      accent: "bg-cyan-300",
+      iconColor: "text-cyan-600",
     },
     Diamond: {
-      bgClass: "bg-gradient-to-r from-cyan-200 via-sky-300 to-indigo-400",
-      textClass: "text-sky-900",
+      bgClass: "from-sky-100 to-sky-50 border-sky-200",
+      textClass: "text-sky-800",
       label: "다이아",
-      accent: "bg-sky-300",
+      iconColor: "text-sky-600",
     },
     Master: {
-      bgClass: "bg-gradient-to-r from-purple-200 via-purple-300 to-purple-500",
-      textClass: "text-purple-900",
+      bgClass: "from-purple-100 to-purple-50 border-purple-200",
+      textClass: "text-purple-800",
       label: "마스터",
-      accent: "bg-purple-300",
+      iconColor: "text-purple-600",
     },
     Challenger: {
-      bgClass: "bg-gradient-to-r from-pink-300 via-pink-500 to-rose-600",
-      textClass: "text-rose-900",
+      bgClass: "from-rose-100 to-rose-50 border-rose-200",
+      textClass: "text-rose-800",
       label: "챌린저",
-      accent: "bg-pink-400",
+      iconColor: "text-rose-600",
     },
   };
 
-  const chosen = tierStyles[tier] ?? tierStyles.Bronze;
+  const chosenTier = tierStyles[tier] ?? tierStyles.Bronze;
 
   const getMedalIcon = (rank: number) => {
     if (rank === 1) return "🥇";
     if (rank === 2) return "🥈";
     if (rank === 3) return "🥉";
-    return String(rank);
+    return <span className="text-gray-400 font-bold text-lg">{rank}</span>;
   };
 
-  // compute podium order from fetched topUsers (2,1,3)
   const podiumOrder = (() => {
     if (!topUsers || topUsers.length === 0) return [];
-    // ensure sorted by rank asc
     const sorted = [...topUsers].sort((a, b) => a.rank - b.rank);
-    // if less than 3, fill placeholders
-    const a = sorted[1] ?? sorted[0] ?? null; // 2nd
-    const b = sorted[0] ?? null; // 1st
-    const c = sorted[2] ?? null; // 3rd
+    const a = sorted[1] ?? sorted[0] ?? null;
+    const b = sorted[0] ?? null;
+    const c = sorted[2] ?? null;
     return [a, b, c].filter(Boolean) as LeaderboardUser[];
   })();
 
   return (
-    <div className="min-h-screen bg-white pb-20 text-foreground">
-      <header className="bg-rose-500 text-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+    <div className="min-h-screen bg-slate-50 pb-24 text-gray-900">
+      {/* --- Header --- */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            {/* Welcome Text */}
             <div>
-              <h1 className="text-lg sm:text-2xl font-extrabold leading-tight mb-0.5 truncate">
-                안녕하세요, {displayName}님!
+              <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 flex items-center gap-2">
+                안녕하세요, <span className="text-rose-500">{displayName}</span>
+                님!
               </h1>
-              <p className="text-white/90 text-sm sm:text-sm">
-                오늘도 영어 학습을 시작해볼까요?
+              <p className="text-gray-500 text-sm mt-1">
+                오늘도 목표를 향해 달려볼까요? 🏃‍♂️
               </p>
             </div>
 
-            <div className="mt-3 sm:mt-0 sm:ml-4">
-              <div className="flex items-center gap-3 whitespace-nowrap overflow-x-auto">
-                <div className="flex items-center gap-2 bg-white/10 rounded-full px-3 py-1.5 text-sm font-semibold text-white sm:bg-opacity-20 border border-white/10">
-                  <Flame className="w-4 h-4" />
-                  <span className="leading-none">{streak}일</span>
-                </div>
+            {/* Stats Chips */}
+            <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
+              {/* Streak */}
+              <div className="flex items-center gap-1.5 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-100 shrink-0">
+                <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
+                <span className="text-sm font-bold text-orange-700">
+                  {streak}일
+                </span>
+              </div>
 
-                <div className="flex items-center gap-2 bg-white/10 rounded-full px-3 py-1.5 text-sm font-semibold text-white sm:bg-opacity-20 border border-white/10">
-                  <Trophy className="w-4 h-4" />
-                  <span className="leading-none">{displayLevel}</span>
-                </div>
+              {/* Level */}
+              <div className="flex items-center gap-1.5 bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100 shrink-0">
+                <Sparkles className="w-4 h-4 text-indigo-500" />
+                <span className="text-sm font-bold text-indigo-700">
+                  {displayLevel}
+                </span>
+              </div>
 
+              {/* Tier & Score */}
+              <div
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-linear-to-r ${chosenTier.bgClass} shrink-0`}
+              >
+                <Trophy className={`w-4 h-4 ${chosenTier.iconColor}`} />
+                <span className={`text-sm font-bold ${chosenTier.textClass}`}>
+                  {chosenTier.label}
+                </span>
                 <div
-                  className={`${chosen.bgClass} rounded-full px-3 py-1.5 text-sm font-semibold flex items-center gap-2 border border-white/10`}
-                  title={`티어: ${chosen.label} · 점수: ${score}pt`}
-                >
-                  <span className={chosen.textClass}>{chosen.label}</span>
-                  <span className="ml-1 bg-white/20 px-2 py-0.5 rounded-full text-sm">
-                    <span className={chosen.textClass}>{score}pt</span>
-                  </span>
-                </div>
+                  className={`w-px h-3 bg-current opacity-20 mx-0.5 ${chosenTier.textClass}`}
+                />
+                <span className={`text-sm font-medium ${chosenTier.textClass}`}>
+                  {score.toLocaleString()} P
+                </span>
               </div>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <h2 className="text-base sm:text-xl font-bold mb-3 sm:mb-4 text-gray-900 flex items-center gap-2">
-          {/* <Layers className="w-5 h-5 text-rose-500" aria-hidden="true" /> */}
-          학습 세션
-        </h2>
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-10">
+        {/* --- Training Session Section --- */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
+              학습 세션
+            </h2>
+          </div>
 
-        <ul className="space-y-3 sm:space-y-4">
-          {steps.map((s) => (
-            <li key={s.id}>
+          <div className="grid gap-4 sm:grid-cols-1">
+            {steps.map((s) => (
               <button
+                key={s.id}
                 type="button"
                 onClick={() => handleNavigateToTraining(s.startType)}
                 onMouseEnter={() => prefetchQuestions(s.startType)}
-                aria-label={s.title}
-                className="group relative bg-white rounded-2xl p-3 sm:p-4 text-left cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-1 w-full border border-gray-300"
+                className="group relative bg-white rounded-2xl p-4 text-left border border-gray-100 shadow-sm hover:shadow-md hover:border-rose-100 transition-all duration-200 active:scale-[0.99]"
               >
-                <div className="flex items-center gap-3 sm:gap-4">
+                <div className="flex items-center gap-4">
+                  {/* Icon Box */}
                   <div
-                    className={`w-10 h-10 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${s.color} text-white shadow-sm group-hover:scale-105 transition-transform duration-300 shrink-0 ${s.borderClass} border`}
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center ${s.bgClass} ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
                   >
                     {s.icon}
                   </div>
 
+                  {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-sm sm:text-base text-gray-900 truncate">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-bold text-gray-900 text-base group-hover:text-rose-600 transition-colors">
                         {s.title}
                       </h3>
-
-                      <div className="shrink-0 ml-auto flex items-center gap-2">
-                        {prefetchingType === s.startType ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
-                            <Repeat className="w-3.5 h-3.5 text-rose-600" />
-                            로딩...
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
-                            <Repeat className="w-3.5 h-3.5 text-rose-600" />
-                            <span className="font-semibold">
-                              {s.repeatsToday}
-                            </span>
-                            <span className="text-foreground/60">회</span>
-                          </span>
-                        )}
-                      </div>
+                      {/* Loading or Count Badge */}
+                      {prefetchingType === s.startType ? (
+                        <span className="text-xs font-medium text-rose-500 bg-rose-50 px-2 py-1 rounded-lg animate-pulse">
+                          준비중...
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-lg flex items-center gap-1">
+                          <Repeat className="w-3 h-3" />
+                          {s.repeatsToday}회
+                        </span>
+                      )}
                     </div>
-
-                    <p className="text-xs sm:text-sm text-gray-600 truncate whitespace-nowrap overflow-hidden">
+                    <p className="text-sm text-gray-500 truncate">
                       {s.description}
                     </p>
                   </div>
 
-                  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 shrink-0 self-start mt-1 group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
+                  {/* Arrow */}
+                  <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
                 </div>
               </button>
-            </li>
-          ))}
-        </ul>
+            ))}
+          </div>
+        </section>
 
-        {/* --- 통합된 리더보드 프리뷰 (실제 데이터 사용, 포디엄 하단 정렬 보정) --- */}
-        <section className="mt-10 sm:mt-12">
-          {/* 변경: "더보기" 버튼을 subtitle(상위 학습자들과 경쟁해보세요)와 같은 행에 배치 */}
-          <div className="mb-3">
-            <div className="flex items-center justify-between">
-              <h2 className="sm:text-xl font-bold flex items-center gap-2 text-gray-900">
-                <Trophy className="w-5 h-5 text-amber-500" />
+        {/* --- Leaderboard Preview Section --- */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
                 리더보드
               </h2>
-              {/* 빈 공간 유지하여 제목 왼쪽 정렬 유지 */}
-              <div />
-            </div>
-
-            <div className="mt-1 flex items-center justify-between">
-              <p className="text-sm text-gray-600">
-                상위권 학습자들과 경쟁해보세요
+              <p className="text-sm text-gray-500 mt-1">
+                상위권 학습자들과 경쟁해보세요 🔥
               </p>
-
-              <button
-                onClick={() => navigate("/leaderboard")}
-                className="text-sm font-medium text-rose-500 hover:underline px-3 py-1 rounded-md"
-                aria-label="전체 순위 보기"
-              >
-                전체 순위 보기
-              </button>
             </div>
+            <button
+              onClick={() => navigate("/leaderboard")}
+              className="text-sm font-bold text-rose-500 hover:bg-rose-50 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              전체 보기
+            </button>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-300 p-5 pb-0 pt-2">
+          <div className="bg-white rounded-3xl border border-gray-200 p-6 shadow-sm">
             {leaderLoading ? (
-              <div className="flex items-center justify-center p-8"></div>
+              <div className="h-40 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-300" />
+              </div>
             ) : !topUsers || topUsers.length === 0 ? (
-              <div className="p-6 text-sm text-gray-500">
-                리더보드 정보를 불러올 수 없습니다.
+              <div className="text-center py-10 text-gray-400 text-sm">
+                아직 랭킹 정보가 없습니다.
               </div>
             ) : (
-              <div className="flex items-end justify-center gap-4">
+              <div className="flex items-end justify-center gap-3 sm:gap-6 pt-4 pb-2">
                 {podiumOrder.map((user) => {
                   const isFirst = user.rank === 1;
-                  const columnHeightClass = isFirst
-                    ? "h-[250px]"
+                  // 높이 계산 로직 (일관된 비율)
+                  const heightClass = isFirst
+                    ? "h-40 sm:h-48"
                     : user.rank === 2
-                    ? "h-[225px]"
-                    : "h-[200px]";
+                    ? "h-32 sm:h-40"
+                    : "h-24 sm:h-32";
 
-                  const podiumBlockHeightClass = isFirst
-                    ? "h-[100px]"
-                    : user.rank === 2
-                    ? "h-[80px]"
-                    : "h-[70px]";
-
-                  const podiumBgClass =
+                  // 색상 (금/은/동 느낌의 그라데이션)
+                  const bgGradient =
                     user.rank === 1
-                      ? "bg-gradient-to-b from-yellow-300 to-yellow-500"
+                      ? "bg-linear-to-t from-yellow-400 to-yellow-300 border-yellow-400"
                       : user.rank === 2
-                      ? "bg-gradient-to-b from-slate-200 to-gray-400"
-                      : "bg-gradient-to-b from-orange-300 to-amber-500";
+                      ? "bg-linear-to-t from-slate-300 to-slate-200 border-slate-300"
+                      : "bg-linear-to-t from-orange-300 to-orange-200 border-orange-300";
 
                   return (
                     <div
                       key={user.rank}
-                      className={`flex-1 max-w-[140px] flex flex-col justify-between items-center overflow-hidden ${columnHeightClass}`}
+                      className="flex-1 max-w-[120px] flex flex-col items-center group"
                     >
-                      {/* Top area: medal, name, score, streak */}
-                      <div className="px-2 pt-3 w-full flex flex-col items-center gap-2">
-                        <div className="text-5xl mb-1">
+                      {/* User Info (Avatar/Name) */}
+                      <div className="mb-3 flex flex-col items-center gap-1 text-center transition-transform duration-300 group-hover:-translate-y-1">
+                        <div className="text-3xl sm:text-4xl drop-shadow-sm">
                           {getMedalIcon(user.rank)}
                         </div>
-                        <div className="text-center w-full">
-                          <div className="font-semibold text-base text-gray-900 truncate max-w-[120px] mx-auto">
-                            {user.name}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {user.score.toLocaleString()}P
-                          </div>
+                        <div className="font-bold text-sm text-gray-900 truncate w-20 sm:w-24">
+                          {user.name}
                         </div>
-                        <div className="flex items-center gap-1 bg-rose-50 px-2 py-1 rounded-full border border-rose-100 mt-2 mb-2">
-                          <Flame className="w-3 h-3 text-rose-500" />
-                          <span className="font-semibold text-xs text-rose-700">
-                            {user.streak ?? 0}
-                          </span>
+                        <div className="text-xs font-medium text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">
+                          {user.score.toLocaleString()} P
                         </div>
                       </div>
 
-                      {/* Podium block: stick to bottom using mt-auto */}
+                      {/* Podium Bar */}
                       <div
-                        className={`w-full mt-auto flex items-center justify-center shadow-md ${podiumBlockHeightClass} rounded-t-2xl overflow-hidden`}
+                        className={`w-full rounded-t-2xl shadow-inner border-t border-x ${bgGradient} ${heightClass} flex items-end justify-center pb-4 relative overflow-hidden`}
                       >
-                        <div
-                          className={`w-full h-full flex items-center justify-center text-2xl font-extrabold text-white ${podiumBgClass}`}
-                        >
+                        {/* Shine effect */}
+                        <div className="absolute inset-0 bg-linear-to-tr from-transparent via-white/30 to-transparent opacity-50 pointer-events-none" />
+                        <span className="text-white/90 font-black text-3xl sm:text-4xl drop-shadow-md z-10">
                           {user.rank}
-                        </div>
+                        </span>
                       </div>
                     </div>
                   );

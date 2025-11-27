@@ -67,7 +67,6 @@ function SegmentedControl({
   onChange,
 }: {
   value: AuthMode;
-  // ✅ [수정됨] any 제거, 구체적인 타입 명시
   onChange: (val: AuthMode) => void;
 }) {
   return (
@@ -228,7 +227,6 @@ export default function AuthPage() {
 
   // --- Render ---
   return (
-    // ✅ [수정됨] h-[100dvh] -> h-dvh
     <div className="h-dvh w-full bg-white flex flex-col lg:flex-row overflow-hidden">
       {/* [Desktop Left Panel] - Rose Color */}
       <div className="hidden lg:flex lg:w-5/12 bg-rose-500 relative overflow-hidden text-white flex-col p-12">
@@ -285,7 +283,7 @@ export default function AuthPage() {
       {/* [Right Panel / Mobile Main] */}
       <div className="flex-1 flex flex-col h-full relative">
         {/* 모바일 헤더 (닫기 버튼) */}
-        <div className="flex-none flex items-center justify-between px-4 py-3 lg:hidden">
+        <div className="flex-none flex items-center justify-between px-4 py-3 lg:hidden bg-white z-30">
           <h1 className="text-xl font-extrabold text-rose-500">Blabla</h1>
           <button
             onClick={() => navigate("/")}
@@ -296,7 +294,7 @@ export default function AuthPage() {
         </div>
 
         {/* 메인 컨텐츠 영역 */}
-        <div className="flex-1 w-full max-w-md mx-auto px-6 flex flex-col justify-center overflow-y-auto lg:overflow-y-visible scrollbar-hide pb-24 lg:pb-0">
+        <div className="flex-1 w-full max-w-md mx-auto px-6 flex flex-col justify-start pt-6 lg:pt-32 overflow-y-auto lg:overflow-y-visible scrollbar-hide pb-32 lg:pb-0">
           {/* 1. 모드에 따른 상단 영역 */}
           {initialLevel ? (
             // [결과 저장 모드]
@@ -329,11 +327,12 @@ export default function AuthPage() {
           ) : (
             // [일반 모드]
             <>
-              <div className="mb-6 text-center lg:text-left flex-none">
-                <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-1">
+              {/* 텍스트 영역 높이 확보로 점핑 방지 (min-h-[...]) */}
+              <div className="mb-6 text-center lg:text-left flex-none min-h-20 flex flex-col justify-end">
+                <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-1 transition-all">
                   {tab === "signup" ? "계정 만들기" : "다시 오셨군요!"}
                 </h2>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 transition-all">
                   {tab === "signup"
                     ? "나만의 AI 튜터와 대화를 시작해보세요."
                     : "이메일로 간편하게 로그인하세요."}
@@ -415,7 +414,6 @@ export default function AuthPage() {
                   />
                 </div>
 
-                {/* 비밀번호 필드 수직 배치 */}
                 <div className="space-y-3">
                   <div>
                     <Label htmlFor="signupPassword">비밀번호</Label>
@@ -463,14 +461,18 @@ export default function AuthPage() {
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
               <>
+                {/* ✅ [수정됨] 버튼 텍스트 간소화 및 아이콘 조건부 표시 */}
                 <span>
                   {tab === "login"
-                    ? "로그인하기"
+                    ? "로그인"
                     : initialLevel
-                    ? "가입하고 결과 저장하기"
-                    : "회원가입하기"}
+                    ? "가입하고 학습 시작하기"
+                    : "회원가입"}
                 </span>
-                <ArrowRight size={18} className="opacity-80" />
+                {/* 결과 저장 모드(initialLevel 있음)이면서 회원가입 탭일 때만 화살표 아이콘 표시 */}
+                {tab !== "login" && initialLevel && (
+                  <ArrowRight size={18} className="opacity-80" />
+                )}
               </>
             )}
           </Button>

@@ -107,7 +107,6 @@ const HomeLeaderBoard: React.FC = () => {
         const data = await getLeaderboard({ limit: 100 });
         if (!mounted) return;
 
-        // [수정됨] any 타입 캐스팅 제거 및 안전한 타입 가드 사용
         const arr: LeaderItem[] = Array.isArray(data)
           ? (data as LeaderItem[])
           : [];
@@ -152,7 +151,10 @@ const HomeLeaderBoard: React.FC = () => {
     if (!user) return <div className="flex-1" />;
 
     const isFirst = rank === 1;
-    const height = isFirst ? "h-36 sm:h-44" : "h-28 sm:h-36";
+
+    // 막대바 높이
+    const height = isFirst ? "h-24 sm:h-32" : "h-16 sm:h-24";
+
     const avatarSize = isFirst ? 80 : 64;
     const crownColor =
       rank === 1
@@ -179,7 +181,7 @@ const HomeLeaderBoard: React.FC = () => {
     return (
       <div
         className={`flex flex-col items-center justify-end ${
-          isFirst ? "-mt-8 z-10" : ""
+          isFirst ? "-mt-6 z-10" : ""
         }`}
       >
         <div className="relative flex flex-col items-center mb-3">
@@ -202,7 +204,6 @@ const HomeLeaderBoard: React.FC = () => {
         </div>
 
         <div className="text-center mb-2">
-          {/* [수정됨] max-w-[80px] -> max-w-20 */}
           <p className="font-bold text-white text-sm sm:text-base truncate max-w-20 sm:max-w-[120px]">
             {user.name}
           </p>
@@ -212,7 +213,6 @@ const HomeLeaderBoard: React.FC = () => {
         </div>
 
         {/* Podium Box */}
-        {/* [수정됨] bg-gradient-to-br -> bg-linear-to-br (Tailwind 최신) */}
         <div
           className={`w-20 sm:w-28 ${height} rounded-t-xl border-x border-t flex items-start justify-center pt-2 backdrop-blur-sm ${podiumColor}`}
         >
@@ -231,7 +231,6 @@ const HomeLeaderBoard: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       {/* --- Top Section (Header + Podium) --- */}
-      {/* [수정됨] bg-gradient-to-br -> bg-linear-to-br */}
       <div className="bg-linear-to-br from-rose-500 to-pink-600 pb-8 rounded-b-[2.5rem] shadow-xl relative overflow-hidden">
         {/* Background Decor */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
@@ -252,23 +251,20 @@ const HomeLeaderBoard: React.FC = () => {
               <Trophy className="w-6 h-6 text-yellow-300" />
               리더보드
             </h1>
-            <div className="w-10" /> {/* Spacer (우측 버튼 제거됨) */}
+            <div className="w-10" /> {/* Spacer */}
           </div>
 
-          <div className="text-center text-white/90 mb-8 sm:mb-12">
-            <p className="text-sm sm:text-base">
-              이번 주 상위 랭커들을 확인해보세요! 🔥
-            </p>
+          {/* ✅ [수정됨] 상단 텍스트 제거 및 충분한 여백(mt-16) 확보로 왕관 겹침 방지 */}
+          <div className="mt-16 sm:mt-20">
+            {/* Podium */}
+            {!loading && !error && items.length > 0 && (
+              <div className="flex justify-center items-end gap-2 sm:gap-6">
+                {renderPodium(top2, 2)}
+                {renderPodium(top1, 1)}
+                {renderPodium(top3, 3)}
+              </div>
+            )}
           </div>
-
-          {/* Podium */}
-          {!loading && !error && items.length > 0 && (
-            <div className="flex justify-center items-end gap-2 sm:gap-6">
-              {renderPodium(top2, 2)}
-              {renderPodium(top1, 1)}
-              {renderPodium(top3, 3)}
-            </div>
-          )}
         </div>
       </div>
 

@@ -157,7 +157,7 @@ export default function VoiceRoomPage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
               </span>
-              ON-AIR
+              실시간 음성채팅
             </div>
 
             <h1 className="text-3xl sm:text-4xl font-black text-slate-900 leading-tight mb-3">

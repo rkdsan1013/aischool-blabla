@@ -23,16 +23,15 @@ import {
 import { useNavigate } from "react-router-dom";
 import { aiTalkService } from "../services/aiTalkService";
 
-/* 화면 표시용 데이터 타입 */
+/* 화면 표시용 데이터 타입 (색상 관련 속성 변경) */
 interface DisplayScenario {
   id: number;
   userId?: number | null;
   title: string;
   description: string;
   icon: React.ReactNode;
-  bgClass: string; // 배경색 클래스 (예: bg-amber-100)
-  textClass: string; // 텍스트/아이콘 색상 클래스 (예: text-amber-600)
-  borderClass: string; // 테두리 색상 클래스 (예: border-amber-200)
+  colorClass: string; // 기존 bgClass, textClass 등을 대체
+  colorHex: string; // 테두리 등에 사용할 Hex 코드
   context?: string;
 }
 
@@ -59,69 +58,61 @@ const AITalkPage: React.FC = () => {
   const [confirmScenario, setConfirmScenario] =
     useState<DisplayScenario | null>(null);
 
-  // 디자인 시스템에 맞춘 색상 스타일 매핑
+  // 디자인 시스템에 맞춘 색상 스타일 매핑 (두 번째 코드의 스타일 적용)
   const getScenarioStyle = (title: string) => {
     if (title.includes("카페")) {
       return {
         icon: <Coffee className="w-5 h-5 sm:w-6 sm:h-6" />,
-        bgClass: "bg-amber-100",
-        textClass: "text-amber-600",
-        borderClass: "border-amber-200",
+        colorClass: "bg-amber-500",
+        colorHex: "#f59e0b",
       };
     }
     if (title.includes("면접")) {
       return {
         icon: <Briefcase className="w-5 h-5 sm:w-6 sm:h-6" />,
-        bgClass: "bg-rose-100",
-        textClass: "text-rose-600",
-        borderClass: "border-rose-200",
+        colorClass: "bg-rose-500",
+        colorHex: "#fb7185",
       };
     }
     if (title.includes("여행")) {
       return {
         icon: <Plane className="w-5 h-5 sm:w-6 sm:h-6" />,
-        bgClass: "bg-blue-100",
-        textClass: "text-blue-600",
-        borderClass: "border-blue-200",
+        colorClass: "bg-blue-500",
+        colorHex: "#3b82f6",
       };
     }
     if (title.includes("쇼핑")) {
       return {
         icon: <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6" />,
-        bgClass: "bg-pink-100",
-        textClass: "text-pink-600",
-        borderClass: "border-pink-200",
+        colorClass: "bg-pink-500",
+        colorHex: "#ec4899",
       };
     }
     if (title.includes("학교")) {
       return {
         icon: <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />,
-        bgClass: "bg-indigo-100",
-        textClass: "text-indigo-600",
-        borderClass: "border-indigo-200",
+        colorClass: "bg-indigo-500",
+        colorHex: "#6366f1",
       };
     }
     if (title.includes("데이트")) {
       return {
         icon: <Heart className="w-5 h-5 sm:w-6 sm:h-6" />,
-        bgClass: "bg-red-100",
-        textClass: "text-red-600",
-        borderClass: "border-red-200",
+        colorClass: "bg-red-500",
+        colorHex: "#ef4444",
       };
     }
     if (title.includes("스몰토크")) {
       return {
         icon: <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6" />,
-        bgClass: "bg-orange-100",
-        textClass: "text-orange-600",
-        borderClass: "border-orange-200",
+        colorClass: "bg-orange-500",
+        colorHex: "#f97316",
       };
     }
     return {
       icon: <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />,
-      bgClass: "bg-fuchsia-100",
-      textClass: "text-fuchsia-600",
-      borderClass: "border-fuchsia-200",
+      colorClass: "bg-gradient-to-br from-rose-500 to-pink-500",
+      colorHex: "#fb7185",
     };
   };
 
@@ -144,9 +135,8 @@ const AITalkPage: React.FC = () => {
               description: item.description,
               context: item.context,
               icon: style.icon,
-              bgClass: style.bgClass,
-              textClass: style.textClass,
-              borderClass: style.borderClass,
+              colorClass: style.colorClass,
+              colorHex: style.colorHex,
             };
             official.push(formatted);
           } else {
@@ -157,9 +147,9 @@ const AITalkPage: React.FC = () => {
               description: item.description,
               context: item.context,
               icon: <Pen className="w-5 h-5 sm:w-6 sm:h-6" />,
-              bgClass: "bg-cyan-100",
-              textClass: "text-cyan-600",
-              borderClass: "border-cyan-200",
+              colorClass:
+                "bg-gradient-to-br from-cyan-400 via-fuchsia-500 to-amber-400",
+              colorHex: "#06b6d4",
             };
             custom.push(formatted);
           }
@@ -225,9 +215,8 @@ const AITalkPage: React.FC = () => {
         description: payload.description,
         context: payload.context,
         icon: style.icon,
-        bgClass: style.bgClass,
-        textClass: style.textClass,
-        borderClass: style.borderClass,
+        colorClass: style.colorClass,
+        colorHex: style.colorHex,
       };
 
       setCustomScenarios((prev) =>
@@ -443,8 +432,10 @@ const AITalkPage: React.FC = () => {
             ) : (
               <>
                 <div className="flex items-start gap-4 mb-6">
+                  {/* 변경된 아이콘 스타일 적용 */}
                   <div
-                    className={`${scenario.bgClass} ${scenario.textClass} p-3 rounded-2xl shadow-sm shrink-0 border ${scenario.borderClass}`}
+                    className={`${scenario.colorClass} text-white p-3 rounded-2xl shadow-sm shrink-0`}
+                    style={{ border: `1px solid ${scenario.colorHex}` }}
                   >
                     {scenario.icon}
                   </div>
@@ -628,7 +619,7 @@ const AITalkPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 pb-24 text-gray-900">
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-10">
-        {/* CEFR 레벨 테스트 배너 섹션 */}
+        {/* CEFR 레벨 테스트 배너 섹션 (첫 번째 코드 구조 유지) */}
         <section>
           <div
             onClick={handleLevelTestNavigate}
@@ -682,8 +673,10 @@ const AITalkPage: React.FC = () => {
                 type="button"
               >
                 <div className="flex items-start gap-4">
+                  {/* 변경된 아이콘 스타일 적용 */}
                   <div
-                    className={`${s.bgClass} ${s.textClass} p-3.5 rounded-2xl shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-300 border ${s.borderClass}`}
+                    className={`${s.colorClass} text-white p-3.5 rounded-2xl shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-300`}
+                    style={{ border: `1px solid ${s.colorHex}` }}
                   >
                     {s.icon}
                   </div>
@@ -735,16 +728,8 @@ const AITalkPage: React.FC = () => {
                 아직 만든 시나리오가 없어요
               </h3>
               <p className="text-sm sm:text-base text-gray-500 mb-8 max-w-md mx-auto text-pretty leading-relaxed">
-                내가 연습하고 싶은 상황이 있다면 직접 만들어보세요.
-                <br />
-                AI가 그 상황에 맞춰 대화해드립니다.
+                나만의 대화 상황을 만들어 더욱 효과적으로 학습해보세요
               </p>
-              <button
-                onClick={handleCreateNavigate}
-                className="inline-flex items-center bg-white border border-gray-200 px-5 py-2.5 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all shadow-sm"
-              >
-                첫 시나리오 만들기
-              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -755,8 +740,10 @@ const AITalkPage: React.FC = () => {
                   onClick={() => openModal(s)}
                 >
                   <div className="flex items-start gap-4">
+                    {/* 변경된 아이콘 스타일 적용 */}
                     <div
-                      className={`${s.bgClass} ${s.textClass} p-3.5 rounded-2xl shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-300 border ${s.borderClass}`}
+                      className={`${s.colorClass} text-white p-3.5 rounded-2xl shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-300`}
+                      style={{ border: `1px solid ${s.colorHex}` }}
                     >
                       {s.icon}
                     </div>

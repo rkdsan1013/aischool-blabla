@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAITalkRecorder } from "../hooks/useAITalkRecorder";
-import { useAuth } from "../hooks/useAuth";
+// ✅ 변경: useAuth 대신 useProfile 사용 (Source of Truth)
+import { useProfile } from "../hooks/useProfile";
 
 // --- 상수: CEFR 레벨 정보 ---
 const CEFR_LEVELS = [
@@ -31,8 +32,11 @@ const MAX_TURNS = 1;
 const LevelTestPage: React.FC = () => {
   const navigate = useNavigate();
 
-  // 1. 실제 로그인 상태 가져오기
-  const { isLoggedIn } = useAuth();
+  // ✅ [수정 핵심] ProfileContext에서 유저 정보와 로딩 상태를 가져옵니다.
+  const { profile, isProfileLoading } = useProfile();
+
+  // profile 객체가 존재하면 로그인 상태, 아니면 게스트 상태
+  const isLoggedIn = !!profile;
   const isGuestMode = !isLoggedIn;
 
   // --- Refs ---
@@ -42,9 +46,8 @@ const LevelTestPage: React.FC = () => {
   const isUnmountedRef = useRef(false);
 
   // --- States ---
-  const [testStep, setTestStep] = useState<"selection" | "test">(
-    isGuestMode ? "selection" : "test"
-  );
+  // 초기 로딩 중일 때는 잠시 대기(null)하거나 selection으로 둠
+  const [testStep, setTestStep] = useState<"selection" | "test">("selection");
   const [selectedCefr, setSelectedCefr] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -55,13 +58,16 @@ const LevelTestPage: React.FC = () => {
   // 모달 상태
   const [showExitModal, setShowExitModal] = useState(false);
 
-  // ✅ [추가된 코드] 로그인 상태가 변경되면 testStep을 업데이트
-  // 로그인이 확인되면 무조건 테스트 단계로 전환, 게스트라면 기존 로직 유지
+  // ✅ [수정된 코드] 로딩이 끝나면 로그인 여부에 따라 step 결정
   useEffect(() => {
-    if (!isGuestMode) {
+    if (isProfileLoading) return; // 프로필 로딩 중이면 대기
+
+    if (isLoggedIn) {
       setTestStep("test");
+    } else {
+      setTestStep("selection");
     }
-  }, [isGuestMode]);
+  }, [isProfileLoading, isLoggedIn]);
 
   // --- Logic: AI Speaking ---
   const simulateAISpeaking = useCallback(() => {
@@ -199,9 +205,19 @@ const LevelTestPage: React.FC = () => {
     setShowExitModal(false);
   };
 
+  // ✅ [로딩 처리] 프로필 확인 중일 때 깜빡임 방지용 로더
+  if (isProfileLoading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+        <Loader2 className="w-10 h-10 text-rose-500 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen w-full bg-slate-50 text-gray-900 flex flex-col relative overflow-hidden">
-      {/* --- [배경 레이어] (공통 디자인) --- */}
+      {/* ... (이하 JSX는 기존 코드와 동일하여 생략, 기존 return 내부 코드 그대로 사용) ... */}
+      {/* --- [배경 레이어] --- */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-rose-200/40 rounded-full blur-3xl opacity-60" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-200/40 rounded-full blur-3xl opacity-60" />
@@ -310,7 +326,6 @@ const LevelTestPage: React.FC = () => {
         {/* [Step 2] 테스트 진행 화면 */}
         {testStep === "test" && (
           <div className="h-full flex flex-col pt-16 pb-safe animate-fade-in relative">
-            {/* 상단 텍스트 */}
             <div className="flex-none flex flex-col items-center justify-center h-[20vh] min-h-[120px]">
               <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-gray-900 mb-2">
                 {isLoading
@@ -326,7 +341,6 @@ const LevelTestPage: React.FC = () => {
               </p>
             </div>
 
-            {/* 비주얼라이저 */}
             <div className="flex-1 flex items-center justify-center pb-24 sm:pb-0">
               <div className="relative flex items-center justify-center">
                 {isAISpeaking && (
@@ -377,7 +391,6 @@ const LevelTestPage: React.FC = () => {
               </div>
             </div>
 
-            {/* 하단 힌트 (버튼 없음) */}
             <div className="absolute bottom-0 left-0 w-full pb-8 sm:pb-10 flex flex-col items-center justify-end gap-4 pointer-events-none">
               {!isConversationEnded && (
                 <div className="flex flex-col items-center gap-4 w-full pointer-events-auto">

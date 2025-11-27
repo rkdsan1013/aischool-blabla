@@ -2,7 +2,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  X,
   ChevronLeft,
   Pencil,
   FileText,
@@ -221,7 +220,7 @@ const AITalkCustomScenario: React.FC = () => {
     <div className="min-h-screen bg-slate-50 pb-20 text-gray-900">
       {/* --- Header --- */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center">
           <div className="flex items-center gap-3">
             <button
               onClick={handleCancel}
@@ -234,13 +233,7 @@ const AITalkCustomScenario: React.FC = () => {
               {editId ? "시나리오 수정" : "시나리오 만들기"}
             </h1>
           </div>
-          <button
-            onClick={handleCancel}
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500"
-            aria-label="닫기"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {/* 우측 X 버튼 제거됨 */}
         </div>
       </header>
 
@@ -355,7 +348,7 @@ const AITalkCustomScenario: React.FC = () => {
             </div>
           </section>
 
-          {/* Submit Button (Mobile/Desktop consistent) */}
+          {/* Submit Button */}
           <div className="pt-2">
             <button
               type="button"

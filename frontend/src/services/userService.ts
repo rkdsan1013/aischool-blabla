@@ -16,19 +16,17 @@ export type UserProfileResponse = {
   tier?: string;
 };
 
-// [추가] 출석 통계 타입
 export interface AttendanceStat {
   date: string;
   count: number;
 }
 
-// [추가] 통합 히스토리 타입
 export interface HistoryRecord {
   id: string;
   type: "TRAINING" | "CONVERSATION";
   subType: string;
   title: string;
-  date: string; // JSON 응답은 string
+  date: string;
   score?: number;
   durationSeconds?: number;
   messageCount?: number;
@@ -71,6 +69,21 @@ export async function updateUserProfile(
 }
 
 /**
+ * [수정됨] 사용자 레벨 및 진척도 업데이트
+ * levelProgress 추가
+ */
+export async function updateUserLevel(
+  level: string,
+  levelProgress: number
+): Promise<void> {
+  try {
+    await apiClient.put("/user/me/level", { level, levelProgress });
+  } catch (error: unknown) {
+    handleApiError(error, "레벨 업데이트");
+  }
+}
+
+/**
  * 사용자 비밀번호 변경
  */
 export async function changePassword(
@@ -103,7 +116,7 @@ export async function deleteUser(): Promise<boolean> {
 }
 
 /**
- * [추가] 내 출석(학습) 기록 조회
+ * 내 출석(학습) 기록 조회
  */
 export async function getMyAttendance(): Promise<AttendanceStat[]> {
   try {
@@ -116,7 +129,7 @@ export async function getMyAttendance(): Promise<AttendanceStat[]> {
 }
 
 /**
- * [추가] 통합 히스토리 조회
+ * 통합 히스토리 조회
  */
 export async function getMyHistory(): Promise<HistoryRecord[]> {
   try {

@@ -1,3 +1,4 @@
+// backend/src/services/userService.ts
 import {
   findUserByEmail as findUserByEmailModel,
   findUserWithProfileById,
@@ -5,7 +6,7 @@ import {
   updateUserProfileInDB,
   deleteUserTransaction,
   updateUserPasswordInDB,
-  getUserAttendanceStats as getUserAttendanceStatsModel, // [추가] 모델 import
+  getUserAttendanceStats as getUserAttendanceStatsModel,
 } from "../models/userModel";
 import bcrypt from "bcrypt";
 
@@ -123,6 +124,24 @@ export async function updateUserProfile(
   await updateUserProfileInDB(userId, clean);
 }
 
+// ✅ [수정됨] 유저 레벨 및 진척도 업데이트 전용 함수
+export async function updateUserLevel(
+  userId: number,
+  level: string,
+  levelProgress: number // 추가됨
+): Promise<void> {
+  const validLevels = ["A1", "A2", "B1", "B2", "C1", "C2"];
+  if (!validLevels.includes(level)) {
+    throw new Error("Invalid CEFR level");
+  }
+
+  // DB 업데이트: level과 level_progress 동시 반영
+  await updateUserProfileInDB(userId, {
+    level: level as any,
+    level_progress: levelProgress,
+  });
+}
+
 export async function deleteUser(userId: number): Promise<void> {
   await deleteUserTransaction(userId);
 }
@@ -150,7 +169,7 @@ export async function changeUserPassword(
   await updateUserPasswordInDB(userId, hashed);
 }
 
-// [추가] 출석 데이터 조회 서비스
+// 출석 데이터 조회 서비스
 export async function getUserAttendanceStats(
   userId: number
 ): Promise<{ date: string; count: number }[]> {

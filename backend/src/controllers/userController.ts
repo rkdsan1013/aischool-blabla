@@ -1,11 +1,12 @@
+// backend/src/controllers/userController.ts
 import { Request, Response } from "express";
 import {
   getUserById,
   updateUserProfile,
   deleteUserById,
   changeUserPassword,
+  updateUserLevel, // [추가]
 } from "../services/userService";
-// [수정] getUserHistoryStats 추가 import
 import {
   getUserAttendanceStats,
   getUserHistoryStats,
@@ -27,7 +28,6 @@ export async function getMyProfileHandler(req: Request, res: Response) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // 필요한 필드만 깔끔하게 반환
     return res.json({
       user_id: userProfile.user_id,
       email: userProfile.email,
@@ -58,13 +58,11 @@ export async function updateMyProfileHandler(req: Request, res: Response) {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // 업데이트 가능한 필드만 추출
     const { name, profile_img } = req.body as {
       name?: string;
       profile_img?: string | null;
     };
 
-    // 간단한 유효성 체크
     const payload: { name?: string; profile_img?: string | null } = {};
     if (typeof name === "string") payload.name = name.trim();
     if (profile_img === null || typeof profile_img === "string") {
@@ -73,7 +71,6 @@ export async function updateMyProfileHandler(req: Request, res: Response) {
 
     await updateUserProfile(userId, payload);
 
-    // 변경 후 최신 프로필 반환 (프론트가 갱신하기 편하도록)
     const updated = await getUserById(userId);
     return res.json({
       message: "Profile updated successfully",
@@ -100,6 +97,43 @@ export async function updateMyProfileHandler(req: Request, res: Response) {
 }
 
 /**
+ * [수정됨] PUT /api/user/me/level
+ * 사용자 레벨 및 진척도 업데이트
+ */
+export async function updateLevelHandler(req: Request, res: Response) {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    // level과 levelProgress 추출
+    const { level, levelProgress } = req.body;
+
+    if (!level) {
+      return res.status(400).json({ message: "Level is required" });
+    }
+
+    // levelProgress 기본값 처리 (없으면 0)
+    const progress = typeof levelProgress === "number" ? levelProgress : 0;
+
+    // 서비스 호출 시 progress도 전달
+    await updateUserLevel(userId, level, progress);
+
+    return res.json({
+      message: "Level updated successfully",
+      level,
+      levelProgress: progress,
+    });
+  } catch (err: any) {
+    console.error("[USER CONTROLLER] updateLevel error:", err);
+    return res
+      .status(500)
+      .json({ error: err.message || "Failed to update level" });
+  }
+}
+
+/**
  * PUT /api/user/me/password
  * 현재 로그인한 사용자의 비밀번호 변경
  */
@@ -115,7 +149,6 @@ export async function changePasswordHandler(req: Request, res: Response) {
       newPassword?: string;
     };
 
-    // 간단한 유효성 검증
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ message: "Missing password fields" });
     }
@@ -130,7 +163,6 @@ export async function changePasswordHandler(req: Request, res: Response) {
     return res.json({ message: "Password changed successfully" });
   } catch (err: any) {
     console.error("[USER CONTROLLER] changePassword error:", err);
-    // 서비스 레이어에서 던진 에러 메시지 기준으로 400 처리
     const msg =
       typeof err?.message === "string"
         ? err.message
@@ -183,7 +215,7 @@ export async function getMyAttendanceHandler(req: Request, res: Response) {
 
 /**
  * GET /api/user/me/history
- * [신규] 통합 히스토리 조회 핸들러
+ * 통합 히스토리 조회 핸들러
  */
 export async function getMyHistoryHandler(req: Request, res: Response) {
   try {

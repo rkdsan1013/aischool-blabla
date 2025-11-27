@@ -1,5 +1,5 @@
 // frontend/src/pages/LevelTestResultPage.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   CheckCircle2,
@@ -12,6 +12,8 @@ import {
   X,
   Share2,
 } from "lucide-react";
+import { updateUserLevel } from "../services/userService";
+import { useProfile } from "../hooks/useProfile";
 
 // --- 타입 정의 ---
 type Level = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
@@ -20,7 +22,6 @@ interface ResultState {
   level: Level;
   prevProgress: number;
   currentProgress: number;
-  // score: number; // ✅ 제거됨
   isGuest: boolean;
   selectedBaseLevel?: string;
 }
@@ -30,6 +31,12 @@ const LevelTestResultPage: React.FC = () => {
   const location = useLocation();
   const [result, setResult] = useState<ResultState | null>(null);
 
+  // 중복 저장 방지용 Ref
+  const isSavedRef = useRef(false);
+
+  // 전역 프로필 상태 갱신 훅
+  const { refreshProfile } = useProfile();
+
   useEffect(() => {
     if (location.state) {
       setResult(location.state as ResultState);
@@ -37,6 +44,34 @@ const LevelTestResultPage: React.FC = () => {
       navigate("/");
     }
   }, [location, navigate]);
+
+  // ✅ [수정됨] 로그인 사용자일 경우 레벨 및 진척도 업데이트 수행
+  useEffect(() => {
+    const saveLevel = async () => {
+      // 결과가 있고, 게스트가 아니며, 아직 저장하지 않았다면 실행
+      if (result && !result.isGuest && !isSavedRef.current) {
+        isSavedRef.current = true; // 중복 호출 방지 플래그 설정
+        try {
+          console.log(
+            `💾 [LevelResult] 서버 저장 시도: Level=${result.level}, Progress=${result.currentProgress}`
+          );
+
+          // ✅ updateUserLevel 호출 시 currentProgress 함께 전달
+          await updateUserLevel(result.level, result.currentProgress);
+
+          // 전역 프로필 상태 갱신 (헤더 등 UI 즉시 반영)
+          await refreshProfile();
+          console.log("✅ [LevelResult] 저장 및 프로필 갱신 완료");
+        } catch (err) {
+          console.error("❌ [LevelResult] 저장 실패:", err);
+          // 실패 시 재시도 가능하도록 플래그 해제 (필요에 따라 주석 처리)
+          isSavedRef.current = false;
+        }
+      }
+    };
+
+    saveLevel();
+  }, [result, refreshProfile]);
 
   if (!result) return null;
 
@@ -203,7 +238,6 @@ const LevelTestResultPage: React.FC = () => {
                 <button
                   onClick={() =>
                     navigate("/auth?mode=signup", {
-                      // ✅ [수정됨] score 제거, level만 전달
                       state: { level: result.level },
                     })
                   }

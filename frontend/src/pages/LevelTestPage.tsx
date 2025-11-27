@@ -46,7 +46,6 @@ const LevelTestPage: React.FC = () => {
   const isUnmountedRef = useRef(false);
 
   // --- States ---
-  // 초기 로딩 중일 때는 잠시 대기(null)하거나 selection으로 둠
   const [testStep, setTestStep] = useState<"selection" | "test">("selection");
   const [selectedCefr, setSelectedCefr] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -111,11 +110,11 @@ const LevelTestPage: React.FC = () => {
         setIsConversationEnded(true);
         setStatusText("대화 종료. 분석 중...");
         setTimeout(() => {
+          // ✅ [수정됨] 더미 결과 생성 시 선택한 레벨 반영
           const dummyResult = {
-            level: "C2",
-            prevProgress: 40,
-            currentProgress: 10,
-            // score: 850, // ✅ 제거됨
+            level: selectedCefr || "A1", // 선택한 레벨을 결과로 사용
+            prevProgress: 0, // 초기 진척도
+            currentProgress: 10, // 테스트 후 약간 상승한 것으로 가정
             isGuest: isGuestMode,
             selectedBaseLevel: selectedCefr,
           };
@@ -131,7 +130,7 @@ const LevelTestPage: React.FC = () => {
     isConversationEnded,
     isGuestMode,
     testStep,
-    selectedCefr,
+    selectedCefr, // 의존성 배열에 포함되어 있으므로 최신 값 접근 가능
   ]);
 
   // --- Hook: Recorder ---

@@ -58,7 +58,10 @@ const VoiceRoomCreate: React.FC = () => {
     } catch (err: unknown) {
       console.error("방 생성 실패:", err);
       let message = "방 생성 중 오류가 발생했습니다.";
+
+      // [Logic Restored]: ApiErrorResponse 타입 사용
       const apiError = err as ApiErrorResponse;
+
       if (apiError.response?.data?.message) {
         message = apiError.response.data.message;
       } else if (apiError.message) {
@@ -95,12 +98,11 @@ const VoiceRoomCreate: React.FC = () => {
     );
   }
 
-  // [Modified]: pb-16 삭제 (네비게이션 바가 없는 페이지)
   return (
     <div className="min-h-screen bg-slate-50 text-gray-900">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 flex items-center">
           <div className="flex items-center gap-3">
             <button
               onClick={handleCancel}
@@ -109,7 +111,7 @@ const VoiceRoomCreate: React.FC = () => {
             >
               <ChevronLeft className="w-6 h-6" />
             </button>
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900">
+            <h1 className="text-lg font-bold text-gray-900">
               새로운 방 만들기
             </h1>
           </div>
@@ -273,7 +275,7 @@ const VoiceRoomCreate: React.FC = () => {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full rounded-2xl bg-rose-500 text-white px-6 py-4 text-base font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full rounded-2xl bg-rose-500 text-white px-6 py-4 text-base font-bold shadow-md shadow-rose-200 hover:bg-rose-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {submitting ? (
                 <>

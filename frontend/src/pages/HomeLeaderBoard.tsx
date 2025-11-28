@@ -229,7 +229,7 @@ const HomeLeaderBoard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className="min-h-screen bg-slate-50 pb-10">
       {/* --- Top Section (Header + Podium) --- */}
       <div className="bg-linear-to-br from-rose-500 to-pink-600 pb-8 rounded-b-[2.5rem] shadow-xl relative overflow-hidden">
         {/* Background Decor */}

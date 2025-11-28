@@ -268,7 +268,7 @@ const MyPageHistory: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20 text-gray-900">
+    <div className="min-h-screen bg-slate-50 text-gray-900">
       {/* --- Header --- */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">

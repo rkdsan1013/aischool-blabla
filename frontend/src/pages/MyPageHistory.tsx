@@ -31,7 +31,6 @@ const CustomDropdown: React.FC<{
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
-  // [수정됨] activeIndex 제거 (사용하지 않음)
 
   useEffect(() => {
     if (!open) return;
@@ -67,7 +66,7 @@ const CustomDropdown: React.FC<{
   return (
     <div className="relative w-full">
       {label && (
-        <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">
+        <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">
           {label}
         </label>
       )}
@@ -105,7 +104,7 @@ const CustomDropdown: React.FC<{
             : "opacity-0 scale-y-95 pointer-events-none"
         }`}
       >
-        <ul className="max-h-60 overflow-auto py-1.5">
+        <ul className="max-h-60 overflow-auto py-1.5 scrollbar-hide">
           {options.map((opt, i) => {
             const selected = opt.value === value;
             return (
@@ -131,7 +130,7 @@ const CustomDropdown: React.FC<{
   );
 };
 
-// ... (Helpers 유지)
+// ... (Helpers)
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr);
   return date.toLocaleDateString("ko-KR", {
@@ -268,10 +267,11 @@ const MyPageHistory: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-gray-900">
+    <div className="min-h-screen bg-slate-50 pb-16 md:pb-0 text-gray-900">
       {/* --- Header --- */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+        {/* [Unified Layout]: max-w-2xl (was 5xl) to match Profile page */}
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate(-1)}
@@ -298,7 +298,8 @@ const MyPageHistory: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      {/* [Unified Layout]: max-w-2xl (was 5xl) */}
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         {/* --- Filters --- */}
         <div
           className={`bg-white rounded-3xl border border-gray-200 p-5 shadow-sm transition-all duration-300 ${
@@ -341,7 +342,7 @@ const MyPageHistory: React.FC = () => {
             />
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">
                 시작일
               </label>
               <div className="relative">
@@ -355,7 +356,7 @@ const MyPageHistory: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">
                 종료일
               </label>
               <div className="relative">
@@ -381,7 +382,7 @@ const MyPageHistory: React.FC = () => {
 
           {filteredHistory.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-3xl border border-gray-200 border-dashed">
-              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-100">
                 <Search className="w-8 h-8 text-gray-300" />
               </div>
               <p className="text-gray-900 font-medium mb-1">기록이 없습니다</p>
@@ -400,15 +401,15 @@ const MyPageHistory: React.FC = () => {
                   <div
                     key={item.id}
                     onClick={() => handleItemClick(item)}
-                    className="group bg-white rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md hover:border-rose-200 transition-all duration-300 cursor-pointer active:scale-[0.99]"
+                    className="group relative bg-white rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md hover:border-rose-100 transition-all duration-300 cursor-pointer hover:-translate-y-1 active:scale-[0.99]"
                   >
                     <div className="flex items-start gap-4">
                       {/* Icon */}
                       <div
-                        className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-110 ${
+                        className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border transition-transform duration-300 group-hover:scale-110 ${
                           isTraining
-                            ? "bg-indigo-50 text-indigo-500 border border-indigo-100"
-                            : "bg-rose-50 text-rose-500 border border-rose-100"
+                            ? "bg-indigo-50 text-indigo-500 border-indigo-100"
+                            : "bg-rose-50 text-rose-500 border-rose-100"
                         }`}
                       >
                         {isTraining ? (

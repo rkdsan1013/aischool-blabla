@@ -19,10 +19,6 @@ import {
   changePassword,
 } from "../services/userService";
 
-// ... (타입 정의 및 컴포넌트 로직은 기존과 동일) ...
-// 전체 코드는 길어지므로 변경된 import 부분만 강조했습니다.
-// 실제 사용 시에는 이전에 작성해드린 MyPageProfile 전체 코드에서 import { X, ... } -> import { ..., ... } 로 X만 제거하면 됩니다.
-
 type ProfileState = {
   name: string;
   email: string;
@@ -46,7 +42,6 @@ const MyPageProfile: React.FC = () => {
   const { profile: globalProfile, refreshProfile } = useProfile();
   const { logout } = useAuth();
 
-  // ... (상태 및 핸들러 로직 유지) ...
   const [profile, setProfile] = useState<ProfileState>({
     name: "",
     email: "",
@@ -194,8 +189,10 @@ const MyPageProfile: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-gray-900">
+    // [Unified Layout]: pb-16 md:pb-0
+    <div className="min-h-screen bg-slate-50 text-gray-900 pb-16 md:pb-0">
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
+        {/* [Unified Layout]: max-w-2xl */}
         <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -212,7 +209,8 @@ const MyPageProfile: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      {/* [Unified Layout]: max-w-2xl */}
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-6 sm:p-8">
             <div className="flex flex-col items-center mb-8">
@@ -313,7 +311,10 @@ const MyPageProfile: React.FC = () => {
                   onChange={(e) => {
                     setPasswords((s) => ({ ...s, current: e.target.value }));
                     if (pwdErrors.current)
-                      setPwdErrors((prev) => ({ ...prev, current: undefined }));
+                      setPwdErrors((prev) => ({
+                        ...prev,
+                        current: undefined,
+                      }));
                   }}
                   className={`w-full rounded-2xl bg-gray-50 border px-4 py-3.5 text-sm focus:outline-none focus:ring-2 transition-all ${
                     pwdErrors.current
@@ -355,9 +356,15 @@ const MyPageProfile: React.FC = () => {
                   type="password"
                   value={passwords.confirm}
                   onChange={(e) => {
-                    setPasswords((s) => ({ ...s, confirm: e.target.value }));
+                    setPasswords((s) => ({
+                      ...s,
+                      confirm: e.target.value,
+                    }));
                     if (pwdErrors.confirm)
-                      setPwdErrors((prev) => ({ ...prev, confirm: undefined }));
+                      setPwdErrors((prev) => ({
+                        ...prev,
+                        confirm: undefined,
+                      }));
                   }}
                   className={`w-full rounded-2xl bg-gray-50 border px-4 py-3.5 text-sm focus:outline-none focus:ring-2 transition-all ${
                     pwdErrors.confirm

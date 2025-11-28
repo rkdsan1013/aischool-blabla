@@ -152,9 +152,9 @@ export default function VoiceRoomPage() {
     );
   }, [rooms, query]);
 
-  // [수정됨]: pb-16 / md:pb-0
+  // [수정됨]: lg 기준으로 하단 패딩 제거 (lg:pb-0), 모바일은 pb-16
   return (
-    <div className="min-h-screen bg-slate-50 pb-16 md:pb-0 text-gray-900">
+    <div className="min-h-screen bg-slate-50 pb-16 lg:pb-0 text-gray-900">
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-10">
         {/* Hero / Banner Section */}
         <section>

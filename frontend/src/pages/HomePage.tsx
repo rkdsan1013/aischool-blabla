@@ -264,8 +264,6 @@ const HomePage: React.FC = () => {
 
   const chosenTier = tierStyles[tier] ?? tierStyles.Bronze;
 
-  // [Deleted] Removed unused getMedalIcon function
-
   const podiumOrder = (() => {
     if (!topUsers || topUsers.length === 0) return [];
     const sorted = [...topUsers].sort((a, b) => a.rank - b.rank);
@@ -275,9 +273,9 @@ const HomePage: React.FC = () => {
     return [a, b, c].filter(Boolean) as LeaderboardUser[];
   })();
 
-  // [Unified Layout]: pb-16 (모바일 네비바 높이만큼만 확보) / md:pb-0 (데스크탑은 여백 제거)
+  // [수정됨]: lg 기준으로 하단 패딩 제거 (lg:pb-0), 모바일은 pb-16
   return (
-    <div className="min-h-screen bg-slate-50 pb-16 md:pb-0 text-gray-900">
+    <div className="min-h-screen bg-slate-50 pb-16 lg:pb-0 text-gray-900">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -341,7 +339,6 @@ const HomePage: React.FC = () => {
                 className="group relative bg-white rounded-2xl p-4 sm:p-5 text-left border border-gray-200 shadow-sm hover:shadow-md hover:border-rose-100 transition-all duration-300 active:scale-[0.99]"
               >
                 <div className="flex items-center gap-4">
-                  {/* [Modified]: Added shadow-sm for distinguished feeling */}
                   <div
                     className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 shadow-sm ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
                   >
@@ -399,7 +396,6 @@ const HomePage: React.FC = () => {
                 아직 랭킹 정보가 없습니다.
               </div>
             ) : (
-              // Refactored Podium Structure to match HomeLeaderBoard.tsx
               <div className="flex items-end justify-center gap-3 sm:gap-6 pt-4 pb-2 border-b border-gray-100 mb-0">
                 {podiumOrder.map((user) => {
                   const isFirst = user.rank === 1;
@@ -413,7 +409,6 @@ const HomePage: React.FC = () => {
                   const userTierStyle =
                     tierStyles[user.tier ?? "Bronze"] ?? tierStyles.Bronze;
 
-                  // High Contrast Rank Colors
                   const rankColor =
                     user.rank === 1
                       ? "bg-yellow-100 border-yellow-300 text-yellow-800"
@@ -434,11 +429,9 @@ const HomePage: React.FC = () => {
                       className="flex-1 max-w-[120px] flex flex-col items-center group"
                     >
                       <div className="mb-3 flex flex-col items-center gap-1 text-center transition-transform duration-300 group-hover:-translate-y-1 relative">
-                        {/* 1. Avatar Ring/Container */}
                         <div
                           className={`rounded-full p-1 border-2 ${ringColor} bg-white`}
                         >
-                          {/* [Modified]: Single Letter Avatar & Unified Style (bg-gray-100 text-gray-500) */}
                           <div
                             className="rounded-full flex items-center justify-center font-bold shadow-sm bg-gray-100 text-gray-500"
                             style={{
@@ -451,7 +444,6 @@ const HomePage: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* 2. Tier Badge (Pill) - NEW */}
                         <div
                           className={`flex items-center gap-1 -mt-3 z-10 px-2 py-0.5 rounded-full border shadow-xs bg-linear-to-r ${userTierStyle.bgClass}`}
                         >
@@ -462,7 +454,6 @@ const HomePage: React.FC = () => {
                           </span>
                         </div>
 
-                        {/* 3. Name & Score */}
                         <div className="mt-2 flex flex-col items-center">
                           <div className="font-bold text-sm text-gray-900 truncate w-20 sm:w-24">
                             {user.name}
@@ -473,7 +464,6 @@ const HomePage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* 4. Podium Box (Unified Styling) */}
                       <div
                         className={`w-full rounded-t-2xl shadow-inner border-t border-x ${rankColor} ${heightClass} flex items-start justify-center pt-3 relative overflow-hidden`}
                       >

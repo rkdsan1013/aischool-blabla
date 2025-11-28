@@ -1,4 +1,4 @@
-// frontend/src/pages/HomePage.tsx
+// src/pages/HomePage.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -10,7 +10,6 @@ import {
   Trophy,
   Flame,
   ChevronRight,
-  Repeat,
   Sparkles,
 } from "lucide-react";
 import type { TrainingType } from "../services/trainingService";
@@ -48,10 +47,9 @@ interface TrainingStep {
   title: string;
   description: string;
   icon: React.ReactNode;
-  // bgClass 제거됨
-  textClass: string; // 아이콘 색상은 유지
-  repeatsToday: number;
+  textClass: string; // 아이콘 색상
   startType: TrainingType;
+  // repeatsToday 제거됨
 }
 
 type LocalProfileContext = {
@@ -152,7 +150,7 @@ const HomePage: React.FC = () => {
   if (!profile) return null;
 
   // --- Training Steps Data ---
-  // bgClass 제거, textClass 유지
+  // repeatsToday 데이터 제거
   const steps: TrainingStep[] = [
     {
       id: "vocabulary",
@@ -160,7 +158,6 @@ const HomePage: React.FC = () => {
       description: "새로운 단어를 배우고 복습하세요",
       icon: <BookOpen className="w-5 h-5" />,
       textClass: "text-rose-600",
-      repeatsToday: 2,
       startType: "vocabulary",
     },
     {
@@ -169,7 +166,6 @@ const HomePage: React.FC = () => {
       description: "단어를 올바른 순서로 배열하세요",
       icon: <ListOrdered className="w-5 h-5" />,
       textClass: "text-orange-600",
-      repeatsToday: 1,
       startType: "sentence",
     },
     {
@@ -178,7 +174,6 @@ const HomePage: React.FC = () => {
       description: "문맥에 맞는 단어를 선택하세요",
       icon: <Link2 className="w-5 h-5" />,
       textClass: "text-amber-600",
-      repeatsToday: 0,
       startType: "blank",
     },
     {
@@ -187,7 +182,6 @@ const HomePage: React.FC = () => {
       description: "주어진 주제로 문장을 작성해보세요",
       icon: <PenTool className="w-5 h-5" />,
       textClass: "text-emerald-600",
-      repeatsToday: 0,
       startType: "writing",
     },
     {
@@ -196,7 +190,6 @@ const HomePage: React.FC = () => {
       description: "AI 튜터와 발음을 교정해보세요",
       icon: <Mic className="w-5 h-5" />,
       textClass: "text-indigo-600",
-      repeatsToday: 3,
       startType: "speaking",
     },
   ];
@@ -305,7 +298,7 @@ const HomePage: React.FC = () => {
                 님!
               </h1>
               <p className="text-gray-500 text-sm mt-1">
-                오늘도 목표를 향해 달려볼까요?
+                오늘도 목표를 향해 달려볼까요? 🏃‍♂️
               </p>
             </div>
 
@@ -379,15 +372,10 @@ const HomePage: React.FC = () => {
                       <h3 className="font-bold text-gray-900 text-base group-hover:text-rose-600 transition-colors">
                         {s.title}
                       </h3>
-                      {/* Loading or Count Badge */}
-                      {prefetchingType === s.startType ? (
+                      {/* Loading Badge (반복 횟수 제거됨, 로딩만 표시) */}
+                      {prefetchingType === s.startType && (
                         <span className="text-xs font-medium text-rose-500 bg-rose-50 px-2 py-1 rounded-lg animate-pulse">
                           준비중...
-                        </span>
-                      ) : (
-                        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-lg flex items-center gap-1">
-                          <Repeat className="w-3 h-3" />
-                          {s.repeatsToday}회
                         </span>
                       )}
                     </div>
@@ -412,7 +400,7 @@ const HomePage: React.FC = () => {
                 리더보드
               </h2>
               <p className="text-sm text-gray-500 mt-1">
-                상위권 학습자들과 경쟁해보세요
+                상위권 학습자들과 경쟁해보세요 🔥
               </p>
             </div>
             <button

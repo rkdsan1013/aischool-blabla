@@ -714,9 +714,7 @@ const AITalkPage: React.FC = () => {
                 아직 만든 시나리오가 없어요
               </h3>
               <p className="text-sm sm:text-base text-gray-500 mb-8 max-w-md mx-auto text-pretty leading-relaxed">
-                내가 연습하고 싶은 상황이 있다면 직접 만들어보세요.
-                <br />
-                AI가 그 상황에 맞춰 대화해드립니다.
+                나만의 대화 상황을 만들어 더욱 효과적으로 학습해보세요.
               </p>
               <button
                 onClick={handleCreateNavigate}

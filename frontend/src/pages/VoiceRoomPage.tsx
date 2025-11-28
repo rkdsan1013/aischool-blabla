@@ -168,16 +168,12 @@ export default function VoiceRoomPage() {
                 <Radio className="w-3.5 h-3.5 animate-pulse" />
                 <span>LIVE VOICE CHAT</span>
               </div>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-3 leading-tight tracking-tight">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-1 leading-tight tracking-tight">
                 함께 대화하며
                 <br />
                 실력을 키워보세요
               </h1>
-              <p className="text-rose-100 text-sm sm:text-lg font-medium leading-relaxed max-w-xl mx-auto md:mx-0 opacity-90">
-                전 세계 학습자들과 실시간으로 연결되어
-                <br className="sm:hidden" />
-                자연스러운 대화를 나누고 언어 실력을 향상시키세요.
-              </p>
+              {/* 설명 문구 제거됨 */}
             </div>
 
             {/* Action Buttons inside Banner */}
@@ -202,7 +198,8 @@ export default function VoiceRoomPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="방 이름, 주제, 호스트, 레벨로 검색해보세요..."
-                className="w-full pl-12 pr-4 py-3.5 bg-transparent text-base placeholder:text-gray-400 focus:outline-none rounded-xl"
+                // 패딩 수정: py-3.5 -> py-2.5 (두께 감소)
+                className="w-full pl-12 pr-4 py-2.5 bg-transparent text-base placeholder:text-gray-400 focus:outline-none rounded-xl"
               />
             </div>
           </div>
@@ -341,7 +338,6 @@ export default function VoiceRoomPage() {
                             </div>
                           ))}
                           {room.previewUsers.length > 3 && (
-                            /* border-gray-100 제거하여 border-white와 충돌 해결 */
                             <div className="w-7 h-7 rounded-full border-2 border-white bg-gray-50 flex items-center justify-center text-[10px] font-bold text-gray-400 shadow-sm">
                               +{room.previewUsers.length - 3}
                             </div>

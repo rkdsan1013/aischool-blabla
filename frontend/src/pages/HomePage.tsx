@@ -291,7 +291,7 @@ const HomePage: React.FC = () => {
                 님!
               </h1>
               <p className="text-gray-500 text-sm mt-1">
-                오늘도 목표를 향해 달려볼까요? 🏃‍♂️
+                오늘도 목표를 향해 달려볼까요?
               </p>
             </div>
 
@@ -383,7 +383,7 @@ const HomePage: React.FC = () => {
                 리더보드
               </h2>
               <p className="text-sm text-gray-500 mt-1">
-                상위권 학습자들과 경쟁해보세요 🔥
+                상위권 학습자들과 경쟁해보세요
               </p>
             </div>
             <button

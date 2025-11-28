@@ -329,14 +329,14 @@ export default function VoiceRoomPage() {
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400 text-[10px] font-bold">
+                                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500 text-[10px] font-bold">
                                   {user.name.charAt(0).toUpperCase()}
                                 </div>
                               )}
                             </div>
                           ))}
                           {room.previewUsers.length > 3 && (
-                            <div className="w-7 h-7 rounded-full border-2 border-white bg-gray-50 flex items-center justify-center text-[10px] font-bold text-gray-400 shadow-sm">
+                            <div className="w-7 h-7 rounded-full border-2 border-white bg-gray-50 flex items-center justify-center text-[10px] font-bold text-gray-500 shadow-sm">
                               +{room.previewUsers.length - 3}
                             </div>
                           )}

@@ -288,7 +288,8 @@ const MyPage: React.FC = () => {
       <div className="bg-white p-6 sm:p-8 shadow-sm border-b border-gray-200">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-4 sm:gap-6 mb-6">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-3xl sm:text-4xl font-bold text-rose-500 shadow-sm">
+            {/* [Modified]: Unified default profile color to text-gray-500 */}
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-3xl sm:text-4xl font-bold text-gray-500 shadow-sm">
               {profile.name ? profile.name.charAt(0) : profile.email.charAt(0)}
             </div>
             <div className="flex-1 min-w-0">

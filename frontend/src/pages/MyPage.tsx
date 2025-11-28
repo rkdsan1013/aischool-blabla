@@ -24,7 +24,7 @@ const formatStudyTime = (totalSeconds: number) => {
   return hours.endsWith(".0") ? `${parseInt(hours)}시간` : `${hours}시간`;
 };
 
-// [Unified Style] StatCard
+// [Unified Style] StatCard (shadow-sm 유지)
 const StatCard: React.FC<{
   icon: React.ReactNode;
   value: React.ReactNode;
@@ -32,6 +32,7 @@ const StatCard: React.FC<{
 }> = ({ icon, value, label }) => (
   <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 shadow-sm hover:shadow-md transition-all duration-300">
     <div className="flex flex-col items-center text-center">
+      {/* Icon Area: shadow-sm 유지 */}
       <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gray-50 text-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-sm border border-gray-100">
         {icon}
       </div>
@@ -43,7 +44,7 @@ const StatCard: React.FC<{
   </div>
 );
 
-// [Unified Style] NavigateRow (계정 관리 카드)
+// [Unified Style] NavigateRow (shadow-sm 유지)
 const NavigateRow: React.FC<{
   icon: React.ReactNode;
   title: string;
@@ -63,7 +64,7 @@ const NavigateRow: React.FC<{
     }}
   >
     <div className="flex items-center gap-4">
-      {/* Icon Box: HomePage/AITalkPage와 동일한 스펙 적용 */}
+      {/* Icon Box: shadow-sm 유지 */}
       <div className="w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 shadow-sm transition-transform duration-300 group-hover:scale-110">
         {icon}
       </div>

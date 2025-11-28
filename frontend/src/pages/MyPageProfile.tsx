@@ -188,9 +188,10 @@ const MyPageProfile: React.FC = () => {
     }
   };
 
+  // [Modified]: Removed pb-16 md:pb-0 since this page does not have a bottom nav.
+  // Relying on py-8 in <main>.
   return (
-    // [Unified Layout]: pb-16 md:pb-0
-    <div className="min-h-screen bg-slate-50 text-gray-900 pb-16 md:pb-0">
+    <div className="min-h-screen bg-slate-50 text-gray-900">
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
         {/* [Unified Layout]: max-w-2xl */}
         <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">

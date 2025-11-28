@@ -341,8 +341,9 @@ const HomePage: React.FC = () => {
                 className="group relative bg-white rounded-2xl p-4 sm:p-5 text-left border border-gray-200 shadow-sm hover:shadow-md hover:border-rose-100 transition-all duration-300 active:scale-[0.99]"
               >
                 <div className="flex items-center gap-4">
+                  {/* [Modified]: Added shadow-sm for distinguished feeling */}
                   <div
-                    className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
+                    className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 shadow-sm ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
                   >
                     {s.icon}
                   </div>
@@ -412,7 +413,7 @@ const HomePage: React.FC = () => {
                   const userTierStyle =
                     tierStyles[user.tier ?? "Bronze"] ?? tierStyles.Bronze;
 
-                  // High Contrast Rank Colors (No Pastel)
+                  // High Contrast Rank Colors
                   const rankColor =
                     user.rank === 1
                       ? "bg-yellow-100 border-yellow-300 text-yellow-800"
@@ -437,7 +438,7 @@ const HomePage: React.FC = () => {
                         <div
                           className={`rounded-full p-1 border-2 ${ringColor} bg-white`}
                         >
-                          {/* [Modified]: Single Letter Avatar & Unified Style */}
+                          {/* [Modified]: Single Letter Avatar & Unified Style (bg-gray-100 text-gray-500) */}
                           <div
                             className="rounded-full flex items-center justify-center font-bold shadow-sm bg-gray-100 text-gray-500"
                             style={{

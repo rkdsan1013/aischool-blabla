@@ -462,8 +462,9 @@ const AITalkPage: React.FC = () => {
                 className="group relative bg-white rounded-2xl p-4 sm:p-5 text-left cursor-pointer shadow-sm border border-gray-200 hover:shadow-md hover:border-rose-100 transition-all duration-300 hover:-translate-y-1 active:scale-[0.99]"
               >
                 <div className="flex items-center gap-4">
+                  {/* [Modified]: Added shadow-sm for consistency */}
                   <div
-                    className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
+                    className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 shadow-sm ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
                   >
                     {s.icon}
                   </div>
@@ -527,8 +528,9 @@ const AITalkPage: React.FC = () => {
                   className="group relative bg-white rounded-2xl p-4 sm:p-5 cursor-pointer shadow-sm border border-gray-200 hover:shadow-md hover:border-rose-100 transition-all duration-300 hover:-translate-y-1 active:scale-[0.99]"
                 >
                   <div className="flex items-center gap-4">
+                    {/* [Modified]: Added shadow-sm for consistency */}
                     <div
-                      className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
+                      className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 shadow-sm ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
                     >
                       {s.icon}
                     </div>

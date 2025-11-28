@@ -158,7 +158,7 @@ export default function VoiceRoomPage() {
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-10">
         {/* Hero / Banner Section */}
         <section>
-          <div className="w-full bg-linear-to-br from-rose-500 to-pink-600 rounded-3xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="w-full bg-linear-to-br from-rose-500 to-pink-600 rounded-3xl p-6 sm:p-10 text-white shadow-lg relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 cursor-pointer hover:shadow-xl transition-all duration-300">
             {/* 배경 데코 */}
             <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 bg-rose-300 opacity-20 rounded-full blur-3xl pointer-events-none"></div>
@@ -180,11 +180,11 @@ export default function VoiceRoomPage() {
               </p>
             </div>
 
-            {/* Action Buttons inside Banner (Desktop) or below (Mobile) */}
+            {/* Action Buttons inside Banner */}
             <div className="relative z-10 flex flex-col sm:flex-row gap-3 w-full md:w-auto">
               <button
                 onClick={handleCreateRoom}
-                className="flex items-center justify-center gap-2 px-6 py-3.5 bg-white text-rose-600 font-bold rounded-xl shadow-lg hover:bg-rose-50 transition-all active:scale-[0.98]"
+                className="flex items-center justify-center gap-2 px-6 py-3.5 bg-white text-rose-600 font-bold rounded-xl shadow-md hover:bg-rose-50 transition-all active:scale-[0.98]"
               >
                 <Plus className="w-5 h-5" />
                 <span>방 만들기</span>
@@ -195,7 +195,7 @@ export default function VoiceRoomPage() {
 
         {/* Search & Filter Section */}
         <section className="sticky top-4 z-20">
-          <div className="bg-white/80 backdrop-blur-md p-2 rounded-2xl shadow-lg border border-white/20 ring-1 ring-gray-200/50">
+          <div className="bg-white/80 backdrop-blur-md p-2 rounded-2xl shadow-sm border border-gray-200">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
@@ -220,7 +220,7 @@ export default function VoiceRoomPage() {
                 {filteredRooms.length}
               </span>
             </div>
-            <div className="flex items-center gap-2 text-xs font-medium text-gray-500 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-100">
+            <div className="flex items-center gap-2 text-xs font-medium text-gray-500 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-200">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span>실시간</span>
             </div>
@@ -257,12 +257,13 @@ export default function VoiceRoomPage() {
                 return (
                   <div
                     key={room.id}
-                    className="group relative bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-sm hover:shadow-xl hover:border-rose-200 transition-all duration-300 hover:-translate-y-1 flex flex-col"
+                    className="group relative bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md hover:border-rose-100 transition-all duration-300 hover:-translate-y-1 flex flex-col"
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
                     {/* Header */}
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-2">
+                        {/* Level Badge - Unified Style */}
                         <span
                           className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
                             levelLabel === "초급"
@@ -271,13 +272,13 @@ export default function VoiceRoomPage() {
                               ? "bg-blue-50 text-blue-600 border-blue-100"
                               : levelLabel === "고급"
                               ? "bg-purple-50 text-purple-600 border-purple-100"
-                              : "bg-gray-100 text-gray-600 border-gray-200"
+                              : "bg-gray-50 text-gray-600 border-gray-100"
                           }`}
                         >
                           {levelLabel}
                         </span>
                         {room.isPrivate && (
-                          <div className="bg-gray-100 p-1 rounded-md text-gray-500">
+                          <div className="bg-gray-50 border border-gray-100 p-1 rounded-md text-gray-400">
                             <Lock className="w-3 h-3" />
                           </div>
                         )}
@@ -285,10 +286,10 @@ export default function VoiceRoomPage() {
 
                       {/* Participants Count Badge */}
                       <div
-                        className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${
+                        className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border ${
                           isFull
-                            ? "bg-red-50 text-red-600"
-                            : "bg-gray-100 text-gray-600"
+                            ? "bg-red-50 text-red-600 border-red-100"
+                            : "bg-gray-50 text-gray-600 border-gray-100"
                         }`}
                       >
                         <Users className="w-3 h-3" />
@@ -323,7 +324,7 @@ export default function VoiceRoomPage() {
                           {room.previewUsers.slice(0, 3).map((user) => (
                             <div
                               key={user.id}
-                              className="w-7 h-7 rounded-full border-2 border-white bg-gray-200 overflow-hidden shadow-sm"
+                              className="w-7 h-7 rounded-full border-2 border-white bg-gray-100 overflow-hidden shadow-sm"
                               title={user.name}
                             >
                               {user.image ? (
@@ -333,14 +334,15 @@ export default function VoiceRoomPage() {
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-rose-400 to-rose-500 text-white text-[10px] font-bold">
+                                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400 text-[10px] font-bold">
                                   {user.name.charAt(0).toUpperCase()}
                                 </div>
                               )}
                             </div>
                           ))}
                           {room.previewUsers.length > 3 && (
-                            <div className="w-7 h-7 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500 shadow-sm">
+                            /* border-gray-100 제거하여 border-white와 충돌 해결 */
+                            <div className="w-7 h-7 rounded-full border-2 border-white bg-gray-50 flex items-center justify-center text-[10px] font-bold text-gray-400 shadow-sm">
                               +{room.previewUsers.length - 3}
                             </div>
                           )}
@@ -368,7 +370,7 @@ export default function VoiceRoomPage() {
           {/* Empty State (Filtered) */}
           {!isLoading && filteredRooms.length === 0 && rooms.length > 0 && (
             <div className="text-center py-16 bg-white rounded-3xl border border-gray-200 shadow-sm">
-              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-100">
                 <Search className="w-8 h-8 text-gray-400" />
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-1">
@@ -379,7 +381,7 @@ export default function VoiceRoomPage() {
               </p>
               <button
                 onClick={handleCreateRoom}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-rose-500 text-white text-sm font-bold rounded-xl hover:bg-rose-600 transition-all"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-rose-500 text-white text-sm font-bold rounded-xl hover:bg-rose-600 transition-all shadow-md shadow-rose-100"
               >
                 <Plus className="w-4 h-4" />방 만들기
               </button>
@@ -389,7 +391,7 @@ export default function VoiceRoomPage() {
           {/* Empty State (No Rooms) */}
           {!isLoading && rooms.length === 0 && (
             <div className="text-center py-16 bg-white rounded-3xl border border-gray-200 shadow-sm">
-              <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-100">
                 <Radio className="w-8 h-8 text-rose-500" />
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-1">
@@ -400,7 +402,7 @@ export default function VoiceRoomPage() {
               </p>
               <button
                 onClick={handleCreateRoom}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-rose-500 text-white text-sm font-bold rounded-xl hover:bg-rose-600 transition-all"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-rose-500 text-white text-sm font-bold rounded-xl hover:bg-rose-600 transition-all shadow-md shadow-rose-100"
               >
                 <Plus className="w-4 h-4" />방 만들기
               </button>

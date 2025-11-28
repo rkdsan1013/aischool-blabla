@@ -281,7 +281,7 @@ const HomePage: React.FC = () => {
   })();
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24 text-gray-900">
+    <div className="min-h-screen bg-slate-50 pb-20 text-gray-900">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

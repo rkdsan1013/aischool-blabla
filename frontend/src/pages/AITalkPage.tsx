@@ -417,7 +417,7 @@ const AITalkPage: React.FC = () => {
     );
   };
 
-  // [수정됨] pb-16 / md:pb-0
+  // [수정됨]: pb-16 / md:pb-0
   return (
     <div className="min-h-screen bg-slate-50 pb-16 md:pb-0 text-gray-900">
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-10">
@@ -426,7 +426,8 @@ const AITalkPage: React.FC = () => {
             onClick={handleLevelTestNavigate}
             className="w-full bg-linear-to-br from-violet-600 to-indigo-600 rounded-3xl p-6 sm:p-8 text-white shadow-lg cursor-pointer hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex items-center justify-between relative overflow-hidden group"
           >
-            <div className="relative z-10 flex-1">
+            {/* [Modified]: text-left로 변경하여 모바일에서도 좌측 정렬 유지 */}
+            <div className="relative z-10 flex-1 text-left">
               <div className="flex items-center gap-2 mb-3">
                 <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold border border-white/10">
                   AI LEVEL TEST

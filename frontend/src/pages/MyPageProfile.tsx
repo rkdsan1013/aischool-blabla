@@ -216,7 +216,8 @@ const MyPageProfile: React.FC = () => {
           <div className="p-6 sm:p-8">
             <div className="flex flex-col items-center mb-8">
               <div className="relative group">
-                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-rose-100 flex items-center justify-center text-4xl font-bold text-rose-500 overflow-hidden shadow-inner border-4 border-white ring-1 ring-gray-100">
+                {/* [Modified]: Unified Avatar Style (bg-gray-100, text-gray-500) */}
+                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gray-100 flex items-center justify-center text-4xl font-bold text-gray-500 overflow-hidden shadow-inner border-4 border-white ring-1 ring-gray-100">
                   {profile.profileImage ? (
                     <img
                       src={profile.profileImage}

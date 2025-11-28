@@ -216,6 +216,7 @@ const AITalkCustomScenario: React.FC = () => {
     navigate("/ai-talk");
   };
 
+  // [Modified]: pb-16 삭제 (네비게이션 바가 없는 페이지)
   return (
     <div className="min-h-screen bg-slate-50 text-gray-900">
       {/* --- Header --- */}
@@ -233,12 +234,11 @@ const AITalkCustomScenario: React.FC = () => {
               {editId ? "시나리오 수정" : "시나리오 만들기"}
             </h1>
           </div>
-          {/* 우측 X 버튼 제거됨 */}
         </div>
       </header>
 
       {/* --- Main Content --- */}
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         {/* Error Message */}
         {error && (
           <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-2xl text-sm font-medium animate-fade-in">
@@ -337,7 +337,7 @@ const AITalkCustomScenario: React.FC = () => {
               </div>
 
               {/* Tip Box */}
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3 text-sm text-blue-700">
+              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-start gap-3 text-sm text-blue-700">
                 <Info className="w-5 h-5 shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
                   <strong>Tip:</strong> AI의 역할, 말투, 대화의 목적, 사용자의

@@ -264,12 +264,7 @@ const HomePage: React.FC = () => {
 
   const chosenTier = tierStyles[tier] ?? tierStyles.Bronze;
 
-  const getMedalIcon = (rank: number) => {
-    if (rank === 1) return "🥇";
-    if (rank === 2) return "🥈";
-    if (rank === 3) return "🥉";
-    return <span className="text-gray-400 font-bold text-lg">{rank}</span>;
-  };
+  // [Deleted] Removed unused getMedalIcon function
 
   const podiumOrder = (() => {
     if (!topUsers || topUsers.length === 0) return [];
@@ -280,7 +275,7 @@ const HomePage: React.FC = () => {
     return [a, b, c].filter(Boolean) as LeaderboardUser[];
   })();
 
-  // [수정됨] pb-16 (모바일 네비바 높이만큼만 확보) / md:pb-0 (데스크탑은 여백 제거)
+  // [Unified Layout]: pb-16 (모바일 네비바 높이만큼만 확보) / md:pb-0 (데스크탑은 여백 제거)
   return (
     <div className="min-h-screen bg-slate-50 pb-16 md:pb-0 text-gray-900">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
@@ -403,43 +398,85 @@ const HomePage: React.FC = () => {
                 아직 랭킹 정보가 없습니다.
               </div>
             ) : (
-              <div className="flex items-end justify-center gap-3 sm:gap-6 pt-4 pb-2">
+              // Refactored Podium Structure to match HomeLeaderBoard.tsx
+              <div className="flex items-end justify-center gap-3 sm:gap-6 pt-4 pb-2 border-b border-gray-100 mb-0">
                 {podiumOrder.map((user) => {
                   const isFirst = user.rank === 1;
                   const heightClass = isFirst
-                    ? "h-40 sm:h-48"
-                    : user.rank === 2
                     ? "h-32 sm:h-40"
-                    : "h-24 sm:h-32";
+                    : user.rank === 2
+                    ? "h-20 sm:h-28"
+                    : "h-20 sm:h-28";
 
-                  const bgGradient =
+                  const avatarSize = isFirst ? 72 : 56;
+                  const userTierStyle =
+                    tierStyles[user.tier ?? "Bronze"] ?? tierStyles.Bronze;
+
+                  // High Contrast Rank Colors (No Pastel)
+                  const rankColor =
                     user.rank === 1
-                      ? "bg-linear-to-t from-yellow-400 to-yellow-300 border-yellow-400"
+                      ? "bg-yellow-100 border-yellow-300 text-yellow-800"
                       : user.rank === 2
-                      ? "bg-linear-to-t from-slate-300 to-slate-200 border-slate-300"
-                      : "bg-linear-to-t from-orange-300 to-orange-200 border-orange-300";
+                      ? "bg-slate-100 border-slate-300 text-slate-700"
+                      : "bg-orange-100 border-orange-300 text-orange-800";
+
+                  const ringColor =
+                    user.rank === 1
+                      ? "border-yellow-400"
+                      : user.rank === 2
+                      ? "border-slate-400"
+                      : "border-orange-400";
 
                   return (
                     <div
                       key={user.rank}
                       className="flex-1 max-w-[120px] flex flex-col items-center group"
                     >
-                      <div className="mb-3 flex flex-col items-center gap-1 text-center transition-transform duration-300 group-hover:-translate-y-1">
-                        <div className="text-3xl sm:text-4xl drop-shadow-sm">
-                          {getMedalIcon(user.rank)}
+                      <div className="mb-3 flex flex-col items-center gap-1 text-center transition-transform duration-300 group-hover:-translate-y-1 relative">
+                        {/* 1. Avatar Ring/Container */}
+                        <div
+                          className={`rounded-full p-1 border-2 ${ringColor} bg-white`}
+                        >
+                          {/* [Modified]: Single Letter Avatar & Unified Style */}
+                          <div
+                            className="rounded-full flex items-center justify-center font-bold shadow-sm bg-gray-100 text-gray-500"
+                            style={{
+                              width: avatarSize,
+                              height: avatarSize,
+                              fontSize: avatarSize * 0.4,
+                            }}
+                          >
+                            {user.name.slice(0, 1).toUpperCase()}
+                          </div>
                         </div>
-                        <div className="font-bold text-sm text-gray-900 truncate w-20 sm:w-24">
-                          {user.name}
+
+                        {/* 2. Tier Badge (Pill) - NEW */}
+                        <div
+                          className={`flex items-center gap-1 -mt-3 z-10 px-2 py-0.5 rounded-full border shadow-xs bg-linear-to-r ${userTierStyle.bgClass}`}
+                        >
+                          <span
+                            className={`text-[10px] sm:text-xs font-bold ${userTierStyle.textClass}`}
+                          >
+                            {userTierStyle.label}
+                          </span>
                         </div>
-                        <div className="text-xs font-medium text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">
-                          {user.score.toLocaleString()} P
+
+                        {/* 3. Name & Score */}
+                        <div className="mt-2 flex flex-col items-center">
+                          <div className="font-bold text-sm text-gray-900 truncate w-20 sm:w-24">
+                            {user.name}
+                          </div>
+                          <div className="text-xs font-medium text-gray-500">
+                            {user.score.toLocaleString()} P
+                          </div>
                         </div>
                       </div>
+
+                      {/* 4. Podium Box (Unified Styling) */}
                       <div
-                        className={`w-full rounded-t-2xl shadow-inner border-t border-x ${bgGradient} ${heightClass} flex items-end justify-center pb-4 relative overflow-hidden`}
+                        className={`w-full rounded-t-2xl shadow-inner border-t border-x ${rankColor} ${heightClass} flex items-start justify-center pt-3 relative overflow-hidden`}
                       >
-                        <div className="absolute inset-0 bg-linear-to-tr from-transparent via-white/30 to-transparent opacity-50 pointer-events-none" />
-                        <span className="text-white/90 font-black text-3xl sm:text-4xl drop-shadow-md z-10">
+                        <span className="text-2xl sm:text-4xl font-black opacity-40">
                           {user.rank}
                         </span>
                       </div>

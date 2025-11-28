@@ -95,6 +95,7 @@ const VoiceRoomCreate: React.FC = () => {
     );
   }
 
+  // [Modified]: pb-16 삭제 (네비게이션 바가 없는 페이지)
   return (
     <div className="min-h-screen bg-slate-50 text-gray-900">
       {/* Header */}
@@ -112,12 +113,11 @@ const VoiceRoomCreate: React.FC = () => {
               새로운 방 만들기
             </h1>
           </div>
-          {/* 우측 X 버튼 제거됨 */}
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Card: Basic Info */}
           <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden p-6 sm:p-8">
@@ -193,7 +193,7 @@ const VoiceRoomCreate: React.FC = () => {
 
             <div className="space-y-6">
               <div>
-                <div className="flex justify-between items-center mb-1.5 ml-1">
+                <div className="flex justify-between items-center mb-2 ml-1">
                   <label
                     htmlFor="maxParticipants"
                     className="text-sm font-bold text-gray-700"
@@ -227,7 +227,7 @@ const VoiceRoomCreate: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-sm font-bold text-gray-700 mb-2 ml-1 flex items-center gap-2">
+                <label className="text-sm font-bold text-gray-700 mb-2.5 ml-1 flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-gray-400" />
                   권장 레벨
                 </label>

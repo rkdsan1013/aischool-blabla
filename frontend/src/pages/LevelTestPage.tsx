@@ -197,18 +197,16 @@ const LevelTestPage: React.FC = () => {
   }
 
   return (
-    // [수정]: min-h-screen으로 변경하여 브라우저 네이티브 스크롤 사용
     <div className="min-h-screen w-full bg-slate-50 text-gray-900 flex flex-col relative">
-      {/* --- [배경 레이어] Fixed로 고정하여 스크롤 영향 안 받음 --- */}
+      {/* --- [배경 레이어] Fixed --- */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-rose-200/40 rounded-full blur-3xl opacity-60" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-200/40 rounded-full blur-3xl opacity-60" />
       </div>
 
       {/* --- 헤더 --- */}
-      {/* [수정]: Sticky top-0 적용, z-50으로 블러 효과가 스크롤 되는 콘텐츠 위에 덮이도록 함 */}
       <header className="sticky top-0 left-0 w-full z-50 bg-white/10 backdrop-blur-md border-b border-white/20">
-        <div className="max-w-5xl mx-auto h-14 sm:h-16 px-4 sm:px-6 flex justify-between items-center">
+        <div className="max-w-5xl mx-auto h-14 px-4 sm:px-6 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <span className="bg-white/80 border border-white/50 shadow-sm px-3 py-1 rounded-full text-xs font-bold text-rose-500 backdrop-blur-md">
               LEVEL TEST
@@ -224,12 +222,10 @@ const LevelTestPage: React.FC = () => {
       </header>
 
       {/* --- 메인 컨텐츠 레이어 --- */}
-      {/* [수정]: flex-1으로 남은 공간 채우고, 내부 스크롤 제거 */}
       <main className="relative z-10 w-full flex-1 flex flex-col max-w-5xl mx-auto px-4 sm:px-6">
         {/* [Step 1] 레벨 선택 화면 */}
         {testStep === "selection" && (
           <>
-            {/* [수정]: overflow 관련 속성 제거, pb-32로 하단 버튼 공간 확보 */}
             <div className="flex-1 pt-8 pb-32">
               <div className="flex flex-col items-center animate-fade-in max-w-4xl mx-auto">
                 <div className="text-center mb-10">
@@ -283,7 +279,6 @@ const LevelTestPage: React.FC = () => {
               </div>
             </div>
 
-            {/* [수정]: 하단 고정 버튼 (Fixed) */}
             <div className="fixed bottom-0 left-0 w-full p-6 z-50 flex justify-center pointer-events-none">
               <div className="w-full max-w-5xl pointer-events-auto">
                 <div className="flex justify-center">
@@ -309,8 +304,8 @@ const LevelTestPage: React.FC = () => {
 
         {/* [Step 2] 테스트 진행 화면 */}
         {testStep === "test" && (
-          // [수정]: h-full 대신 min-h-full 사용 (모바일 대응)
-          <div className="flex-1 flex flex-col justify-center items-center py-10 animate-fade-in relative">
+          // [수정됨]: w-full overflow-hidden 추가 (파동 애니메이션에 의한 스크롤 방지)
+          <div className="flex-1 flex flex-col justify-center items-center py-10 animate-fade-in relative w-full overflow-hidden">
             <div className="flex-none flex flex-col items-center justify-center mb-10 text-center">
               <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-gray-900 mb-3">
                 {isLoading

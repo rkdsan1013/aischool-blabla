@@ -122,6 +122,9 @@ export default function AuthPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  // [추가] 회원가입 성공 모달 상태
+  const [showSignupSuccessModal, setShowSignupSuccessModal] = useState(false);
+
   const { isAuthLoading } = useAuth();
   const { profile, isProfileLoading, refreshProfile } = useProfile();
 
@@ -164,20 +167,32 @@ export default function AuthPage() {
         signupPassword,
         initialLevel
       );
-      setTab("login");
+      // [수정] alert 제거 및 모달 표시 로직으로 변경
+      // 다음 로그인을 위해 이메일만 세팅해둠
       setLoginEmail(signupEmail);
       setLoginPassword("");
+
+      // 입력 필드 초기화
       setSignupName("");
       setSignupEmail("");
       setSignupPassword("");
       setSignupConfirmPassword("");
-      alert("회원가입 완료! 로그인해주세요.");
+
+      // 성공 모달 띄우기
+      setShowSignupSuccessModal(true);
     } catch (err: unknown) {
       if (err instanceof ServiceError) setError(err.message);
       else setError("회원가입 중 오류가 발생했습니다.");
     } finally {
+      // [수정] 성공/실패 여부와 상관없이 로딩 상태 해제
       setIsSubmitting(false);
     }
+  };
+
+  const handleCloseSignupSuccess = () => {
+    setShowSignupSuccessModal(false);
+    setTab("login"); // 로그인 탭으로 이동
+    setError(""); // 에러 메시지 초기화
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -284,7 +299,6 @@ export default function AuthPage() {
       {/* [Right Panel / Mobile Main] */}
       <div className="flex-1 flex flex-col relative bg-slate-50 lg:overflow-y-auto">
         {/* [Desktop Close Button] */}
-        {/* [수정] hover/active 스타일 통일 */}
         <div className="hidden lg:block absolute top-6 right-6 z-50">
           <button
             onClick={() => navigate("/")}
@@ -299,7 +313,6 @@ export default function AuthPage() {
         <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200 lg:hidden">
           <div className="w-full max-w-md mx-auto px-4 h-14 flex items-center justify-between">
             <h1 className="text-xl font-extrabold text-rose-500">Blabla</h1>
-            {/* [수정] hover/active 스타일 통일 */}
             <button
               onClick={() => navigate("/")}
               className="p-2 -mr-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-all rounded-full"
@@ -366,6 +379,9 @@ export default function AuthPage() {
                 onSubmit={handleSubmit}
                 className="space-y-5 animate-fade-in"
               >
+                {/* [추가] 엔터키 입력을 위한 숨김 버튼 */}
+                <button type="submit" className="hidden" />
+
                 <div>
                   <Label htmlFor="loginEmail">이메일</Label>
                   <Input
@@ -403,6 +419,9 @@ export default function AuthPage() {
                 onSubmit={handleSubmit}
                 className="space-y-4 animate-fade-in"
               >
+                {/* [추가] 엔터키 입력을 위한 숨김 버튼 */}
+                <button type="submit" className="hidden" />
+
                 <div>
                   <Label htmlFor="signupName">이름</Label>
                   <Input
@@ -485,6 +504,35 @@ export default function AuthPage() {
           </div>
         </div>
       </div>
+
+      {/* [회원가입 성공 모달] */}
+      {showSignupSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-fade-in">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={handleCloseSignupSuccess}
+          />
+          <div className="relative bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-scale-in text-center">
+            <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-5">
+              <CheckCircle2 size={32} strokeWidth={2.5} />
+            </div>
+            <h3 className="text-2xl font-extrabold text-gray-900 mb-2">
+              회원가입 완료!
+            </h3>
+            <p className="text-gray-500 mb-8 leading-relaxed text-sm sm:text-base">
+              성공적으로 계정이 생성되었습니다.
+              <br />
+              이제 로그인하여 학습을 시작하세요.
+            </p>
+            <button
+              onClick={handleCloseSignupSuccess}
+              className="w-full py-4 bg-rose-500 text-white rounded-2xl font-bold text-lg shadow-md hover:bg-rose-600 active:scale-95 transition-all shadow-rose-200"
+            >
+              로그인하러 가기
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

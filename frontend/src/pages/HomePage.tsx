@@ -1,4 +1,4 @@
-// src/pages/HomePage.tsx
+// frontend/src/pages/HomePage.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -47,9 +47,8 @@ interface TrainingStep {
   title: string;
   description: string;
   icon: React.ReactNode;
-  textClass: string; // 아이콘 색상
+  textClass: string;
   startType: TrainingType;
-  // repeatsToday 제거됨
 }
 
 type LocalProfileContext = {
@@ -80,7 +79,6 @@ const HomePage: React.FC = () => {
     null
   );
 
-  // leaderboard state
   const [leaderLoading, setLeaderLoading] = useState(false);
   const [topUsers, setTopUsers] = useState<LeaderboardUser[] | null>(null);
 
@@ -149,8 +147,6 @@ const HomePage: React.FC = () => {
   }
   if (!profile) return null;
 
-  // --- Training Steps Data ---
-  // repeatsToday 데이터 제거
   const steps: TrainingStep[] = [
     {
       id: "vocabulary",
@@ -218,7 +214,6 @@ const HomePage: React.FC = () => {
   const tier = profile.tier ?? "Bronze";
   const score = profile.score ?? 0;
 
-  // Tier Styles
   const tierStyles: Record<
     string,
     { bgClass: string; textClass: string; label: string; iconColor: string }
@@ -287,11 +282,9 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 text-gray-900">
-      {/* --- Header --- */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            {/* Welcome Text */}
             <div>
               <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 flex items-center gap-2">
                 안녕하세요, <span className="text-rose-500">{displayName}</span>
@@ -302,25 +295,19 @@ const HomePage: React.FC = () => {
               </p>
             </div>
 
-            {/* Stats Chips */}
             <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
-              {/* Streak */}
               <div className="flex items-center gap-1.5 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-100 shrink-0">
                 <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
                 <span className="text-sm font-bold text-orange-700">
                   {streak}일
                 </span>
               </div>
-
-              {/* Level */}
               <div className="flex items-center gap-1.5 bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100 shrink-0">
                 <Sparkles className="w-4 h-4 text-indigo-500" />
                 <span className="text-sm font-bold text-indigo-700">
                   {displayLevel}
                 </span>
               </div>
-
-              {/* Tier & Score */}
               <div
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-linear-to-r ${chosenTier.bgClass} shrink-0`}
               >
@@ -341,7 +328,6 @@ const HomePage: React.FC = () => {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-10">
-        {/* --- Training Session Section --- */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -356,23 +342,22 @@ const HomePage: React.FC = () => {
                 type="button"
                 onClick={() => handleNavigateToTraining(s.startType)}
                 onMouseEnter={() => prefetchQuestions(s.startType)}
-                className="group relative bg-white rounded-2xl p-4 text-left border border-gray-100 shadow-sm hover:shadow-md hover:border-rose-100 transition-all duration-200 active:scale-[0.99]"
+                // [Unified Style]: border-gray-200, p-4 sm:p-5, hover effects
+                className="group relative bg-white rounded-2xl p-4 sm:p-5 text-left border border-gray-200 shadow-sm hover:shadow-md hover:border-rose-100 transition-all duration-300 active:scale-[0.99]"
               >
                 <div className="flex items-center gap-4">
-                  {/* Icon Box: 유색 배경 제거, bg-gray-50으로 통일 */}
+                  {/* [Unified Style]: w-12 h-12 fixed size, bg-gray-50, border-gray-100 */}
                   <div
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center bg-gray-50 ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
+                    className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
                   >
                     {s.icon}
                   </div>
 
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-bold text-gray-900 text-base group-hover:text-rose-600 transition-colors">
+                      <h3 className="font-bold text-gray-900 text-base sm:text-lg group-hover:text-rose-600 transition-colors">
                         {s.title}
                       </h3>
-                      {/* Loading Badge (반복 횟수 제거됨, 로딩만 표시) */}
                       {prefetchingType === s.startType && (
                         <span className="text-xs font-medium text-rose-500 bg-rose-50 px-2 py-1 rounded-lg animate-pulse">
                           준비중...
@@ -384,7 +369,6 @@ const HomePage: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* Arrow */}
                   <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
                 </div>
               </button>
@@ -392,7 +376,6 @@ const HomePage: React.FC = () => {
           </div>
         </section>
 
-        {/* --- Leaderboard Preview Section --- */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -424,14 +407,12 @@ const HomePage: React.FC = () => {
               <div className="flex items-end justify-center gap-3 sm:gap-6 pt-4 pb-2">
                 {podiumOrder.map((user) => {
                   const isFirst = user.rank === 1;
-                  // 높이 계산 로직
                   const heightClass = isFirst
                     ? "h-40 sm:h-48"
                     : user.rank === 2
                     ? "h-32 sm:h-40"
                     : "h-24 sm:h-32";
 
-                  // 색상
                   const bgGradient =
                     user.rank === 1
                       ? "bg-linear-to-t from-yellow-400 to-yellow-300 border-yellow-400"
@@ -444,7 +425,6 @@ const HomePage: React.FC = () => {
                       key={user.rank}
                       className="flex-1 max-w-[120px] flex flex-col items-center group"
                     >
-                      {/* User Info (Avatar/Name) */}
                       <div className="mb-3 flex flex-col items-center gap-1 text-center transition-transform duration-300 group-hover:-translate-y-1">
                         <div className="text-3xl sm:text-4xl drop-shadow-sm">
                           {getMedalIcon(user.rank)}
@@ -456,12 +436,9 @@ const HomePage: React.FC = () => {
                           {user.score.toLocaleString()} P
                         </div>
                       </div>
-
-                      {/* Podium Bar */}
                       <div
                         className={`w-full rounded-t-2xl shadow-inner border-t border-x ${bgGradient} ${heightClass} flex items-end justify-center pb-4 relative overflow-hidden`}
                       >
-                        {/* Shine effect */}
                         <div className="absolute inset-0 bg-linear-to-tr from-transparent via-white/30 to-transparent opacity-50 pointer-events-none" />
                         <span className="text-white/90 font-black text-3xl sm:text-4xl drop-shadow-md z-10">
                           {user.rank}

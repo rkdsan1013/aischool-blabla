@@ -1,4 +1,5 @@
 // frontend/src/pages/MyPage.tsx
+// cspell:ignore CEFR
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -15,21 +16,15 @@ import { useAuth } from "../hooks/useAuth";
 import { useProfile } from "../hooks/useProfile";
 import { getMyAttendance, type AttendanceStat } from "../services/userService";
 
-// --- Helper: 시간 포맷팅 ---
 const formatStudyTime = (totalSeconds: number) => {
-  if (totalSeconds < 60) {
-    return "<1분";
-  }
+  if (totalSeconds < 60) return "<1분";
   const totalMinutes = Math.floor(totalSeconds / 60);
-  if (totalMinutes < 60) {
-    return `${totalMinutes}분`;
-  }
+  if (totalMinutes < 60) return `${totalMinutes}분`;
   const hours = (totalMinutes / 60).toFixed(1);
   return hours.endsWith(".0") ? `${parseInt(hours)}시간` : `${hours}시간`;
 };
 
-// --- Components (스타일 수정됨) ---
-
+// [Unified Style] StatCard
 const StatCard: React.FC<{
   icon: React.ReactNode;
   value: React.ReactNode;
@@ -37,7 +32,6 @@ const StatCard: React.FC<{
 }> = ({ icon, value, label }) => (
   <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 shadow-sm hover:shadow-md transition-all duration-300">
     <div className="flex flex-col items-center text-center">
-      {/* 배경색 bg-gray-50으로 변경, 아이콘 컬러 text-rose-500 유지 */}
       <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gray-50 text-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-sm border border-gray-100">
         {icon}
       </div>
@@ -49,16 +43,16 @@ const StatCard: React.FC<{
   </div>
 );
 
+// [Unified Style] NavigateRow (계정 관리 카드)
 const NavigateRow: React.FC<{
   icon: React.ReactNode;
   title: string;
   subtitle: string;
   onClick: () => void;
-  // colorClass prop 제거 (배경 통일을 위해 사용하지 않음)
   textClass?: string;
 }> = ({ icon, title, subtitle, onClick, textClass = "text-gray-900" }) => (
   <div
-    className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg hover:border-rose-200 transition-all duration-300 group active:scale-[0.99]"
+    className="group relative bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 flex items-center justify-between cursor-pointer shadow-sm hover:shadow-md hover:border-rose-100 transition-all duration-300 active:scale-[0.99]"
     onClick={onClick}
     role="button"
     tabIndex={0}
@@ -69,8 +63,8 @@ const NavigateRow: React.FC<{
     }}
   >
     <div className="flex items-center gap-4">
-      {/* 아이콘 배경 bg-gray-50으로 통일 */}
-      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shadow-sm border border-gray-100 bg-gray-50 group-hover:scale-105 transition-transform duration-300">
+      {/* Icon Box: HomePage/AITalkPage와 동일한 스펙 적용 */}
+      <div className="w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 shadow-sm transition-transform duration-300 group-hover:scale-110">
         {icon}
       </div>
       <div>
@@ -86,8 +80,6 @@ const NavigateRow: React.FC<{
   </div>
 );
 
-// --- Attendance Grid Logic (원본 유지) ---
-
 const AttendanceGrid: React.FC<{
   data: { date: string; attended: boolean; count?: number }[];
 }> = ({ data }) => {
@@ -97,17 +89,15 @@ const AttendanceGrid: React.FC<{
 
   useEffect(() => {
     if (!containerRef.current) return;
-
     const calculateWeeks = () => {
       if (containerRef.current) {
         const width = containerRef.current.offsetWidth;
-        const availableWidth = width - 34; // 라벨 + 패딩 공간
+        const availableWidth = width - 34;
         const itemSize = window.innerWidth >= 640 ? 26 : 20;
         const calculated = Math.floor(availableWidth / itemSize);
         setNumWeeks(Math.max(5, calculated));
       }
     };
-
     calculateWeeks();
     const resizeObserver = new ResizeObserver(() => calculateWeeks());
     resizeObserver.observe(containerRef.current);
@@ -120,12 +110,10 @@ const AttendanceGrid: React.FC<{
     const endOfWeek = new Date(today);
     const dayOfWeek = endOfWeek.getDay();
     endOfWeek.setDate(today.getDate() + (6 - dayOfWeek));
-
     const weeks = [];
     const startDate = new Date(endOfWeek);
     startDate.setDate(endOfWeek.getDate() - numWeeks * 7 + 1);
     const current = new Date(startDate);
-
     for (let w = 0; w < numWeeks; w++) {
       const weekDays = [];
       for (let d = 0; d < 7; d++) {
@@ -134,7 +122,6 @@ const AttendanceGrid: React.FC<{
         const dd = String(current.getDate()).padStart(2, "0");
         const dateStr = `${y}-${m}-${dd}`;
         const isFuture = current > today;
-
         weekDays.push({
           date: new Date(current),
           dateStr,
@@ -155,7 +142,6 @@ const AttendanceGrid: React.FC<{
     if (isFuture) return "bg-gray-50 border border-gray-100";
     const base = "border border-transparent";
     if (!item || !item.attended) return `bg-gray-100 ${base}`;
-
     const c = item.count ?? 1;
     if (c >= 4) return `bg-rose-600 ${base}`;
     if (c === 3) return `bg-rose-500 ${base}`;
@@ -175,7 +161,6 @@ const AttendanceGrid: React.FC<{
           </span>
         </div>
       </div>
-
       <div
         ref={containerRef}
         className="flex gap-1 sm:gap-1.5 w-full overflow-hidden"
@@ -192,7 +177,6 @@ const AttendanceGrid: React.FC<{
             </div>
           ))}
         </div>
-
         <div className="flex gap-1 sm:gap-1.5 flex-1 justify-center">
           {gridData.map((week, wi) => (
             <div key={wi} className="flex flex-col gap-1 sm:gap-1.5">
@@ -212,20 +196,13 @@ const AttendanceGrid: React.FC<{
                     ${getColor(day.item, day.isFuture)} 
                     transition-all duration-200 cursor-pointer hover:scale-110 hover:ring-1 hover:ring-rose-200
                   `}
-                  title={`${day.dateStr}${
-                    day.isFuture
-                      ? ""
-                      : day.item?.attended
-                      ? ` • 출석 (${day.item.count}회)`
-                      : " • 미출석"
-                  }`}
+                  title={day.dateStr}
                 />
               ))}
             </div>
           ))}
         </div>
       </div>
-
       <div className="mt-3 h-4 text-right">
         {selectedInfo ? (
           <span className="text-xs text-rose-600 font-bold animate-fade-in bg-rose-50 px-2 py-1 rounded-md">
@@ -241,22 +218,16 @@ const AttendanceGrid: React.FC<{
   );
 };
 
-// --- Main Page ---
-
 const MyPage: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthLoading, logout } = useAuth();
   const { profile, isProfileLoading } = useProfile();
-
   const [attendanceStats, setAttendanceStats] = useState<AttendanceStat[]>([]);
   const [isAttendanceLoading, setIsAttendanceLoading] = useState(true);
-
   const isLoading = isAuthLoading || isProfileLoading;
 
   useEffect(() => {
-    if (!isLoading && profile === null) {
-      navigate("/");
-    }
+    if (!isLoading && profile === null) navigate("/");
   }, [profile, isLoading, navigate]);
 
   useEffect(() => {
@@ -267,9 +238,7 @@ const MyPage: React.FC = () => {
         setIsAttendanceLoading(false);
       }
     };
-    if (!isProfileLoading && profile) {
-      fetchAttendance();
-    }
+    if (!isProfileLoading && profile) fetchAttendance();
   }, [isProfileLoading, profile]);
 
   const gridInputData = useMemo(() => {
@@ -280,6 +249,9 @@ const MyPage: React.FC = () => {
     }));
   }, [attendanceStats]);
 
+  const handleOpenProfile = () => navigate("/my/profile");
+  const handleOpenHistory = () => navigate("/my/history");
+
   if (isLoading || isAttendanceLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -288,9 +260,7 @@ const MyPage: React.FC = () => {
     );
   }
 
-  if (!profile) {
-    return null;
-  }
+  if (!profile) return null;
 
   const stats = {
     streak: profile.streak_count ?? 0,
@@ -311,26 +281,16 @@ const MyPage: React.FC = () => {
     }
   };
 
-  const handleOpenProfile = () => navigate("/my/profile");
-  const handleOpenHistory = () => navigate("/my/history");
-
   return (
     <div className="min-h-screen bg-slate-50 pb-24 text-gray-900">
-      {/* Header Section */}
       <div className="bg-white p-6 sm:p-8 shadow-sm border-b border-gray-200">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-4 sm:gap-6 mb-6">
-            {/* Avatar */}
             <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-3xl sm:text-4xl font-bold text-rose-500 shadow-sm">
               {profile.name ? profile.name.charAt(0) : profile.email.charAt(0)}
             </div>
-
-            {/* User Info */}
             <div className="flex-1 min-w-0">
-              <h1
-                className="text-2xl sm:text-3xl font-black mb-1 tracking-tight truncate text-gray-900"
-                title={profile.name ?? profile.email}
-              >
+              <h1 className="text-2xl sm:text-3xl font-black mb-1 tracking-tight truncate text-gray-900">
                 {profile.name ?? profile.email}
               </h1>
               <p className="text-gray-500 text-sm sm:text-base font-medium">
@@ -338,8 +298,6 @@ const MyPage: React.FC = () => {
               </p>
             </div>
           </div>
-
-          {/* Level Progress Card */}
           <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -352,14 +310,9 @@ const MyPage: React.FC = () => {
                 {stats.currentLevel}
               </span>
             </div>
-
-            {/* Progress Bar Track */}
             <div
               className="w-full bg-gray-200 h-2.5 rounded-full mb-2 overflow-hidden"
               role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={stats.nextLevelProgress}
             >
               <div
                 className="h-full bg-linear-to-r from-rose-400 to-rose-500 rounded-full transition-all duration-1000 ease-out"
@@ -371,7 +324,6 @@ const MyPage: React.FC = () => {
                 }}
               />
             </div>
-
             <div className="flex items-center justify-between text-xs sm:text-sm text-gray-500 font-medium">
               <span>다음 레벨까지</span>
               <span className="text-rose-600 font-bold">
@@ -383,7 +335,6 @@ const MyPage: React.FC = () => {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-        {/* Stats Section */}
         <section>
           <div className="mb-4">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
@@ -393,7 +344,6 @@ const MyPage: React.FC = () => {
               나의 학습 데이터를 한눈에 확인하세요
             </p>
           </div>
-
           <div className="grid grid-cols-3 gap-3 sm:gap-6">
             <StatCard
               icon={<Flame className="w-6 h-6 sm:w-7 sm:h-7" />}
@@ -413,7 +363,6 @@ const MyPage: React.FC = () => {
           </div>
         </section>
 
-        {/* Attendance Section */}
         <section>
           <div className="mb-4">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
@@ -426,14 +375,12 @@ const MyPage: React.FC = () => {
           <AttendanceGrid data={gridInputData} />
         </section>
 
-        {/* Account Section */}
         <section>
           <div className="mb-4">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
               계정 관리
             </h2>
           </div>
-
           <div className="space-y-3">
             <NavigateRow
               icon={
@@ -443,7 +390,6 @@ const MyPage: React.FC = () => {
               subtitle="상세한 학습 기록을 확인하세요"
               onClick={handleOpenHistory}
             />
-
             <NavigateRow
               icon={<User className="w-6 h-6 sm:w-7 sm:h-7 text-blue-500" />}
               title="프로필 관리"
@@ -451,7 +397,6 @@ const MyPage: React.FC = () => {
               onClick={handleOpenProfile}
             />
           </div>
-
           <div className="mt-8">
             <button
               className="w-full h-14 border-2 border-gray-200 text-gray-500 rounded-2xl font-bold hover:bg-gray-50 hover:text-gray-700 hover:border-gray-300 transition-all flex items-center justify-center gap-2"

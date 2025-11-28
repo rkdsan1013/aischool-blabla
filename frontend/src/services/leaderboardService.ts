@@ -1,5 +1,5 @@
+// frontend/src/services/leaderboardService.ts
 import { apiClient, handleApiError } from "../api/index";
-import type { AxiosResponse } from "axios";
 
 export type LeaderItem = {
   id: string;
@@ -11,6 +11,28 @@ export type LeaderItem = {
   // 클라이언트에서 편의상 현재 사용자 여부를 표시할 수 있게 추가 (선택적)
   isCurrentUser?: boolean;
 };
+
+// 서버 응답 데이터의 가능한 형태를 정의하여 any 사용 방지
+interface RawLeaderItem {
+  id?: string | number;
+  userId?: string | number;
+  name?: string;
+  username?: string;
+  score?: string | number;
+  points?: string | number;
+  tier?: string;
+  user_tier?: string;
+  streak_count?: string | number;
+  streakCount?: string | number;
+  rank?: string | number;
+}
+
+// API 응답 래퍼 (data 속성 유무 대응)
+type LeaderboardApiResponse =
+  | RawLeaderItem[]
+  | { data: RawLeaderItem[] }
+  | RawLeaderItem
+  | { data: RawLeaderItem };
 
 const TIER_ORDER = [
   "Challenger",
@@ -27,12 +49,12 @@ const tierPriority = (tier?: string) => {
   return idx === -1 ? TIER_ORDER.length : idx;
 };
 
-const parseNumber = (v: any, fallback = 0) => {
+const parseNumber = (v: unknown, fallback = 0) => {
   const n = parseFloat(String(v ?? ""));
   return Number.isFinite(n) ? n : fallback;
 };
 
-const normalizeRawItem = (d: any, idx: number): LeaderItem => ({
+const normalizeRawItem = (d: RawLeaderItem, idx: number): LeaderItem => ({
   id: String(d.id ?? d.userId ?? `u-${idx}`).trim(),
   name: d.name ?? d.username ?? "익명",
   score: parseNumber(d.score ?? d.points ?? 0, 0),
@@ -53,13 +75,26 @@ export async function getLeaderboard({
   limit?: number;
 } = {}): Promise<LeaderItem[]> {
   try {
-    const res: AxiosResponse<any> = await apiClient.get("/leaderboard", {
+    // apiClient 사용 (AxiosResponse 타입을 명시하지 않고 추론 사용하거나 제네릭으로 데이터 타입 지정)
+    const res = await apiClient.get<LeaderboardApiResponse>("/leaderboard", {
       params: { limit },
     });
 
-    const raw = (res.data && (res.data.data ?? res.data)) ?? [];
+    // 데이터 구조 유연하게 처리 (res.data 자체가 배열일 수도, { data: [...] } 일 수도 있음)
+    // 타입 가드를 통해 안전하게 배열로 변환
+    let rawList: RawLeaderItem[] = [];
 
-    const normalized: LeaderItem[] = (raw as any[]).map((d, i) =>
+    if (Array.isArray(res.data)) {
+      rawList = res.data;
+    } else if (
+      res.data &&
+      "data" in res.data &&
+      Array.isArray((res.data as { data: RawLeaderItem[] }).data)
+    ) {
+      rawList = (res.data as { data: RawLeaderItem[] }).data;
+    }
+
+    const normalized: LeaderItem[] = rawList.map((d, i) =>
       normalizeRawItem(d, i)
     );
 
@@ -122,10 +157,20 @@ export async function getLeaderItemById(
 
   // 1) 서버에 개별 조회 엔드포인트가 있는 경우 우선 시도
   try {
-    const res: AxiosResponse<any> = await apiClient.get(
+    const res = await apiClient.get<LeaderboardApiResponse>(
       `/leaderboard/${encodeURIComponent(normalizedId)}`
     );
-    const raw = (res.data && (res.data.data ?? res.data)) ?? null;
+
+    let raw: RawLeaderItem | null = null;
+
+    if (res.data) {
+      if ("data" in res.data && !Array.isArray(res.data.data)) {
+        raw = res.data.data as RawLeaderItem;
+      } else if (!Array.isArray(res.data)) {
+        raw = res.data as RawLeaderItem;
+      }
+    }
+
     if (raw) {
       // 서버가 단일 객체를 반환하는 경우
       const item = normalizeRawItem(raw, 0);
@@ -139,8 +184,11 @@ export async function getLeaderItemById(
   } catch (err) {
     // 개별 엔드포인트가 없거나 404 등일 수 있으므로 여기서는 무조건 실패 처리하지 않고 폴백으로 진행
     // 다만 치명적 에러(인증 등)는 handleApiError로 처리
-    // 404는 무시하고 전체 조회로 폴백
-    const status = (err as any)?.response?.status;
+
+    // safe property access for error status without 'any'
+    const status = (err as { response?: { status?: number } })?.response
+      ?.status;
+
     if (status && status >= 500) {
       handleApiError(err, `리더보드 개별 조회 (${id})`);
       throw err;

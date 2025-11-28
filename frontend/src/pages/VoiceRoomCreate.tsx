@@ -2,7 +2,7 @@
 // cspell:ignore voiceroom
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Mic, AlignLeft, Users, BarChart3, ChevronLeft } from "lucide-react";
+import { Mic, AlignLeft, Users, BarChart3, ChevronLeft } from "lucide-react";
 import VoiceRoomService from "../services/voiceroomService";
 import { useAuth } from "../hooks/useAuth";
 
@@ -99,7 +99,7 @@ const VoiceRoomCreate: React.FC = () => {
     <div className="min-h-screen bg-slate-50 pb-20 text-gray-900">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center">
           <div className="flex items-center gap-3">
             <button
               onClick={handleCancel}
@@ -112,13 +112,7 @@ const VoiceRoomCreate: React.FC = () => {
               새로운 방 만들기
             </h1>
           </div>
-          <button
-            onClick={handleCancel}
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500"
-            aria-label="닫기"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {/* 우측 X 버튼 제거됨 */}
         </div>
       </header>
 
@@ -210,7 +204,6 @@ const VoiceRoomCreate: React.FC = () => {
                     {formData.maxParticipants}명
                   </span>
                 </div>
-                {/* [수정됨] flex로 충돌 해결 */}
                 <div className="relative flex items-center gap-4 bg-gray-50 rounded-2xl p-4 border border-gray-200">
                   <Users className="w-5 h-5 text-gray-400 shrink-0" />
                   <input

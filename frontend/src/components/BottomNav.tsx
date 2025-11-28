@@ -1,3 +1,4 @@
+// frontend/src/components/BottomNav.tsx
 import { useLocation, useNavigate } from "react-router-dom";
 import { Home, MessageCircle, Radio, User } from "lucide-react";
 
@@ -35,32 +36,34 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 w-full bg-white dark:bg-gray-900 
-                    border-t border-gray-200 dark:border-gray-800 
-                    shadow-[0_-2px_10px_rgba(0,0,0,0.1)] 
-                    z-50 pb-[env(safe-area-inset-bottom)]"
+      className="fixed bottom-0 inset-x-0 w-full bg-white/90 backdrop-blur-lg 
+                 border-t border-gray-100
+                 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] 
+                 z-50 pb-[env(safe-area-inset-bottom)] transition-all duration-300"
     >
-      <div className="max-w-md mx-auto flex items-center justify-around h-16 px-2">
+      <div className="max-w-md mx-auto flex items-center justify-around h-16 px-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           return (
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`flex flex-col items-center justify-center flex-1 h-full transition-all rounded-lg ${
+              className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-200 active:scale-95 rounded-xl ${
                 item.active
-                  ? "text-[#fc4561]"
-                  : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                  ? "text-rose-500"
+                  : "text-gray-400 hover:text-gray-600"
               }`}
             >
               <Icon
-                className={`w-6 h-6 mb-1 transition-transform ${
-                  item.active ? "scale-110" : ""
+                className={`w-6 h-6 mb-1 transition-transform duration-300 ${
+                  item.active ? "scale-110 stroke-[2.5px]" : "stroke-2"
                 }`}
               />
               <span
-                className={`text-xs font-medium ${
-                  item.active ? "font-bold" : ""
+                className={`text-[10px] transition-all ${
+                  item.active
+                    ? "font-bold opacity-100"
+                    : "font-medium opacity-80"
                 }`}
               >
                 {item.name}

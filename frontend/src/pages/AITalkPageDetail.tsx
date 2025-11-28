@@ -6,13 +6,20 @@ import React, {
   useState,
   useMemo,
 } from "react";
-import { Mic, Volume2, Languages, Loader2, AlertCircle } from "lucide-react";
+import {
+  Mic,
+  Volume2,
+  Loader2,
+  AlertCircle,
+  ChevronLeft,
+  AlertTriangle,
+} from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import FloatingFeedbackCard, {
   type FeedbackPayload,
 } from "../components/FloatingFeedbackCard";
 import { aiTalkService, type AIMessage } from "../services/aiTalkService";
-import { useAITalkRecorder } from "../hooks/useAITalkRecorder"; // ✅ 커스텀 훅 Import
+import { useAITalkRecorder } from "../hooks/useAITalkRecorder";
 
 // --- 타입 정의 ---
 type Message = {
@@ -49,8 +56,8 @@ function isMobileUA(): boolean {
 }
 
 // --- 상수 설정 ---
-const FOOTER_HEIGHT = 96;
-const LAST_MESSAGE_SPACING = 16;
+const FOOTER_HEIGHT = 100;
+const LAST_MESSAGE_SPACING = 24;
 const TOOLTIP_GAP_BELOW = 12;
 const TOOLTIP_GAP_ABOVE = 6;
 
@@ -74,6 +81,9 @@ const AITalkPageDetail: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [isConversationEnded, setIsConversationEnded] = useState(false);
+
+  // 종료 확인 모달 상태
+  const [showExitModal, setShowExitModal] = useState(false);
 
   const isUnmountedRef = useRef(false);
   const isMobile = isMobileUA();
@@ -99,7 +109,6 @@ const AITalkPageDetail: React.FC = () => {
     (base64Audio: string | null | undefined) => {
       if (isUnmountedRef.current) return;
 
-      // 오디오가 없으면 녹음 시작 (훅 제어는 아래 useEffect에서 처리)
       if (!base64Audio || !audioPlayerRef.current) {
         setIsAISpeaking(false);
         return;
@@ -125,7 +134,6 @@ const AITalkPageDetail: React.FC = () => {
 
   const handleAIThinkingEnd = () => {
     if (isUnmountedRef.current) return;
-    console.log("AI 발화 종료");
     setIsAISpeaking(false);
   };
 
@@ -142,7 +150,7 @@ const AITalkPageDetail: React.FC = () => {
       const newUserMsg: Message = {
         id: tempUserMsgId,
         role: "user",
-        content: "🎤 ...",
+        content: "🎤 음성 인식 중...",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, newUserMsg]);
@@ -196,7 +204,7 @@ const AITalkPageDetail: React.FC = () => {
   );
 
   // -----------------------------------------------------------------------
-  // [3] ✅ 커스텀 훅 사용 (녹음/VAD 로직 대체)
+  // [3] 커스텀 훅 사용
   // -----------------------------------------------------------------------
   const {
     start: startRecording,
@@ -205,9 +213,7 @@ const AITalkPageDetail: React.FC = () => {
     isTalking,
   } = useAITalkRecorder(handleSendAudio);
 
-  // 상태에 따른 녹음기 제어 (Auto Start)
   useEffect(() => {
-    // 대화 종료, 처리 중, AI 말하는 중, 로딩 중이 아니면 녹음 시작
     if (
       !isConversationEnded &&
       !isProcessing &&
@@ -275,12 +281,11 @@ const AITalkPageDetail: React.FC = () => {
 
     return () => {
       isUnmountedRef.current = true;
-      stopRecording(); // 언마운트 시 확실히 종료
+      stopRecording();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scenarioId, navigate]);
+    // [수정됨] 의존성 배열에 playAudioData, stopRecording 추가
+  }, [scenarioId, navigate, playAudioData, stopRecording]);
 
-  // 스크롤 자동 이동
   useEffect(() => {
     const el = listRef.current;
     if (el) {
@@ -290,11 +295,31 @@ const AITalkPageDetail: React.FC = () => {
     }
   }, [messages, isProcessing, isTalking]);
 
-  const handleEndConversation = async () => {
+  // 뒤로가기 핸들러
+  const handleBackClick = () => {
+    if (isConversationEnded) {
+      navigate(-1);
+      return;
+    }
+    setShowExitModal(true);
+  };
+
+  // 모달 확인 핸들러
+  const handleConfirmExit = async () => {
     stopRecording();
     isUnmountedRef.current = true;
-    if (sessionId) await aiTalkService.endSession(sessionId);
-    navigate("/ai-talk");
+    if (sessionId) {
+      try {
+        await aiTalkService.endSession(sessionId);
+      } catch (error) {
+        console.error("세션 종료 중 오류:", error);
+      }
+    }
+    navigate(-1);
+  };
+
+  const handleCancelExit = () => {
+    setShowExitModal(false);
   };
 
   // --- 레이아웃/UI ---
@@ -315,43 +340,42 @@ const AITalkPageDetail: React.FC = () => {
     return () => window.removeEventListener("resize", adjustLayout);
   }, [adjustLayout]);
 
-  // --- 툴팁 로직 ---
+  // --- 툴팁 위치 로직 (데스크톱 전용) ---
   const updateCardPosition = useCallback((msgId: string) => {
     const node = bubbleRefs.current[msgId];
     if (!node) return;
+
     const rect = node.getBoundingClientRect();
     const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
+    // const viewportH = window.innerHeight; // [수정됨] spaceBelow 제거로 미사용
+
     const desiredWidth = Math.min(rect.width, viewportW * 0.92);
     const center = rect.left + rect.width / 2;
     let left = center - desiredWidth / 2;
     left = Math.max(8, Math.min(left, viewportW - desiredWidth - 8));
-    const estimatedCardHeight = 180;
-    const safeBottom = FOOTER_HEIGHT + 8;
-    const spaceBelow = viewportH - rect.bottom - safeBottom;
-    const spaceAbove = rect.top;
+
+    const estimatedCardHeight = 260;
+    const headerHeight = 80;
+    // const safeBottom = FOOTER_HEIGHT + 8; // [수정됨] spaceBelow 제거로 미사용
+
+    // const spaceBelow = viewportH - rect.bottom - safeBottom; // [수정됨] 제거
+    const spaceAbove = rect.top - headerHeight;
 
     const preferAbove = spaceAbove >= estimatedCardHeight + TOOLTIP_GAP_ABOVE;
 
-    if (!preferAbove && spaceBelow < estimatedCardHeight + TOOLTIP_GAP_BELOW) {
-      const maxAllowedTop = Math.max(
-        8,
-        viewportH -
-          safeBottom -
-          Math.min(estimatedCardHeight, Math.max(0, spaceBelow))
-      );
-      setCardPos({
-        top: Math.min(rect.bottom + TOOLTIP_GAP_BELOW, maxAllowedTop),
-        left,
-        width: desiredWidth,
-        preferAbove: false,
-      });
+    let top;
+    if (preferAbove) {
+      top = rect.top - TOOLTIP_GAP_ABOVE;
     } else {
-      const top = preferAbove
-        ? rect.top - TOOLTIP_GAP_ABOVE
-        : rect.bottom + TOOLTIP_GAP_BELOW;
-      setCardPos({ top, left, width: desiredWidth, preferAbove });
+      top = rect.bottom + TOOLTIP_GAP_BELOW;
     }
+
+    setCardPos({
+      top,
+      left,
+      width: desiredWidth,
+      preferAbove,
+    });
   }, []);
 
   function onWordInteract(
@@ -362,14 +386,14 @@ const AITalkPageDetail: React.FC = () => {
     if (!feedback?.errors?.find((e) => e.index === wordIndex)) return;
     setActiveTooltipMsgId(msgId);
     setActiveTooltipWordIndexes([wordIndex]);
-    requestAnimationFrame(() => updateCardPosition(msgId));
+    if (!isMobile) requestAnimationFrame(() => updateCardPosition(msgId));
   }
 
   function onSentenceInteract(msgId: string, feedback?: FeedbackPayload) {
     if (!feedback?.errors?.find((e) => e.type === "style")) return;
     setActiveTooltipMsgId(msgId);
     setActiveTooltipWordIndexes([]);
-    requestAnimationFrame(() => updateCardPosition(msgId));
+    if (!isMobile) requestAnimationFrame(() => updateCardPosition(msgId));
   }
 
   function closeTooltip() {
@@ -387,43 +411,39 @@ const AITalkPageDetail: React.FC = () => {
   }, [messages]);
 
   return (
-    <div className="h-screen flex flex-col bg-white">
+    <div className="h-screen flex flex-col bg-slate-50">
       <audio
         ref={audioPlayerRef}
         className="hidden"
         onEnded={handleAIThinkingEnd}
       />
 
+      {/* Header */}
       <header
         ref={headerRef}
-        className="w-full bg-white shrink-0 border-b border-gray-100"
+        className="w-full bg-white/80 backdrop-blur-md shrink-0 border-b border-gray-200 sticky top-0 z-30"
       >
-        <div className="max-w-5xl mx-auto flex items-center gap-4 px-4 sm:px-6 py-3">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-[19px] sm:text-[22px] font-semibold text-gray-900 truncate">
-              {isLoading ? (
-                <span className="flex items-center gap-2 text-gray-400">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  준비 중...
-                </span>
-              ) : (
-                scenarioTitle
-              )}
+        <div className="max-w-2xl mx-auto flex items-center justify-between px-4 sm:px-6 h-14 sm:h-16">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={handleBackClick}
+              className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-600"
+              aria-label="뒤로 가기"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
+              {isLoading ? "연결 중..." : scenarioTitle}
             </h1>
           </div>
-          <button
-            onClick={handleEndConversation}
-            className="ml-3 inline-flex items-center gap-2 rounded-md bg-rose-50 text-rose-700 px-3 py-2 text-sm font-medium hover:bg-rose-100 shadow-sm"
-          >
-            대화 종료
-          </button>
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden" aria-live="polite">
+      {/* Messages Area */}
+      <main className="flex-1 overflow-hidden relative" aria-live="polite">
         <div
           ref={listRef}
-          className="max-w-5xl mx-auto px-4 sm:px-6 pt-4 overflow-y-auto flex flex-col gap-6"
+          className="max-w-2xl mx-auto px-4 sm:px-6 pt-6 overflow-y-auto flex flex-col gap-6 scrollbar-hide"
           style={{
             minHeight: 0,
             height: listHeight,
@@ -431,9 +451,15 @@ const AITalkPageDetail: React.FC = () => {
           }}
         >
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-3">
-              <Loader2 className="w-8 h-8 animate-spin text-rose-500" />
-              <p>AI가 대화를 준비하고 있어요...</p>
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-4">
+              <div className="relative">
+                <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center animate-pulse">
+                  <Loader2 className="w-6 h-6 text-rose-500 animate-spin" />
+                </div>
+              </div>
+              <p className="text-sm font-medium">
+                AI가 대화를 준비하고 있어요...
+              </p>
             </div>
           ) : (
             <>
@@ -447,20 +473,32 @@ const AITalkPageDetail: React.FC = () => {
                 return (
                   <div
                     key={m.id}
-                    className={`relative flex items-start ${
+                    className={`relative flex items-end gap-2 ${
                       isUser ? "justify-end" : "justify-start"
                     }`}
                   >
-                    <div className="flex-1 max-w-[88%] sm:max-w-[70%]">
+                    {!isUser && (
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mb-1 border border-indigo-200">
+                        <span className="text-xs font-bold text-indigo-600">
+                          AI
+                        </span>
+                      </div>
+                    )}
+
+                    <div
+                      className={`flex flex-col max-w-[85%] sm:max-w-[75%] ${
+                        isUser ? "items-end" : "items-start"
+                      }`}
+                    >
                       <div
                         ref={(el) => {
                           bubbleRefs.current[m.id] = el;
                         }}
-                        className={`rounded-xl px-3 py-2 text-[15px] sm:text-[18px] leading-snug wrap-break-word 
+                        className={`rounded-2xl px-4 py-3 text-[15px] sm:text-base leading-relaxed shadow-sm
                         ${
                           isUser
-                            ? "bg-rose-500 text-white"
-                            : "bg-gray-100 text-gray-800"
+                            ? "bg-rose-500 text-white rounded-tr-none"
+                            : "bg-white text-gray-800 border border-gray-200 rounded-tl-none"
                         } 
                         ${
                           styleError && isUser
@@ -481,7 +519,9 @@ const AITalkPageDetail: React.FC = () => {
                       >
                         <div
                           className={`whitespace-pre-wrap wrap-break-word ${
-                            styleError && isUser ? "bg-yellow-50/20" : ""
+                            styleError && isUser
+                              ? "bg-yellow-400/20 rounded px-1 -mx-1"
+                              : ""
                           }`}
                         >
                           {isUser ? (
@@ -494,18 +534,19 @@ const AITalkPageDetail: React.FC = () => {
                                   (e) => e.index === index && e.type !== "style"
                                 );
 
-                                let cls = "rounded-sm px-0.5 inline-block ";
+                                let cls =
+                                  "inline-block rounded px-0.5 transition-colors ";
                                 if (err) {
                                   cls += "cursor-pointer ";
                                   if (err.type === "word")
                                     cls +=
-                                      "bg-blue-600/30 underline decoration-2 ";
+                                      "bg-red-400/40 underline decoration-red-200 decoration-2";
                                   else if (err.type === "grammar")
                                     cls +=
-                                      "bg-purple-600/30 underline decoration-dotted ";
+                                      "bg-yellow-400/40 underline decoration-yellow-200 decoration-2";
                                   else if (err.type === "spelling")
                                     cls +=
-                                      "bg-orange-500/30 underline decoration-wavy ";
+                                      "bg-orange-400/40 underline decoration-orange-200 decoration-2";
                                 }
                                 return (
                                   <span
@@ -538,50 +579,53 @@ const AITalkPageDetail: React.FC = () => {
                             <span>{m.content}</span>
                           )}
                         </div>
-
-                        {m.role === "ai" && (
-                          <div className="flex gap-3 mt-2">
-                            <button
-                              onClick={() => playAudioData(null)}
-                              className="inline-flex items-center text-gray-400 hover:text-gray-600"
-                            >
-                              <Volume2 size={18} />
-                            </button>
-                            <button
-                              onClick={() => console.log(m.content)}
-                              className="inline-flex items-center text-gray-400 hover:text-gray-600"
-                            >
-                              <Languages size={18} />
-                            </button>
-                          </div>
-                        )}
-
-                        {styleError && isUser && (
-                          <div className="mt-2 flex items-center gap-2 text-yellow-900">
-                            <AlertCircle size={16} />
-                            <span className="text-[14px]">
-                              문장 전체 스타일 개선 필요
-                            </span>
-                          </div>
-                        )}
                       </div>
+
+                      {/* AI Message Controls */}
+                      {m.role === "ai" && (
+                        <div className="flex gap-2 mt-1 ml-1">
+                          <button
+                            onClick={() => playAudioData(null)}
+                            className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-indigo-500 transition-colors"
+                            title="다시 듣기"
+                          >
+                            <Volume2 size={16} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* User Style Feedback Indicator */}
+                      {styleError && isUser && (
+                        <div className="mt-1 mr-1 flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-100">
+                          <AlertCircle size={12} />
+                          <span className="font-medium">표현 개선 제안</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })}
 
               {isProcessing && !isAISpeaking && (
-                <div className="flex justify-start">
-                  <div className="bg-gray-100 rounded-xl px-4 py-3 text-gray-500 flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>생각하는 중...</span>
+                <div className="flex justify-start items-end gap-2">
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mb-1 border border-indigo-200">
+                    <span className="text-xs font-bold text-indigo-600">
+                      AI
+                    </span>
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center gap-2">
+                    <div className="flex gap-1">
+                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
+                    </div>
                   </div>
                 </div>
               )}
 
               {isConversationEnded && (
                 <div className="flex justify-center my-6">
-                  <span className="bg-gray-200 text-gray-600 px-4 py-2 rounded-full text-sm font-medium shadow-sm">
+                  <span className="bg-gray-100 text-gray-500 px-4 py-2 rounded-full text-xs font-medium border border-gray-200">
                     대화가 종료되었습니다.
                   </span>
                 </div>
@@ -592,36 +636,54 @@ const AITalkPageDetail: React.FC = () => {
       </main>
 
       <footer
-        className="fixed inset-x-0 bottom-0 bg-white/95 backdrop-blur-sm z-40"
+        className="fixed inset-x-0 bottom-0 z-40 pointer-events-none"
         style={{ height: FOOTER_HEIGHT }}
       >
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="h-full flex items-center justify-center gap-4">
-            <div
-              className={`relative w-16 h-16 rounded-full flex items-center justify-center text-white shadow-md transition-all duration-300
-                ${
-                  isRecording
-                    ? isTalking
-                      ? "bg-rose-500 ring-4 ring-rose-300 ring-offset-2 scale-110"
-                      : "bg-rose-400 ring-2 ring-rose-200"
-                    : isProcessing
-                    ? "bg-gray-400"
-                    : isAISpeaking
-                    ? "bg-blue-400"
-                    : "bg-gray-300"
-                }
-              `}
-            >
-              {isRecording ? (
-                <Mic size={30} className={isTalking ? "animate-pulse" : ""} />
-              ) : isProcessing ? (
-                <Loader2 size={30} className="animate-spin" />
-              ) : isAISpeaking ? (
-                <Volume2 size={30} className="animate-pulse" />
-              ) : (
-                <Mic size={30} />
-              )}
-            </div>
+        {/* Gradient Overlay */}
+        <div className="absolute inset-0 bg-linear-to-t from-white via-white/90 to-transparent pointer-events-none" />
+
+        <div className="relative h-full max-w-2xl mx-auto px-4 sm:px-6 flex items-center justify-center pb-4 pointer-events-auto">
+          <div
+            className={`relative w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 cursor-pointer
+              ${
+                isRecording
+                  ? isTalking
+                    ? "bg-rose-500 scale-110 shadow-rose-500/40 ring-4 ring-rose-200"
+                    : "bg-rose-400 shadow-rose-400/30"
+                  : isProcessing
+                  ? "bg-white border-2 border-gray-100 shadow-sm"
+                  : isAISpeaking
+                  ? "bg-indigo-500 shadow-indigo-500/40 ring-4 ring-indigo-200"
+                  : "bg-white border border-gray-200 shadow-md hover:shadow-lg hover:border-rose-200 group"
+              }
+            `}
+            onClick={() => {
+              if (!isRecording && !isProcessing && !isAISpeaking) {
+                startRecording();
+              } else if (isRecording) {
+                stopRecording();
+              }
+            }}
+          >
+            {isRecording ? (
+              <Mic
+                size={32}
+                className={`text-white ${isTalking ? "animate-pulse" : ""}`}
+              />
+            ) : isProcessing ? (
+              <Loader2 size={32} className="text-rose-500 animate-spin" />
+            ) : isAISpeaking ? (
+              <Volume2 size={32} className="text-white animate-pulse" />
+            ) : (
+              <Mic
+                size={32}
+                className="text-gray-400 group-hover:text-rose-500 transition-colors"
+              />
+            )}
+
+            {isRecording && isTalking && (
+              <span className="absolute inset-0 rounded-full animate-ping bg-rose-400 opacity-20"></span>
+            )}
           </div>
         </div>
       </footer>
@@ -637,6 +699,45 @@ const AITalkPageDetail: React.FC = () => {
         activeWordIndexes={activeTooltipWordIndexes}
         isAbove={cardPos.preferAbove}
       />
+
+      {/* 종료 확인 모달 */}
+      {showExitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-fade-in">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={handleCancelExit}
+          />
+
+          <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-scale-in">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="w-14 h-14 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center mb-4">
+                <AlertTriangle size={28} strokeWidth={2.5} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                대화를 종료하시겠습니까?
+              </h3>
+              <p className="text-gray-500 text-sm leading-relaxed break-keep">
+                지금 나가시면 대화가 저장되지 않을 수 있습니다.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleConfirmExit}
+                className="w-full py-3.5 bg-rose-500 text-white rounded-xl font-bold hover:bg-rose-600 active:scale-95 transition-all"
+              >
+                종료하고 나가기
+              </button>
+              <button
+                onClick={handleCancelExit}
+                className="w-full py-3.5 bg-white text-gray-600 border border-gray-200 rounded-xl font-bold hover:bg-gray-50 active:scale-95 transition-all"
+              >
+                계속 대화하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

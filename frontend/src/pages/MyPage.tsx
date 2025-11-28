@@ -28,7 +28,7 @@ const formatStudyTime = (totalSeconds: number) => {
   return hours.endsWith(".0") ? `${parseInt(hours)}시간` : `${hours}시간`;
 };
 
-// --- Components ---
+// --- Components (원본 유지) ---
 
 const StatCard: React.FC<{
   icon: React.ReactNode;
@@ -93,7 +93,7 @@ const NavigateRow: React.FC<{
   </div>
 );
 
-// --- Attendance Grid Logic ---
+// --- Attendance Grid Logic (원본 유지) ---
 
 const AttendanceGrid: React.FC<{
   data: { date: string; attended: boolean; count?: number }[];
@@ -334,56 +334,58 @@ const MyPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 text-gray-900">
-      {/* Header Section */}
-      <div className="bg-linear-to-br from-rose-500 to-pink-600 text-white p-6 sm:p-8 shadow-lg relative overflow-hidden">
-        {/* Background Decor */}
-        <div className="absolute top-0 right-0 -mr-10 -mt-10 w-48 h-48 bg-white opacity-10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-32 h-32 bg-indigo-400 opacity-20 rounded-full blur-2xl pointer-events-none"></div>
-
-        <div className="max-w-5xl mx-auto relative z-10">
-          <div className="flex items-center gap-4 sm:gap-6 mb-6 sm:mb-8">
-            <div
-              className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white border-4 border-white/30 flex items-center justify-center text-3xl sm:text-4xl font-bold text-rose-500 shadow-lg"
-              aria-hidden
-            >
+      {/* Header Section (수정됨): 
+        - 배경 그라데이션 제거 -> bg-white
+        - 텍스트 컬러 -> Gray/Black
+        - 레벨 카드 -> Gray Box로 변경
+      */}
+      <div className="bg-white p-6 sm:p-8 shadow-sm border-b border-gray-200">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex items-center gap-4 sm:gap-6 mb-6">
+            {/* Avatar */}
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-3xl sm:text-4xl font-bold text-rose-500 shadow-sm">
               {profile.name ? profile.name.charAt(0) : profile.email.charAt(0)}
             </div>
 
+            {/* User Info */}
             <div className="flex-1 min-w-0">
               <h1
-                className="text-2xl sm:text-3xl font-black mb-1 tracking-tight truncate"
+                className="text-2xl sm:text-3xl font-black mb-1 tracking-tight truncate text-gray-900"
                 title={profile.name ?? profile.email}
               >
                 {profile.name ?? profile.email}
               </h1>
-              <p className="text-white/90 text-sm sm:text-base font-medium opacity-90">
+              <p className="text-gray-500 text-sm sm:text-base font-medium">
                 {profile.email}
               </p>
             </div>
           </div>
 
-          <div className="bg-white/10 border border-white/20 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-inner">
+          {/* Level Progress Card */}
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-yellow-300" />
-                <span className="font-bold text-sm sm:text-base">
+                <Trophy className="w-5 h-5 text-amber-400" />
+                <span className="font-bold text-sm sm:text-base text-gray-900">
                   현재 레벨 (CEFR)
                 </span>
               </div>
-              <span className="px-3 py-1 rounded-lg bg-white/20 text-white text-xs sm:text-sm font-bold border border-white/10">
+              <span className="px-3 py-1 rounded-lg bg-white text-rose-600 text-xs sm:text-sm font-bold border border-gray-200 shadow-sm">
                 {stats.currentLevel}
               </span>
             </div>
 
+            {/* Progress Bar Track */}
             <div
-              className="w-full bg-black/20 h-2.5 rounded-full mb-2 overflow-hidden"
+              className="w-full bg-gray-200 h-2.5 rounded-full mb-2 overflow-hidden"
               role="progressbar"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={stats.nextLevelProgress}
             >
+              {/* Progress Bar Fill: 포인트 컬러 그라데이션 */}
               <div
-                className="h-full bg-linear-to-r from-yellow-300 to-orange-400 rounded-full transition-all duration-1000 ease-out"
+                className="h-full bg-linear-to-r from-rose-400 to-rose-500 rounded-full transition-all duration-1000 ease-out"
                 style={{
                   width: `${Math.max(
                     0,
@@ -393,16 +395,18 @@ const MyPage: React.FC = () => {
               />
             </div>
 
-            <div className="flex items-center justify-between text-xs sm:text-sm text-white/80 font-medium">
+            <div className="flex items-center justify-between text-xs sm:text-sm text-gray-500 font-medium">
               <span>다음 레벨까지</span>
-              <span className="text-white">{stats.nextLevelProgress}%</span>
+              <span className="text-rose-600 font-bold">
+                {stats.nextLevelProgress}%
+              </span>
             </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-        {/* Stats Section */}
+        {/* Stats Section (원본 유지) */}
         <section>
           <div className="mb-4">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
@@ -432,7 +436,7 @@ const MyPage: React.FC = () => {
           </div>
         </section>
 
-        {/* Attendance Section */}
+        {/* Attendance Section (원본 유지) */}
         <section>
           <div className="mb-4">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
@@ -445,7 +449,7 @@ const MyPage: React.FC = () => {
           <AttendanceGrid data={gridInputData} />
         </section>
 
-        {/* Account Section */}
+        {/* Account Section (원본 유지) */}
         <section>
           <div className="mb-4">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">

@@ -152,9 +152,9 @@ export default function VoiceRoomPage() {
     );
   }, [rooms, query]);
 
-  // 렌더링
+  // [수정됨] pb-16 / md:pb-0
   return (
-    <div className="min-h-screen bg-slate-50 pb-20 text-gray-900">
+    <div className="min-h-screen bg-slate-50 pb-16 md:pb-0 text-gray-900">
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-10">
         {/* Hero / Banner Section */}
         <section>
@@ -173,7 +173,6 @@ export default function VoiceRoomPage() {
                 <br />
                 실력을 키워보세요
               </h1>
-              {/* 설명 문구 제거됨 */}
             </div>
 
             {/* Action Buttons inside Banner */}
@@ -198,7 +197,6 @@ export default function VoiceRoomPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="방 이름, 주제, 호스트, 레벨로 검색해보세요..."
-                // 패딩 수정: py-3.5 -> py-2.5 (두께 감소)
                 className="w-full pl-12 pr-4 py-2.5 bg-transparent text-base placeholder:text-gray-400 focus:outline-none rounded-xl"
               />
             </div>

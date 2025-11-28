@@ -281,8 +281,9 @@ const MyPage: React.FC = () => {
     }
   };
 
+  // [수정됨] pb-16 / md:pb-0
   return (
-    <div className="min-h-screen bg-slate-50 pb-20 text-gray-900">
+    <div className="min-h-screen bg-slate-50 pb-16 md:pb-0 text-gray-900">
       <div className="bg-white p-6 sm:p-8 shadow-sm border-b border-gray-200">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-4 sm:gap-6 mb-6">

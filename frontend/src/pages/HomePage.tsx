@@ -280,8 +280,9 @@ const HomePage: React.FC = () => {
     return [a, b, c].filter(Boolean) as LeaderboardUser[];
   })();
 
+  // [수정됨] pb-16 (모바일 네비바 높이만큼만 확보) / md:pb-0 (데스크탑은 여백 제거)
   return (
-    <div className="min-h-screen bg-slate-50 pb-20 text-gray-900">
+    <div className="min-h-screen bg-slate-50 pb-16 md:pb-0 text-gray-900">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -342,11 +343,9 @@ const HomePage: React.FC = () => {
                 type="button"
                 onClick={() => handleNavigateToTraining(s.startType)}
                 onMouseEnter={() => prefetchQuestions(s.startType)}
-                // [Unified Style]: border-gray-200, p-4 sm:p-5, hover effects
                 className="group relative bg-white rounded-2xl p-4 sm:p-5 text-left border border-gray-200 shadow-sm hover:shadow-md hover:border-rose-100 transition-all duration-300 active:scale-[0.99]"
               >
                 <div className="flex items-center gap-4">
-                  {/* [Unified Style]: w-12 h-12 fixed size, bg-gray-50, border-gray-100 */}
                   <div
                     className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
                   >

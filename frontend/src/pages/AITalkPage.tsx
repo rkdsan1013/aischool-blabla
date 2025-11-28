@@ -228,8 +228,6 @@ const AITalkPage: React.FC = () => {
     const editingStartedRef = useRef<boolean>(false);
     const localTitleRef = useRef<HTMLInputElement | null>(null);
 
-    // [FIX]: ESLint react-hooks/exhaustive-deps 오류 수정
-    // scenario 객체 전체를 의존성으로 추가하여 변경 시 상태를 갱신합니다.
     useEffect(() => {
       setLocalTitle(scenario.title ?? "");
       setLocalDescription(scenario.description ?? "");
@@ -419,8 +417,9 @@ const AITalkPage: React.FC = () => {
     );
   };
 
+  // [수정됨] pb-16 / md:pb-0
   return (
-    <div className="min-h-screen bg-slate-50 pb-20 text-gray-900">
+    <div className="min-h-screen bg-slate-50 pb-16 md:pb-0 text-gray-900">
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-10">
         <section>
           <div

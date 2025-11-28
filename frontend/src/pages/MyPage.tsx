@@ -28,7 +28,7 @@ const formatStudyTime = (totalSeconds: number) => {
   return hours.endsWith(".0") ? `${parseInt(hours)}시간` : `${hours}시간`;
 };
 
-// --- Components (원본 유지) ---
+// --- Components (스타일 수정됨) ---
 
 const StatCard: React.FC<{
   icon: React.ReactNode;
@@ -37,7 +37,8 @@ const StatCard: React.FC<{
 }> = ({ icon, value, label }) => (
   <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 shadow-sm hover:shadow-md transition-all duration-300">
     <div className="flex flex-col items-center text-center">
-      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-sm border border-rose-100">
+      {/* 배경색 bg-gray-50으로 변경, 아이콘 컬러 text-rose-500 유지 */}
+      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gray-50 text-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-sm border border-gray-100">
         {icon}
       </div>
       <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 tracking-tight">
@@ -53,16 +54,9 @@ const NavigateRow: React.FC<{
   title: string;
   subtitle: string;
   onClick: () => void;
-  colorClass?: string;
+  // colorClass prop 제거 (배경 통일을 위해 사용하지 않음)
   textClass?: string;
-}> = ({
-  icon,
-  title,
-  subtitle,
-  onClick,
-  colorClass = "bg-rose-50 text-rose-500 border-rose-100",
-  textClass = "text-gray-900",
-}) => (
+}> = ({ icon, title, subtitle, onClick, textClass = "text-gray-900" }) => (
   <div
     className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:shadow-lg hover:border-rose-200 transition-all duration-300 group active:scale-[0.99]"
     onClick={onClick}
@@ -75,9 +69,8 @@ const NavigateRow: React.FC<{
     }}
   >
     <div className="flex items-center gap-4">
-      <div
-        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shadow-sm border group-hover:scale-105 transition-transform duration-300 ${colorClass}`}
-      >
+      {/* 아이콘 배경 bg-gray-50으로 통일 */}
+      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shadow-sm border border-gray-100 bg-gray-50 group-hover:scale-105 transition-transform duration-300">
         {icon}
       </div>
       <div>
@@ -109,10 +102,7 @@ const AttendanceGrid: React.FC<{
       if (containerRef.current) {
         const width = containerRef.current.offsetWidth;
         const availableWidth = width - 34; // 라벨 + 패딩 공간
-
-        // 아이템 사이즈 (Size + Gap)
         const itemSize = window.innerWidth >= 640 ? 26 : 20;
-
         const calculated = Math.floor(availableWidth / itemSize);
         setNumWeeks(Math.max(5, calculated));
       }
@@ -126,7 +116,6 @@ const AttendanceGrid: React.FC<{
 
   const gridData = useMemo(() => {
     const dataMap = new Map(data.map((item) => [item.date, item]));
-
     const today = new Date();
     const endOfWeek = new Date(today);
     const dayOfWeek = endOfWeek.getDay();
@@ -135,7 +124,6 @@ const AttendanceGrid: React.FC<{
     const weeks = [];
     const startDate = new Date(endOfWeek);
     startDate.setDate(endOfWeek.getDate() - numWeeks * 7 + 1);
-
     const current = new Date(startDate);
 
     for (let w = 0; w < numWeeks; w++) {
@@ -145,7 +133,6 @@ const AttendanceGrid: React.FC<{
         const m = String(current.getMonth() + 1).padStart(2, "0");
         const dd = String(current.getDate()).padStart(2, "0");
         const dateStr = `${y}-${m}-${dd}`;
-
         const isFuture = current > today;
 
         weekDays.push({
@@ -154,7 +141,6 @@ const AttendanceGrid: React.FC<{
           item: dataMap.get(dateStr),
           isFuture,
         });
-
         current.setDate(current.getDate() + 1);
       }
       weeks.push(weekDays);
@@ -167,9 +153,7 @@ const AttendanceGrid: React.FC<{
     isFuture?: boolean
   ) => {
     if (isFuture) return "bg-gray-50 border border-gray-100";
-
     const base = "border border-transparent";
-
     if (!item || !item.attended) return `bg-gray-100 ${base}`;
 
     const c = item.count ?? 1;
@@ -196,7 +180,6 @@ const AttendanceGrid: React.FC<{
         ref={containerRef}
         className="flex gap-1 sm:gap-1.5 w-full overflow-hidden"
       >
-        {/* 요일 라벨 */}
         <div className="flex flex-col gap-1 sm:gap-1.5 pt-0">
           {dayLabels.map((d) => (
             <div
@@ -210,7 +193,6 @@ const AttendanceGrid: React.FC<{
           ))}
         </div>
 
-        {/* 메인 그리드 (가운데 정렬) */}
         <div className="flex gap-1 sm:gap-1.5 flex-1 justify-center">
           {gridData.map((week, wi) => (
             <div key={wi} className="flex flex-col gap-1 sm:gap-1.5">
@@ -334,11 +316,7 @@ const MyPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 text-gray-900">
-      {/* Header Section (수정됨): 
-        - 배경 그라데이션 제거 -> bg-white
-        - 텍스트 컬러 -> Gray/Black
-        - 레벨 카드 -> Gray Box로 변경
-      */}
+      {/* Header Section */}
       <div className="bg-white p-6 sm:p-8 shadow-sm border-b border-gray-200">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-4 sm:gap-6 mb-6">
@@ -383,7 +361,6 @@ const MyPage: React.FC = () => {
               aria-valuemax={100}
               aria-valuenow={stats.nextLevelProgress}
             >
-              {/* Progress Bar Fill: 포인트 컬러 그라데이션 */}
               <div
                 className="h-full bg-linear-to-r from-rose-400 to-rose-500 rounded-full transition-all duration-1000 ease-out"
                 style={{
@@ -406,7 +383,7 @@ const MyPage: React.FC = () => {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-        {/* Stats Section (원본 유지) */}
+        {/* Stats Section */}
         <section>
           <div className="mb-4">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
@@ -436,7 +413,7 @@ const MyPage: React.FC = () => {
           </div>
         </section>
 
-        {/* Attendance Section (원본 유지) */}
+        {/* Attendance Section */}
         <section>
           <div className="mb-4">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
@@ -449,7 +426,7 @@ const MyPage: React.FC = () => {
           <AttendanceGrid data={gridInputData} />
         </section>
 
-        {/* Account Section (원본 유지) */}
+        {/* Account Section */}
         <section>
           <div className="mb-4">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
@@ -465,7 +442,6 @@ const MyPage: React.FC = () => {
               title="히스토리"
               subtitle="상세한 학습 기록을 확인하세요"
               onClick={handleOpenHistory}
-              colorClass="bg-indigo-50 border-indigo-100"
             />
 
             <NavigateRow
@@ -473,7 +449,6 @@ const MyPage: React.FC = () => {
               title="프로필 관리"
               subtitle="개인정보 및 비밀번호 수정"
               onClick={handleOpenProfile}
-              colorClass="bg-blue-50 border-blue-100"
             />
           </div>
 

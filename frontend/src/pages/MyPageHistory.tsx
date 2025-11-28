@@ -34,7 +34,6 @@ const CustomDropdown: React.FC<{
 
   useEffect(() => {
     if (!open) return;
-
     function onDocClick(e: Event) {
       if (!btnRef.current || !panelRef.current) return;
       const target = e.target as Node | null;
@@ -46,10 +45,8 @@ const CustomDropdown: React.FC<{
       }
       setOpen(false);
     }
-
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("touchstart", onDocClick);
-
     return () => {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("touchstart", onDocClick);
@@ -57,7 +54,6 @@ const CustomDropdown: React.FC<{
   }, [open]);
 
   const toggleOpen = () => setOpen((s) => !s);
-
   const onOptionClick = (index: number) => {
     onChange(options[index].value);
     setOpen(false);
@@ -75,7 +71,7 @@ const CustomDropdown: React.FC<{
         id={uid}
         type="button"
         onClick={toggleOpen}
-        className={`w-full flex items-center justify-between rounded-xl px-4 py-3 bg-white border border-gray-200 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 ${
+        className={`w-full flex items-center justify-between rounded-2xl px-4 py-3.5 bg-gray-50 border border-gray-200 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 ${
           open ? "ring-2 ring-rose-500/20 border-rose-500" : ""
         }`}
       >
@@ -98,7 +94,7 @@ const CustomDropdown: React.FC<{
 
       <div
         ref={panelRef}
-        className={`absolute z-50 w-full rounded-xl bg-white shadow-xl border border-gray-100 transform transition-all duration-200 ease-out origin-top mt-2 ${
+        className={`absolute z-50 w-full rounded-2xl bg-white shadow-xl border border-gray-100 transform transition-all duration-200 ease-out origin-top mt-2 ${
           open
             ? "opacity-100 scale-y-100"
             : "opacity-0 scale-y-95 pointer-events-none"
@@ -139,7 +135,6 @@ const formatDate = (dateStr: string) => {
     day: "numeric",
   });
 };
-
 const formatTime = (dateStr: string) => {
   const date = new Date(dateStr);
   return date.toLocaleTimeString("ko-KR", {
@@ -147,7 +142,6 @@ const formatTime = (dateStr: string) => {
     minute: "2-digit",
   });
 };
-
 const formatDuration = (seconds?: number) => {
   if (seconds === undefined) return "";
   if (seconds < 60) return "<1분";
@@ -158,10 +152,8 @@ const formatDuration = (seconds?: number) => {
 
 const MyPageHistory: React.FC = () => {
   const navigate = useNavigate();
-
   const [historyData, setHistoryData] = useState<HistoryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -203,13 +195,11 @@ const MyPageHistory: React.FC = () => {
     const itemTime = new Date(item.date).getTime();
     const s = toDayStart(startDate);
     const e = toDayEnd(endDate);
-
     if (s && itemTime < s) return false;
     if (e && itemTime > e) return false;
     if (typeFilter !== "all" && item.type !== typeFilter) return false;
     if (subCategoryFilter !== "all" && item.subType !== subCategoryFilter)
       return false;
-
     return true;
   });
 
@@ -228,7 +218,6 @@ const MyPageHistory: React.FC = () => {
     } else {
       list = allSubTypes;
     }
-
     return [
       { value: "all", label: "전체 카테고리" },
       ...list.map((s) => ({ value: s, label: s })),
@@ -266,14 +255,12 @@ const MyPageHistory: React.FC = () => {
     );
   }
 
-  // [Modified]: Removed pb-16 md:pb-0 since this page does not have a bottom nav.
-  // Relying on py-8 in <main>.
   return (
     <div className="min-h-screen bg-slate-50 text-gray-900">
       {/* --- Header --- */}
+      {/* [수정됨]: h-14 (고정 높이)로 통일하여 AITalkCustomScenario, VoiceRoomCreate와 일치시킴 */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        {/* [Unified Layout]: max-w-2xl to match Profile page */}
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate(-1)}
@@ -282,9 +269,7 @@ const MyPageHistory: React.FC = () => {
             >
               <ChevronLeft className="w-6 h-6" />
             </button>
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900">
-              학습 히스토리
-            </h1>
+            <h1 className="text-lg font-bold text-gray-900">학습 히스토리</h1>
           </div>
 
           <button
@@ -300,7 +285,6 @@ const MyPageHistory: React.FC = () => {
         </div>
       </header>
 
-      {/* [Unified Layout]: max-w-2xl (was 5xl) */}
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         {/* --- Filters --- */}
         <div
@@ -352,7 +336,7 @@ const MyPageHistory: React.FC = () => {
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all placeholder-gray-400"
+                  className="w-full rounded-2xl border border-gray-200 px-4 py-3.5 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all placeholder-gray-400"
                 />
               </div>
             </div>
@@ -366,7 +350,7 @@ const MyPageHistory: React.FC = () => {
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                  className="w-full rounded-2xl border border-gray-200 px-4 py-3.5 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
                 />
               </div>
             </div>

@@ -11,7 +11,7 @@ import {
   Flame,
   ChevronRight,
   Repeat,
-  Sparkles, // 아이콘 추가
+  Sparkles,
 } from "lucide-react";
 import type { TrainingType } from "../services/trainingService";
 import { useProfile } from "../hooks/useProfile";
@@ -48,8 +48,8 @@ interface TrainingStep {
   title: string;
   description: string;
   icon: React.ReactNode;
-  bgClass: string; // 카드 아이콘 배경색
-  textClass: string; // 카드 아이콘 텍스트색
+  // bgClass 제거됨
+  textClass: string; // 아이콘 색상은 유지
   repeatsToday: number;
   startType: TrainingType;
 }
@@ -152,14 +152,13 @@ const HomePage: React.FC = () => {
   if (!profile) return null;
 
   // --- Training Steps Data ---
-  // 디자인 톤앤매너에 맞춰 색상 클래스 조정
+  // bgClass 제거, textClass 유지
   const steps: TrainingStep[] = [
     {
       id: "vocabulary",
       title: "단어 훈련",
       description: "새로운 단어를 배우고 복습하세요",
       icon: <BookOpen className="w-5 h-5" />,
-      bgClass: "bg-rose-100",
       textClass: "text-rose-600",
       repeatsToday: 2,
       startType: "vocabulary",
@@ -169,7 +168,6 @@ const HomePage: React.FC = () => {
       title: "문장 배열",
       description: "단어를 올바른 순서로 배열하세요",
       icon: <ListOrdered className="w-5 h-5" />,
-      bgClass: "bg-orange-100",
       textClass: "text-orange-600",
       repeatsToday: 1,
       startType: "sentence",
@@ -179,7 +177,6 @@ const HomePage: React.FC = () => {
       title: "빈칸 채우기",
       description: "문맥에 맞는 단어를 선택하세요",
       icon: <Link2 className="w-5 h-5" />,
-      bgClass: "bg-amber-100",
       textClass: "text-amber-600",
       repeatsToday: 0,
       startType: "blank",
@@ -189,7 +186,6 @@ const HomePage: React.FC = () => {
       title: "작문",
       description: "주어진 주제로 문장을 작성해보세요",
       icon: <PenTool className="w-5 h-5" />,
-      bgClass: "bg-emerald-100",
       textClass: "text-emerald-600",
       repeatsToday: 0,
       startType: "writing",
@@ -199,7 +195,6 @@ const HomePage: React.FC = () => {
       title: "말하기 연습",
       description: "AI 튜터와 발음을 교정해보세요",
       icon: <Mic className="w-5 h-5" />,
-      bgClass: "bg-indigo-100",
       textClass: "text-indigo-600",
       repeatsToday: 3,
       startType: "speaking",
@@ -230,7 +225,7 @@ const HomePage: React.FC = () => {
   const tier = profile.tier ?? "Bronze";
   const score = profile.score ?? 0;
 
-  // Tier Styles (일관된 그라데이션 적용)
+  // Tier Styles
   const tierStyles: Record<
     string,
     { bgClass: string; textClass: string; label: string; iconColor: string }
@@ -310,7 +305,7 @@ const HomePage: React.FC = () => {
                 님!
               </h1>
               <p className="text-gray-500 text-sm mt-1">
-                오늘도 목표를 향해 달려볼까요? 🏃‍♂️
+                오늘도 목표를 향해 달려볼까요?
               </p>
             </div>
 
@@ -371,9 +366,9 @@ const HomePage: React.FC = () => {
                 className="group relative bg-white rounded-2xl p-4 text-left border border-gray-100 shadow-sm hover:shadow-md hover:border-rose-100 transition-all duration-200 active:scale-[0.99]"
               >
                 <div className="flex items-center gap-4">
-                  {/* Icon Box */}
+                  {/* Icon Box: 유색 배경 제거, bg-gray-50으로 통일 */}
                   <div
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center ${s.bgClass} ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center bg-gray-50 ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
                   >
                     {s.icon}
                   </div>
@@ -417,7 +412,7 @@ const HomePage: React.FC = () => {
                 리더보드
               </h2>
               <p className="text-sm text-gray-500 mt-1">
-                상위권 학습자들과 경쟁해보세요 🔥
+                상위권 학습자들과 경쟁해보세요
               </p>
             </div>
             <button
@@ -441,14 +436,14 @@ const HomePage: React.FC = () => {
               <div className="flex items-end justify-center gap-3 sm:gap-6 pt-4 pb-2">
                 {podiumOrder.map((user) => {
                   const isFirst = user.rank === 1;
-                  // 높이 계산 로직 (일관된 비율)
+                  // 높이 계산 로직
                   const heightClass = isFirst
                     ? "h-40 sm:h-48"
                     : user.rank === 2
                     ? "h-32 sm:h-40"
                     : "h-24 sm:h-32";
 
-                  // 색상 (금/은/동 느낌의 그라데이션)
+                  // 색상
                   const bgGradient =
                     user.rank === 1
                       ? "bg-linear-to-t from-yellow-400 to-yellow-300 border-yellow-400"

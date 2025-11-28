@@ -19,10 +19,6 @@ import {
   changePassword,
 } from "../services/userService";
 
-// ... (타입 정의 및 컴포넌트 로직은 기존과 동일) ...
-// 전체 코드는 길어지므로 변경된 import 부분만 강조했습니다.
-// 실제 사용 시에는 이전에 작성해드린 MyPageProfile 전체 코드에서 import { X, ... } -> import { ..., ... } 로 X만 제거하면 됩니다.
-
 type ProfileState = {
   name: string;
   email: string;
@@ -46,7 +42,6 @@ const MyPageProfile: React.FC = () => {
   const { profile: globalProfile, refreshProfile } = useProfile();
   const { logout } = useAuth();
 
-  // ... (상태 및 핸들러 로직 유지) ...
   const [profile, setProfile] = useState<ProfileState>({
     name: "",
     email: "",
@@ -216,8 +211,9 @@ const MyPageProfile: React.FC = () => {
         <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-6 sm:p-8">
             <div className="flex flex-col items-center mb-8">
+              {/* Profile Image Area - Modified Style */}
               <div className="relative group">
-                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-rose-100 flex items-center justify-center text-4xl font-bold text-rose-500 overflow-hidden shadow-inner border-4 border-white ring-1 ring-gray-100">
+                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gray-50 flex items-center justify-center text-4xl font-bold text-gray-300 overflow-hidden border border-gray-200 shadow-sm">
                   {profile.profileImage ? (
                     <img
                       src={profile.profileImage}
@@ -228,11 +224,13 @@ const MyPageProfile: React.FC = () => {
                     <span aria-hidden>{profile.name?.charAt(0) ?? "?"}</span>
                   )}
                 </div>
+
+                {/* Camera Button - Clean White Style */}
                 <label
-                  className="absolute bottom-0 right-0 w-10 h-10 bg-rose-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-rose-600 transition-all shadow-lg border-2 border-white group-hover:scale-110"
+                  className="absolute bottom-1 right-1 w-9 h-9 sm:w-10 sm:h-10 bg-white rounded-full flex items-center justify-center cursor-pointer border border-gray-200 shadow-md hover:border-rose-200 hover:text-rose-500 text-gray-500 transition-all duration-200 group-hover:scale-105"
                   aria-label="프로필 이미지 업로드"
                 >
-                  <Camera className="w-5 h-5 text-white" />
+                  <Camera className="w-5 h-5" />
                   <input
                     type="file"
                     accept="image/*"
@@ -242,7 +240,7 @@ const MyPageProfile: React.FC = () => {
                   />
                 </label>
               </div>
-              <p className="mt-3 text-sm text-gray-500 font-medium">
+              <p className="mt-3 text-sm text-gray-400 font-medium">
                 프로필 사진 변경
               </p>
             </div>

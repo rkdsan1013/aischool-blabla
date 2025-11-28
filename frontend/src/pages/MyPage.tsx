@@ -334,11 +334,7 @@ const MyPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 text-gray-900">
-      {/* Header Section (수정됨): 
-        - 배경 그라데이션 제거 -> bg-white
-        - 텍스트 컬러 -> Gray/Black
-        - 레벨 카드 -> Gray Box로 변경
-      */}
+      {/* Header Section */}
       <div className="bg-white p-6 sm:p-8 shadow-sm border-b border-gray-200">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-4 sm:gap-6 mb-6">
@@ -383,7 +379,7 @@ const MyPage: React.FC = () => {
               aria-valuemax={100}
               aria-valuenow={stats.nextLevelProgress}
             >
-              {/* Progress Bar Fill: 포인트 컬러 그라데이션 */}
+              {/* Progress Bar Fill */}
               <div
                 className="h-full bg-linear-to-r from-rose-400 to-rose-500 rounded-full transition-all duration-1000 ease-out"
                 style={{
@@ -478,8 +474,9 @@ const MyPage: React.FC = () => {
           </div>
 
           <div className="mt-8">
+            {/* 로그아웃 버튼: 텍스트 스타일 유지, 컬러만 회색 계열로 변경하여 포인트 컬러 비중 조절 */}
             <button
-              className="w-full h-14 border-2 border-rose-500 text-rose-500 rounded-2xl font-bold hover:bg-gray-50 hover:text-gray-700 hover:border-gray-300 transition-all flex items-center justify-center gap-2"
+              className="w-full h-14 border-2 border-gray-200 text-gray-500 rounded-2xl font-bold hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 transition-all flex items-center justify-center gap-2"
               onClick={handleLogout}
               type="button"
             >

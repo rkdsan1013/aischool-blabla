@@ -166,7 +166,7 @@ const AttendanceGrid: React.FC<{
         ref={containerRef}
         className="flex gap-1 sm:gap-1.5 w-full overflow-hidden"
       >
-        <div className="flex flex-col gap-1 sm:gap-1.5 pt-0">
+        <div className="flex flex-col gap-1 sm:gap-1.5 py-1">
           {dayLabels.map((d) => (
             <div
               key={d}
@@ -178,7 +178,7 @@ const AttendanceGrid: React.FC<{
             </div>
           ))}
         </div>
-        <div className="flex gap-1 sm:gap-1.5 flex-1 justify-center">
+        <div className="flex gap-1 sm:gap-1.5 flex-1 justify-center py-1">
           {gridData.map((week, wi) => (
             <div key={wi} className="flex flex-col gap-1 sm:gap-1.5">
               {week.map((day, di) => (
@@ -251,7 +251,7 @@ const MyPage: React.FC = () => {
   }, [attendanceStats]);
 
   const handleOpenProfile = () => navigate("/my/profile");
-  const handleOpenHistory = () => navigate("/my/history");
+  const handleOpenHistory = () => navigate("/my/history"); // This function is now used
 
   if (isLoading || isAttendanceLoading) {
     return (

@@ -158,12 +158,12 @@ export default function VoiceRoomPage() {
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-10">
         {/* Hero / Banner Section */}
         <section>
-          <div className="w-full bg-linear-to-br from-rose-500 to-pink-600 rounded-3xl p-6 sm:p-10 text-white shadow-lg relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 cursor-pointer hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+          <div className="w-full bg-linear-to-br from-rose-500 to-pink-600 rounded-3xl p-6 sm:p-10 text-white shadow-lg relative overflow-hidden flex flex-col sm:flex-row items-center justify-between gap-6 cursor-pointer hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
             {/* 배경 데코 */}
             <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 bg-rose-300 opacity-20 rounded-full blur-3xl pointer-events-none"></div>
 
-            <div className="relative z-10 flex-1 text-center md:text-left">
+            <div className="relative z-10 flex-1 text-center sm:text-left">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/10 text-xs font-bold mb-4 shadow-sm">
                 <Radio className="w-3.5 h-3.5 animate-pulse" />
                 <span>LIVE VOICE CHAT</span>
@@ -176,7 +176,7 @@ export default function VoiceRoomPage() {
             </div>
 
             {/* Action Buttons inside Banner */}
-            <div className="relative z-10 flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <div className="relative z-10 flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <button
                 onClick={handleCreateRoom}
                 className="flex items-center justify-center gap-2 px-6 py-3.5 bg-white text-rose-600 font-bold rounded-xl shadow-md hover:bg-rose-50 transition-all active:scale-[0.98]"
@@ -240,7 +240,7 @@ export default function VoiceRoomPage() {
 
           {/* 방 목록 그리드 */}
           {!isLoading && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               {filteredRooms.map((room, index) => {
                 const participants = room.participants ?? 0;
                 const maxParticipants = room.maxParticipants ?? 8;

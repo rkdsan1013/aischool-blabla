@@ -220,8 +220,9 @@ const HomeLeaderBoard: React.FC = () => {
     );
   };
 
+  // [Modified]: Removed pb-16 md:pb-0 bottom padding
   return (
-    <div className="min-h-screen bg-slate-50 pb-16 md:pb-0 text-gray-900">
+    <div className="min-h-screen bg-slate-50 text-gray-900">
       {/* --- Header (Unified Style) --- */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center gap-3">

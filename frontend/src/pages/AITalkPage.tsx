@@ -30,9 +30,8 @@ interface DisplayScenario {
   title: string;
   description: string;
   icon: React.ReactNode;
-  bgClass: string; // 배경색 클래스 (예: bg-amber-100)
+  // bgClass, borderClass 제거 -> HomePage 스타일(Clean) 적용
   textClass: string; // 텍스트/아이콘 색상 클래스 (예: text-amber-600)
-  borderClass: string; // 테두리 색상 클래스 (예: border-amber-200)
   context?: string;
 }
 
@@ -59,69 +58,53 @@ const AITalkPage: React.FC = () => {
   const [confirmScenario, setConfirmScenario] =
     useState<DisplayScenario | null>(null);
 
-  // 디자인 시스템에 맞춘 색상 스타일 매핑
+  // 디자인 시스템에 맞춘 색상 스타일 매핑 (배경색 제거)
   const getScenarioStyle = (title: string) => {
     if (title.includes("카페")) {
       return {
         icon: <Coffee className="w-5 h-5 sm:w-6 sm:h-6" />,
-        bgClass: "bg-amber-100",
         textClass: "text-amber-600",
-        borderClass: "border-amber-200",
       };
     }
     if (title.includes("면접")) {
       return {
         icon: <Briefcase className="w-5 h-5 sm:w-6 sm:h-6" />,
-        bgClass: "bg-rose-100",
         textClass: "text-rose-600",
-        borderClass: "border-rose-200",
       };
     }
     if (title.includes("여행")) {
       return {
         icon: <Plane className="w-5 h-5 sm:w-6 sm:h-6" />,
-        bgClass: "bg-blue-100",
         textClass: "text-blue-600",
-        borderClass: "border-blue-200",
       };
     }
     if (title.includes("쇼핑")) {
       return {
         icon: <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6" />,
-        bgClass: "bg-pink-100",
         textClass: "text-pink-600",
-        borderClass: "border-pink-200",
       };
     }
     if (title.includes("학교")) {
       return {
         icon: <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />,
-        bgClass: "bg-indigo-100",
         textClass: "text-indigo-600",
-        borderClass: "border-indigo-200",
       };
     }
     if (title.includes("데이트")) {
       return {
         icon: <Heart className="w-5 h-5 sm:w-6 sm:h-6" />,
-        bgClass: "bg-red-100",
         textClass: "text-red-600",
-        borderClass: "border-red-200",
       };
     }
     if (title.includes("스몰토크")) {
       return {
         icon: <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6" />,
-        bgClass: "bg-orange-100",
         textClass: "text-orange-600",
-        borderClass: "border-orange-200",
       };
     }
     return {
       icon: <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />,
-      bgClass: "bg-fuchsia-100",
       textClass: "text-fuchsia-600",
-      borderClass: "border-fuchsia-200",
     };
   };
 
@@ -144,9 +127,7 @@ const AITalkPage: React.FC = () => {
               description: item.description,
               context: item.context,
               icon: style.icon,
-              bgClass: style.bgClass,
               textClass: style.textClass,
-              borderClass: style.borderClass,
             };
             official.push(formatted);
           } else {
@@ -157,9 +138,7 @@ const AITalkPage: React.FC = () => {
               description: item.description,
               context: item.context,
               icon: <Pen className="w-5 h-5 sm:w-6 sm:h-6" />,
-              bgClass: "bg-cyan-100",
               textClass: "text-cyan-600",
-              borderClass: "border-cyan-200",
             };
             custom.push(formatted);
           }
@@ -225,9 +204,7 @@ const AITalkPage: React.FC = () => {
         description: payload.description,
         context: payload.context,
         icon: style.icon,
-        bgClass: style.bgClass,
         textClass: style.textClass,
-        borderClass: style.borderClass,
       };
 
       setCustomScenarios((prev) =>
@@ -443,8 +420,9 @@ const AITalkPage: React.FC = () => {
             ) : (
               <>
                 <div className="flex items-start gap-4 mb-6">
+                  {/* Modal Icon - Clean Style */}
                   <div
-                    className={`${scenario.bgClass} ${scenario.textClass} p-3 rounded-2xl shadow-sm shrink-0 border ${scenario.borderClass}`}
+                    className={`bg-gray-50 ${scenario.textClass} p-3 rounded-2xl shadow-sm shrink-0 border border-gray-100`}
                   >
                     {scenario.icon}
                   </div>
@@ -682,8 +660,9 @@ const AITalkPage: React.FC = () => {
                 type="button"
               >
                 <div className="flex items-start gap-4">
+                  {/* Icon Container - Clean Style */}
                   <div
-                    className={`${s.bgClass} ${s.textClass} p-3.5 rounded-2xl shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-300 border ${s.borderClass}`}
+                    className={`bg-gray-50 ${s.textClass} p-3.5 rounded-2xl shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-300`}
                   >
                     {s.icon}
                   </div>
@@ -755,8 +734,9 @@ const AITalkPage: React.FC = () => {
                   onClick={() => openModal(s)}
                 >
                   <div className="flex items-start gap-4">
+                    {/* Icon Container - Clean Style */}
                     <div
-                      className={`${s.bgClass} ${s.textClass} p-3.5 rounded-2xl shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-300 border ${s.borderClass}`}
+                      className={`bg-gray-50 ${s.textClass} p-3.5 rounded-2xl shrink-0 shadow-sm group-hover:scale-110 transition-transform duration-300`}
                     >
                       {s.icon}
                     </div>

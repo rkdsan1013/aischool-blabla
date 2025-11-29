@@ -82,8 +82,9 @@ const LevelTestResultPage: React.FC = () => {
     }
   };
 
-  // 이전 레벨 인덱스: selectedBaseLevel이 없으면 결과 레벨로 간주 (변화 없음)
+  // 이전 레벨 인덱스: 게스트인 경우 selectedBaseLevel을 무시하고 결과 레벨로 간주 (변화 없음)
   const prevLevelIndex =
+    !result.isGuest &&
     result.selectedBaseLevel &&
     LEVEL_ORDER.includes(result.selectedBaseLevel as Level)
       ? LEVEL_ORDER.indexOf(result.selectedBaseLevel as Level)
@@ -147,8 +148,11 @@ const LevelTestResultPage: React.FC = () => {
     alert("결과 이미지 저장/공유 기능이 실행됩니다.");
   };
 
-  // 레벨 변경 여부
-  const prevLevelLabel = result.selectedBaseLevel ?? null;
+  // 레벨 변경 여부: 게스트 사용자는 이전 레벨 표시를 하지 않음
+  const prevLevelLabel =
+    !result.isGuest && result.selectedBaseLevel
+      ? result.selectedBaseLevel
+      : null;
   const levelChanged = prevLevelLabel && prevLevelLabel !== result.level;
 
   // 시각용 클램프된 값 (메인 카드 바에 표시할 값은 0..100)
@@ -218,7 +222,16 @@ const LevelTestResultPage: React.FC = () => {
                     : "bg-gray-50 text-gray-700 border border-gray-100"
                 }`}
               >
-                {levelChanged ? (
+                {/* 게스트인 경우 이전 레벨 표시를 숨기고 간단한 결과 뱃지만 노출 */}
+                {result.isGuest ? (
+                  <>
+                    <CheckCircle2 size={16} />
+                    <span className="ml-1 font-semibold">{result.level}</span>
+                    <span className="ml-2 text-xs font-medium">
+                      {clamp(result.currentProgress)}%
+                    </span>
+                  </>
+                ) : levelChanged ? (
                   <>
                     {levelChange > 0 ? (
                       <Sparkles size={16} />

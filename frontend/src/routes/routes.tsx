@@ -22,7 +22,7 @@ import HomeLeaderBoard from "../pages/HomeLeaderBoard";
 import LevelTestPage from "../pages/LevelTestPage";
 import LevelTestResultPage from "../pages/LevelTestResultPage";
 import HistoryAI from "../pages/HistoryAI";
-// import HistoryTraining from "../pages/HistoryTraining";
+import HistoryTraining from "../pages/HistoryTraining";
 
 import PublicOnlyRoute from "./PublicOnlyRoute";
 import ProtectedRoute from "./ProtectedRoute";
@@ -129,14 +129,14 @@ export const routes: RouteObject[] = [
         ),
       },
       // [추가됨] 일반 트레이닝 상세 기록
-      // {
-      //   path: "/history/training/:sessionId",
-      //   element: (
-      //     <ProtectedRoute redirectTo="/auth">
-      //       <HistoryTraining />
-      //     </ProtectedRoute>
-      //   ),
-      // },
+      {
+        path: "/history/training/:sessionId",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <HistoryTraining />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: "/my/profile",
         element: (

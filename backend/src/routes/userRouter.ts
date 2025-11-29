@@ -10,6 +10,8 @@ import {
   getMyHistoryHandler,
   updateLevelHandler,
   getConversationDetailHandler,
+  getTrainingHistoryListHandler,
+  getTrainingDetailHandler,
 } from "../controllers/userController";
 
 const router = Router();
@@ -55,6 +57,22 @@ router.get("/me/attendance", requireAuth, getMyAttendanceHandler);
  * 통합 히스토리 조회
  */
 router.get("/me/history", requireAuth, getMyHistoryHandler);
+
+/**
+ * GET /api/user/me/history/training
+ * 학습(Training) 세션 목록 조회
+ */
+router.get("/me/history/training", requireAuth, getTrainingHistoryListHandler);
+
+/**
+ * GET /api/user/me/history/training/:sessionId
+ * 특정 학습(Training) 세션 상세 조회
+ */
+router.get(
+  "/me/history/training/:sessionId",
+  requireAuth,
+  getTrainingDetailHandler
+);
 
 /**
  * GET /api/user/me/history/conversation/:sessionId

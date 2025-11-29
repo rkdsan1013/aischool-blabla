@@ -381,3 +381,56 @@ export async function getConversationMessagesBySessionId(
   );
   return rows;
 }
+
+/* ===========================
+   Training 세션 관련 모델 함수 추가
+   - training_sessions 테이블 접근을 담당합니다.
+   - 서비스 레이어에서 호출되어 프론트가 기대하는 형태로 정규화합니다.
+   =========================== */
+
+/**
+ * userId에 대한 training_sessions 목록 조회
+ */
+export async function getTrainingSessionsByUserId(
+  userId: number
+): Promise<TrainingSessionRow[]> {
+  const [rows] = await pool.execute<TrainingSessionRow[] & RowDataPacket[]>(
+    `SELECT 
+       session_id,
+       user_id,
+       type,
+       score,
+       duration_seconds,
+       session_data,
+       created_at
+     FROM training_sessions
+     WHERE user_id = ?
+     ORDER BY created_at DESC`,
+    [userId]
+  );
+
+  return rows as TrainingSessionRow[];
+}
+
+/**
+ * 특정 training session을 session_id로 조회
+ */
+export async function getTrainingSessionById(
+  sessionId: number
+): Promise<TrainingSessionRow | null> {
+  const [rows] = await pool.execute<TrainingSessionRow[] & RowDataPacket[]>(
+    `SELECT 
+       session_id,
+       user_id,
+       type,
+       score,
+       duration_seconds,
+       session_data,
+       created_at
+     FROM training_sessions
+     WHERE session_id = ?`,
+    [sessionId]
+  );
+
+  return (rows as TrainingSessionRow[])[0] ?? null;
+}

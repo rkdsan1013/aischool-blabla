@@ -7,6 +7,8 @@ import {
   changeUserPassword,
   updateUserLevel,
   getConversationDetail,
+  getTrainingHistoryListForUser,
+  getTrainingDetailForUser,
 } from "../services/userService";
 import {
   getUserAttendanceStats,
@@ -260,5 +262,64 @@ export async function getConversationDetailHandler(
     return res
       .status(500)
       .json({ error: "Failed to fetch conversation detail" });
+  }
+}
+
+/**
+ * GET /api/user/me/history/training
+ * 학습(Training) 세션 목록 조회 (요약)
+ */
+export async function getTrainingHistoryListHandler(
+  req: Request,
+  res: Response
+) {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const list = await getTrainingHistoryListForUser(userId);
+    return res.json(list);
+  } catch (err) {
+    console.error("[User Controller] Training history list fetch error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch training history list" });
+  }
+}
+
+/**
+ * GET /api/user/me/history/training/:sessionId
+ * 특정 학습(Training) 세션 상세 조회
+ */
+export async function getTrainingDetailHandler(req: Request, res: Response) {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { sessionId } = req.params;
+    if (!sessionId) {
+      return res.status(400).json({ message: "Session ID is required" });
+    }
+
+    const numericId = parseInt(sessionId, 10);
+    if (isNaN(numericId)) {
+      return res.status(400).json({ message: "Invalid session ID format" });
+    }
+
+    const detail = await getTrainingDetailForUser(userId, numericId);
+    if (!detail) {
+      return res
+        .status(404)
+        .json({ message: "Training session not found or access denied" });
+    }
+
+    return res.json(detail);
+  } catch (err) {
+    console.error("[User Controller] Training Detail fetch error:", err);
+    return res.status(500).json({ error: "Failed to fetch training detail" });
   }
 }

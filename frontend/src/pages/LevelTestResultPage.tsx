@@ -98,8 +98,8 @@ const LevelTestResultPage: React.FC = () => {
         <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-200/40 rounded-full blur-3xl opacity-60" />
       </div>
 
-      {/* --- [헤더] Sticky로 변경하여 스크롤 시 상단 고정 --- */}
-      <header className="sticky top-0 left-0 w-full z-50 bg-white/10 backdrop-blur-md border-b border-white/20">
+      {/* --- [헤더] Sticky로 변경하여 스크롤 시 상단 고정 (블러/배경 제거) --- */}
+      <header className="sticky top-0 left-0 w-full z-50">
         <div className="max-w-5xl mx-auto h-14 sm:h-16 px-4 sm:px-6 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <span className="bg-white/80 border border-white/50 shadow-sm px-3 py-1 rounded-full text-xs font-bold text-rose-500 backdrop-blur-md">

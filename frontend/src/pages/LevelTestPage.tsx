@@ -205,7 +205,7 @@ const LevelTestPage: React.FC = () => {
       </div>
 
       {/* --- 헤더 --- */}
-      <header className="sticky top-0 left-0 w-full z-50 bg-white/10 backdrop-blur-md border-b border-white/20">
+      <header className="sticky top-0 left-0 w-full z-50">
         <div className="max-w-5xl mx-auto h-14 px-4 sm:px-6 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <span className="bg-white/80 border border-white/50 shadow-sm px-3 py-1 rounded-full text-xs font-bold text-rose-500 backdrop-blur-md">

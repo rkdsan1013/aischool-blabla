@@ -4,8 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Blabla</title>
-    <!-- favicon 적용 -->
     <link rel="icon" type="image/png" href="/blabla.png" />
+
+    <script>
+      window.global = window;
+      window.process = { env: { DEBUG: undefined }, version: "" };
+      window.Buffer = window.Buffer || [];
+    </script>
   </head>
   <body>
     <div id="root"></div>

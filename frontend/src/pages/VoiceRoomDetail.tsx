@@ -1,6 +1,34 @@
-// src/pages/VoiceRoomDetail.tsx
+// frontend/src/pages/VoiceRoomDetail.tsx
+// cspell:ignore voiceroom
+import { Buffer } from "buffer";
+
+if (typeof window !== "undefined") {
+  if (!window.Buffer) window.Buffer = Buffer;
+  if (!window.global) window.global = window;
+
+  if (!window.process) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).process = { env: {} };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const process = (window as any).process;
+
+  if (!process.nextTick) {
+    process.nextTick = (cb: () => void) => {
+      if (typeof queueMicrotask === "function") {
+        queueMicrotask(cb);
+      } else {
+        setTimeout(cb, 0);
+      }
+    };
+  }
+  if (!process.version) process.version = "";
+  if (!process.env) process.env = {};
+}
+
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Mic,
   MicOff,
@@ -9,22 +37,35 @@ import {
   Volume2,
   PhoneOff,
   AlertCircle,
+  Send,
+  Loader2,
+  UserMinus,
+  MoreHorizontal,
+  Sparkles,
+  VolumeX,
 } from "lucide-react";
+import io, { Socket } from "socket.io-client";
+import Peer from "simple-peer";
+import VoiceRoomService, { type VoiceRoom } from "../services/voiceroomService";
 import FloatingFeedbackCard from "../components/FloatingFeedbackCard";
+import { useProfile } from "../hooks/useProfile";
+import { useVoiceRoomRecorder } from "../hooks/useVoiceRoomRecorder";
 import type {
   FeedbackPayload,
   ErrorType,
 } from "../components/FloatingFeedbackCard";
 
-/* ----------------------------- Types & helpers ----------------------------- */
+/* ----------------------------- Types ----------------------------- */
 
-interface Participant {
-  id: string;
+type Participant = {
+  socketId: string;
+  userId: number;
   name: string;
   isSpeaking: boolean;
   speakingTime: number;
   isMuted: boolean;
-}
+  stream?: MediaStream;
+};
 
 interface TranscriptItem {
   id: string;
@@ -32,7 +73,46 @@ interface TranscriptItem {
   text: string;
   timestamp: Date;
   feedback?: FeedbackPayload;
+  interim?: boolean;
+  isAnalyzing?: boolean;
 }
+
+interface UserInfo {
+  userId: number;
+  name: string;
+  isMuted?: boolean;
+}
+
+interface ReturnSignalPayload {
+  signal: Peer.SignalData;
+  id: string;
+}
+
+interface UserJoinedPayload {
+  signal: Peer.SignalData;
+  callerID: string;
+  userInfo: UserInfo;
+}
+
+interface SocketUser {
+  socketId: string;
+  userId: number;
+  name: string;
+  isMuted?: boolean;
+}
+
+type SafariWindow = Window &
+  typeof globalThis & {
+    webkitAudioContext: typeof AudioContext;
+  };
+
+/* ----------------------------- Static Helpers ----------------------------- */
+
+const SPEECH_THRESHOLD = 0.02;
+const SPEECH_HOLD_TIME = 1000;
+const TOOLTIP_GAP_BELOW = 12;
+const TOOLTIP_GAP_ABOVE = 6;
+const HEADER_HEIGHT = 70;
 
 function formatTime(seconds: number) {
   const mins = Math.floor(seconds / 60);
@@ -65,349 +145,742 @@ function isMobileUA(): boolean {
   );
 }
 
-// Minimal speech recognition types to avoid `any`
-interface SpeechRecognitionAlternative {
-  transcript: string;
+function makeId() {
+  try {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+  } catch {
+    // ignore
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
-interface SpeechRecognitionResult {
-  isFinal: boolean;
-  [index: number]: SpeechRecognitionAlternative;
-  length: number;
+
+function isWordErrored(index: number, feedback?: FeedbackPayload) {
+  if (!feedback) return { errored: false, kind: null as ErrorType | null };
+  for (const e of feedback.errors) {
+    if (e.type !== "style" && e.index === index) {
+      return { errored: true, kind: e.type };
+    }
+  }
+  return { errored: false, kind: null as ErrorType | null };
 }
-interface SpeechRecognitionEvent {
-  results: SpeechRecognitionResult[];
-}
-interface IWebkitSpeechRecognition {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onstart: (() => void) | null;
-  onend: (() => void) | null;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  start: () => void;
-  stop: () => void;
+
+function hasStyleError(feedback?: FeedbackPayload) {
+  return Boolean(feedback?.errors.find((e) => e.type === "style"));
 }
 
 /* -------------------------------- Component -------------------------------- */
 
 export default function VoiceRoomDetail(): React.ReactElement {
   const navigate = useNavigate();
-  const [isMuted, setIsMuted] = useState(false);
-  const [isConnected, setIsConnected] = useState(true);
-  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
-  const [sessionTime, setSessionTime] = useState(0);
-  const recognitionRef = useRef<IWebkitSpeechRecognition | null>(null);
+  const { id: roomId } = useParams<{ id: string }>();
+  const { profile, isProfileLoading } = useProfile();
+
+  // --- Refs ---
+  const socketRef = useRef<Socket | null>(null);
+  const peersRef = useRef<{ peerID: string; peer: Peer.Instance }[]>([]);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const animationRef = useRef<number | null>(null);
+  const participantAnalyzers = useRef<Map<string, AnalyserNode>>(new Map());
+  const lastSpeakingTimeRef = useRef<Map<string, number>>(new Map());
+
+  // ID & Transcript Refs
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const participantsRef = useRef<HTMLDivElement | null>(null);
+  const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const transcriptIdsRef = useRef<Set<string>>(new Set());
+  const transcriptStateRef = useRef<TranscriptItem[]>([]);
 
+  // --- State ---
+  const [isLoading, setIsLoading] = useState(true);
+  const [statusMessage, setStatusMessage] = useState("방 접속 준비 중...");
+  const [roomInfo, setRoomInfo] = useState<VoiceRoom | null>(null);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+  const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
+  const [sessionTime, setSessionTime] = useState(0);
   const [inputText, setInputText] = useState("");
 
-  // shared card state
+  const [menuState, setMenuState] = useState<{
+    socketId: string;
+    userId: number;
+    name: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
   const [activeTooltipMsgId, setActiveTooltipMsgId] = useState<string | null>(
     null
   );
   const [activeTooltipWordIndexes, setActiveTooltipWordIndexes] = useState<
     number[]
   >([]);
+
   const [cardPos, setCardPos] = useState<{
     top: number;
     left: number;
     width: number;
-  }>({ top: 0, left: 0, width: 0 });
-  const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    isAbove: boolean;
+  }>({ top: 0, left: 0, width: 0, isAbove: false });
+
+  const isHost = roomInfo?.host_id === profile?.user_id;
   const isMobile = isMobileUA();
 
-  // 푸터 높이 상수 (px) — 필요시 조정
-  const FOOTER_HEIGHT = 92;
-
-  // initial data
+  const isMutedRef = useRef(isMuted);
   useEffect(() => {
-    setParticipants([
-      {
-        id: "1",
-        name: "나",
-        isSpeaking: false,
-        speakingTime: 0,
-        isMuted: false,
-      },
-      {
-        id: "2",
-        name: "김영희",
-        isSpeaking: false,
-        speakingTime: 45,
-        isMuted: false,
-      },
-      {
-        id: "3",
-        name: "이철수",
-        isSpeaking: false,
-        speakingTime: 32,
-        isMuted: false,
-      },
-      {
-        id: "4",
-        name: "박민수",
-        isSpeaking: false,
-        speakingTime: 28,
-        isMuted: false,
-      },
-    ]);
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
 
-    setTranscript([
-      {
-        id: "1",
-        speaker: "김영희",
-        text: "Hi everyone! How are you doing today?",
-        timestamp: new Date(Date.now() - 300000),
-      },
-      {
-        id: "2",
+  const profileRef = useRef(profile);
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
+
+  useEffect(() => {
+    transcriptStateRef.current = transcript;
+  }, [transcript]);
+
+  const addOrUpdateTranscript = useCallback((item: TranscriptItem) => {
+    setTranscript((prev) => {
+      const index = prev.findIndex((t) => t.id === item.id);
+      if (index !== -1) {
+        const newTranscript = [...prev];
+        newTranscript[index] = { ...newTranscript[index], ...item };
+        return newTranscript;
+      } else {
+        if (transcriptIdsRef.current.has(item.id)) return prev;
+        transcriptIdsRef.current.add(item.id);
+        return [...prev, item];
+      }
+    });
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // [1] Recorder Callback Handlers
+  // -----------------------------------------------------------------------
+
+  const onInterimResult = useCallback((text: string, id: string) => {
+    const item: TranscriptItem = {
+      id,
+      speaker: "나",
+      text,
+      timestamp: new Date(),
+      interim: true,
+      isAnalyzing: false,
+    };
+
+    setTranscript((prev) => {
+      const index = prev.findIndex((t) => t.id === id);
+      if (index !== -1) {
+        const newArr = [...prev];
+        newArr[index] = { ...newArr[index], ...item };
+        return newArr;
+      } else {
+        transcriptIdsRef.current.add(id);
+        return [...prev, item];
+      }
+    });
+  }, []);
+
+  const onFinalResult = useCallback((text: string, id: string) => {
+    setTranscript((prev) => {
+      const index = prev.findIndex((t) => t.id === id);
+      // 기존 항목이 있다면 isAnalyzing 상태를 유지
+      const wasAnalyzing = index !== -1 ? prev[index].isAnalyzing : false;
+
+      const finalItem: TranscriptItem = {
+        id,
         speaker: "나",
-        text: "I'm doing great, thanks! How about you?",
-        timestamp: new Date(Date.now() - 240000),
-        feedback: {
-          errors: [],
-          explanation: "자연스러운 응답이에요.",
-          suggestion: "I'm doing great, thanks! How about you?",
-        },
-      },
-      {
-        id: "3",
-        speaker: "이철수",
-        text: "I had a wonderful weekend. I went hiking with my friends.",
-        timestamp: new Date(Date.now() - 180000),
-      },
-      {
-        id: "4",
-        speaker: "나",
-        text: "He ain't coming to the meeting.",
-        timestamp: new Date(Date.now() - 120000),
-        feedback: {
-          errors: [
-            {
-              index: 1,
-              word: "ain't",
-              type: "word",
-              message:
-                "비표준적이고 구어체적인 표현으로 공식적인 문맥에서는 적절하지 않음",
-            },
-          ],
-          explanation: "공식적 맥락에서는 'isn't' 또는 'is not'을 사용합니다.",
-          suggestion: "He isn't coming to the meeting.",
-        },
-      },
-      {
-        id: "5",
-        speaker: "나",
-        text: "She go to the office every day.",
-        timestamp: new Date(Date.now() - 90000),
-        feedback: {
-          errors: [
-            {
-              index: 1,
-              word: "go",
-              type: "grammar",
-              message: "3인칭 단수 주어에는 현재형 동사에 -s 필요",
-            },
-          ],
-          explanation: "주어가 She일 때 동사는 goes가 됩니다.",
-          suggestion: "She goes to the office every day.",
-        },
-      },
-      {
-        id: "6",
-        speaker: "나",
-        text: "I didn't receive the email yet.",
-        timestamp: new Date(Date.now() - 60000),
-        feedback: {
-          errors: [
-            {
-              index: 3,
-              word: "receive",
-              type: "spelling",
-              message: "'receive'로 철자 수정 필요",
-            },
-          ],
-          explanation: "'receive'가 올바른 철자입니다.",
-          suggestion: "I didn't receive the email yet.",
-        },
-      },
-      {
-        id: "7",
-        speaker: "나",
-        text: "Yo, I'm like super into coding and stuff.",
+        text: text.trim(),
         timestamp: new Date(),
-        feedback: {
-          errors: [
-            {
-              index: null,
-              word: null,
-              type: "style",
-              message: "면접/격식 문맥에서 지나치게 비격식적이고 모호한 표현",
-            },
-          ],
-          explanation: "격식 있는 어휘와 구체성을 높여 표현해 보세요.",
-          suggestion:
-            "I am highly interested in software development, particularly in building reliable web applications.",
-        },
-      },
-    ]);
+        interim: false,
+        isAnalyzing: wasAnalyzing,
+      };
 
+      if (index !== -1) {
+        const newArr = [...prev];
+        newArr[index] = { ...newArr[index], ...finalItem };
+        return newArr;
+      } else {
+        transcriptIdsRef.current.add(id);
+        return [...prev, finalItem];
+      }
+    });
+
+    socketRef.current?.emit("local_transcript", {
+      id,
+      speaker: profileRef.current ? profileRef.current.name : "나",
+      text: text.trim(),
+      timestamp: new Date().toISOString(),
+    });
+  }, []);
+
+  const onAudioCaptured = useCallback((blob: Blob, id: string) => {
+    setTranscript((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, isAnalyzing: true } : t))
+    );
+
+    const currentTranscript = transcriptStateRef.current;
+    const contextMessages = currentTranscript
+      .slice(-5)
+      .map((t) => `${t.speaker}: ${t.text}`);
+
+    blob.arrayBuffer().then((buffer) => {
+      socketRef.current?.emit("audio_message", {
+        audio: buffer,
+        tempId: id,
+        context: contextMessages,
+      });
+    });
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // [2] Use Custom Recorder Hook
+  // -----------------------------------------------------------------------
+  const { start: startRecording, stop: stopRecording } = useVoiceRoomRecorder({
+    onInterimResult,
+    onFinalResult,
+    onAudioCaptured,
+  });
+
+  useEffect(() => {
+    if (isMuted) {
+      stopRecording();
+    } else {
+      if (socketRef.current?.connected) {
+        startRecording();
+      }
+    }
+  }, [isMuted, startRecording, stopRecording]);
+
+  /* ------------------ Audio Analyzer (Visualizer) ------------------ */
+  const attachAnalyzer = useCallback(
+    (socketId: string, stream: MediaStream) => {
+      if (
+        !audioContextRef.current ||
+        audioContextRef.current.state === "closed"
+      )
+        return;
+      const ctx = audioContextRef.current;
+      if (stream.getAudioTracks().length === 0) return;
+
+      try {
+        if (participantAnalyzers.current.has(socketId)) return;
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 512;
+        source.connect(analyser);
+        participantAnalyzers.current.set(socketId, analyser);
+      } catch (e) {
+        console.warn("AudioContext connect warning:", e);
+      }
+    },
+    []
+  );
+
+  const updateParticipantStreamRef = useRef<
+    (id: string, s: MediaStream) => void
+  >(() => {});
+  const updateParticipantStream = useCallback(
+    (socketId: string, stream: MediaStream) => {
+      setParticipants((prev) => {
+        const target = prev.find((p) => p.socketId === socketId);
+        if (target && target.stream === stream) return prev;
+        return prev.map((p) =>
+          p.socketId === socketId ? { ...p, stream } : p
+        );
+      });
+      attachAnalyzer(socketId, stream);
+    },
+    [attachAnalyzer]
+  );
+
+  useEffect(() => {
+    updateParticipantStreamRef.current = updateParticipantStream;
+  }, [updateParticipantStream]);
+
+  const startAudioAnalysis = useCallback(() => {
+    if (audioContextRef.current) return;
+    try {
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as unknown as SafariWindow).webkitAudioContext;
+      const audioContext = new AudioContextClass();
+      audioContextRef.current = audioContext;
+
+      if (localStreamRef.current) {
+        attachAnalyzer("me", localStreamRef.current);
+      }
+
+      const analyze = () => {
+        if (
+          !audioContextRef.current ||
+          audioContextRef.current.state === "closed"
+        )
+          return;
+        const updates: { id: string; speaking: boolean }[] = [];
+        const now = Date.now();
+
+        participantAnalyzers.current.forEach((analyser, socketId) => {
+          const bufferLength = analyser.fftSize;
+          const dataArray = new Float32Array(bufferLength);
+          analyser.getFloatTimeDomainData(dataArray);
+          let sumSquares = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            sumSquares += dataArray[i] * dataArray[i];
+          }
+          const rms = Math.sqrt(sumSquares / bufferLength);
+
+          if (rms > SPEECH_THRESHOLD) {
+            lastSpeakingTimeRef.current.set(socketId, now);
+            updates.push({ id: socketId, speaking: true });
+          } else {
+            const lastTime = lastSpeakingTimeRef.current.get(socketId) || 0;
+            if (now - lastTime < SPEECH_HOLD_TIME) {
+              updates.push({ id: socketId, speaking: true });
+            } else {
+              updates.push({ id: socketId, speaking: false });
+            }
+          }
+        });
+
+        if (updates.length > 0) {
+          setParticipants((prev) => {
+            let hasChanges = false;
+            const nextState = prev.map((p) => {
+              const update = updates.find((u) => u.id === p.socketId);
+              if (update && update.speaking !== p.isSpeaking) {
+                hasChanges = true;
+                return { ...p, isSpeaking: update.speaking };
+              }
+              return p;
+            });
+            return hasChanges ? nextState : prev;
+          });
+        }
+        animationRef.current = requestAnimationFrame(analyze);
+      };
+      analyze();
+    } catch (e) {
+      console.error("VAD Start Error:", e);
+    }
+  }, [attachAnalyzer]);
+
+  const handleKickUser = () => {
+    if (!menuState) return;
+    const { socketId, userId, name } = menuState;
+    if (
+      window.confirm(
+        `'${name}'님을 강퇴하시겠습니까?\n강퇴된 사용자는 이 방에 다시 입장할 수 없습니다.`
+      )
+    ) {
+      socketRef.current?.emit("kick_user", {
+        roomId,
+        targetUserId: userId,
+        targetSocketId: socketId,
+      });
+    }
+    setMenuState(null);
+  };
+
+  /* ------------------ Main Effect (Init & Socket) ------------------ */
+  useEffect(() => {
+    if (!roomId || isProfileLoading) return;
+    if (!profile) {
+      alert("로그인이 필요합니다.");
+      navigate("/auth");
+      return;
+    }
+
+    let isMounted = true;
+    const analyzersRef = participantAnalyzers.current;
+    const transcriptIds = transcriptIdsRef.current;
+
+    const initRoom = async () => {
+      try {
+        setStatusMessage("방 정보를 불러오는 중...");
+        const roomDataPromise = VoiceRoomService.getRoomById(Number(roomId));
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout")), 5000)
+        );
+
+        const data = (await Promise.race([
+          roomDataPromise,
+          timeoutPromise,
+        ])) as VoiceRoom;
+        if (!isMounted) return;
+        setRoomInfo(data);
+
+        setStatusMessage("마이크 권한 요청 중...");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: true,
+        });
+        localStreamRef.current = stream;
+
+        const audioTrack = stream.getAudioTracks()[0];
+        const initialIsMuted = audioTrack ? !audioTrack.enabled : false;
+        setIsMuted(initialIsMuted);
+        isMutedRef.current = initialIsMuted;
+
+        setParticipants((prev) => {
+          if (prev.some((p) => p.socketId === "me")) return prev;
+          return [
+            {
+              socketId: "me",
+              userId: profile.user_id,
+              name: profile.name,
+              isSpeaking: false,
+              speakingTime: 0,
+              isMuted: initialIsMuted,
+              stream,
+            },
+          ];
+        });
+
+        setIsLoading(false);
+        startAudioAnalysis();
+
+        setStatusMessage("서버 연결 시도 중...");
+        if (socketRef.current) {
+          socketRef.current.removeAllListeners();
+          socketRef.current.disconnect();
+        }
+
+        const socket = io("http://localhost:3000", {
+          transports: ["websocket"],
+          withCredentials: true,
+          forceNew: true,
+        });
+        socketRef.current = socket;
+
+        socket.on("connect", () => {
+          console.log("✅ [VoiceRoom] 소켓 연결됨", socket.id);
+          socket.emit("join_room", {
+            roomId,
+            userId: profile.user_id,
+            name: profile.name,
+            isMuted: isMutedRef.current,
+          });
+          if (!isMutedRef.current) {
+            startRecording();
+          }
+        });
+
+        socket.on("connect_error", (err) => {
+          console.error("❌ Socket Error:", err);
+          if (isMounted) setStatusMessage("서버 연결 실패... 재시도 중");
+        });
+
+        socket.on("room_closed", () => {
+          if (socketRef.current) socketRef.current.disconnect();
+          stopRecording();
+          alert("호스트가 퇴장하여 방이 종료되었습니다.");
+          navigate("/voiceroom");
+        });
+
+        socket.on("kicked", () => {
+          if (socketRef.current) {
+            socketRef.current.disconnect();
+            socketRef.current = null;
+          }
+          stopRecording();
+          if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach((t) => t.stop());
+          }
+          alert("호스트에 의해 강퇴되었습니다.");
+          navigate("/voiceroom");
+        });
+
+        socket.on("error_message", (msg: string) => {
+          if (socketRef.current) socketRef.current.disconnect();
+          stopRecording();
+          alert(msg);
+          navigate("/voiceroom");
+        });
+
+        socket.on("room_full", () => {
+          if (socketRef.current) socketRef.current.disconnect();
+          alert("방이 꽉 찼습니다.");
+          navigate("/voiceroom");
+        });
+
+        const createPeer = (
+          targetId: string,
+          initiator: boolean,
+          stream: MediaStream
+        ) => {
+          const peer = new Peer({ initiator, trickle: false, stream });
+
+          peer.on("signal", (signal) => {
+            if (initiator) {
+              socketRef.current?.emit("sending_signal", {
+                userToSignal: targetId,
+                callerID: socket.id || "",
+                signal,
+                userInfo: {
+                  userId: profile.user_id,
+                  name: profile.name,
+                  isMuted: isMutedRef.current,
+                },
+              });
+            } else {
+              socketRef.current?.emit("returning_signal", {
+                signal,
+                callerID: targetId,
+              });
+            }
+          });
+
+          peer.on("stream", (rs) =>
+            updateParticipantStreamRef.current(targetId, rs)
+          );
+          return peer;
+        };
+
+        socket.on("all_users", (users: SocketUser[]) => {
+          if (!socket.id) return;
+          const newPeers: { peerID: string; peer: Peer.Instance }[] = [];
+          const newParticipants: Participant[] = [];
+          users.forEach((user) => {
+            if (peersRef.current.find((p) => p.peerID === user.socketId))
+              return;
+            const peer = createPeer(user.socketId, true, stream);
+            newPeers.push({ peerID: user.socketId, peer });
+            newParticipants.push({
+              socketId: user.socketId,
+              userId: user.userId,
+              name: user.name,
+              isSpeaking: false,
+              speakingTime: 0,
+              isMuted: !!user.isMuted,
+            });
+          });
+          peersRef.current.push(...newPeers);
+          setParticipants((prev) => {
+            const unique = newParticipants.filter(
+              (np) => !prev.some((p) => p.socketId === np.socketId)
+            );
+            return [...prev, ...unique];
+          });
+        });
+
+        socket.on("user_joined", (payload: UserJoinedPayload) => {
+          setParticipants((prev) => {
+            if (prev.find((p) => p.socketId === payload.callerID)) return prev;
+            return [
+              ...prev,
+              {
+                socketId: payload.callerID,
+                userId: payload.userInfo.userId,
+                name: payload.userInfo.name,
+                isSpeaking: false,
+                speakingTime: 0,
+                isMuted: !!payload.userInfo.isMuted,
+              },
+            ];
+          });
+          if (!peersRef.current.find((p) => p.peerID === payload.callerID)) {
+            const peer = createPeer(payload.callerID, false, stream);
+            peer.signal(payload.signal);
+            peersRef.current.push({ peerID: payload.callerID, peer });
+          }
+        });
+
+        socket.on(
+          "receiving_returned_signal",
+          (payload: ReturnSignalPayload) => {
+            const item = peersRef.current.find((p) => p.peerID === payload.id);
+            item?.peer.signal(payload.signal);
+          }
+        );
+
+        socket.on("user_left", (id: string) => {
+          const peerObj = peersRef.current.find((p) => p.peerID === id);
+          if (peerObj)
+            try {
+              peerObj.peer.destroy();
+            } catch {
+              /* safe destroy */
+            }
+          peersRef.current = peersRef.current.filter((p) => p.peerID !== id);
+          setParticipants((prev) => prev.filter((p) => p.socketId !== id));
+          participantAnalyzers.current.delete(id);
+        });
+
+        socket.on(
+          "user_mute_change",
+          (payload: { socketId: string; isMuted: boolean }) => {
+            setParticipants((prev) =>
+              prev.map((p) =>
+                p.socketId === payload.socketId
+                  ? { ...p, isMuted: payload.isMuted }
+                  : p
+              )
+            );
+          }
+        );
+
+        socket.on("transcript_item", (item: TranscriptItem) => {
+          const normalized = {
+            ...item,
+            timestamp: new Date(item.timestamp),
+            interim: false,
+            isAnalyzing: false,
+          };
+          addOrUpdateTranscript(normalized);
+        });
+
+        socket.on(
+          "transcript_complete",
+          (payload: {
+            id: string;
+            text: string;
+            feedback: FeedbackPayload;
+            speaker: string;
+          }) => {
+            setTranscript((prev) => {
+              const index = prev.findIndex((t) => t.id === payload.id);
+              const updatedItem: TranscriptItem = {
+                id: payload.id,
+                speaker: payload.speaker,
+                text: payload.text,
+                timestamp: index !== -1 ? prev[index].timestamp : new Date(),
+                feedback: payload.feedback,
+                interim: false,
+                isAnalyzing: false, // ✅ 분석 완료 -> 상태 해제
+              };
+
+              if (index !== -1) {
+                const newArr = [...prev];
+                newArr[index] = updatedItem;
+                return newArr;
+              } else {
+                if (transcriptIdsRef.current.has(payload.id))
+                  return [...prev, updatedItem];
+                transcriptIdsRef.current.add(payload.id);
+                return [...prev, updatedItem];
+              }
+            });
+          }
+        );
+      } catch (err) {
+        console.error("Init Error:", err);
+        if (!isMounted) return;
+        alert("방 입장 오류");
+        navigate("/voiceroom");
+      }
+    };
+
+    initRoom();
+
+    return () => {
+      isMounted = false;
+      if (socketRef.current) {
+        socketRef.current.removeAllListeners();
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      stopRecording();
+      if (localStreamRef.current)
+        localStreamRef.current.getTracks().forEach((t) => t.stop());
+      peersRef.current.forEach(({ peer }) => {
+        try {
+          peer.destroy();
+        } catch {
+          /* safe */
+        }
+      });
+      peersRef.current = [];
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (audioContextRef.current) audioContextRef.current.close();
+      analyzersRef.clear();
+      transcriptIds.clear();
+    };
+  }, [
+    roomId,
+    navigate,
+    profile,
+    isProfileLoading,
+    startRecording,
+    stopRecording,
+    startAudioAnalysis,
+    addOrUpdateTranscript,
+  ]);
+
+  const toggleMute = () => {
+    setIsMuted((prev) => !prev);
+  };
+
+  useEffect(() => {
+    setParticipants((prev) =>
+      prev.map((p) => (p.socketId === "me" ? { ...p, isMuted } : p))
+    );
+    if (!localStreamRef.current) return;
+    const audioTrack = localStreamRef.current.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !isMuted;
+      socketRef.current?.emit("toggle_mute", isMuted);
+    }
+  }, [isMuted]);
+
+  useEffect(() => {
+    setTranscript([]);
+    transcriptIdsRef.current.clear();
     const t = setInterval(() => setSessionTime((s) => s + 1), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // STT simulation
-  useEffect(() => {
-    const w = window as unknown as {
-      webkitSpeechRecognition?: new () => IWebkitSpeechRecognition;
-    };
-    if (typeof window !== "undefined" && w.webkitSpeechRecognition) {
-      if (!recognitionRef.current) {
-        const recognition = new w.webkitSpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = "en-US";
-
-        recognition.onstart = () => {
-          setParticipants((prev) =>
-            prev.map((p) => (p.id === "1" ? { ...p, isSpeaking: true } : p))
-          );
-        };
-
-        recognition.onend = () => {
-          setParticipants((prev) =>
-            prev.map((p) => (p.id === "1" ? { ...p, isSpeaking: false } : p))
-          );
-          if (!isMuted && isConnected) {
-            setTimeout(() => {
-              try {
-                recognition.start();
-              } catch {
-                // intentionally empty
-              }
-            }, 200);
-          }
-        };
-
-        recognition.onresult = (event: SpeechRecognitionEvent) => {
-          const last = event.results.length - 1;
-          const text = event.results[last][0].transcript;
-          if (event.results[last].isFinal) {
-            const newTranscript: TranscriptItem = {
-              id: Date.now().toString(),
-              speaker: "나",
-              text,
-              timestamp: new Date(),
-              feedback:
-                text.length > 20
-                  ? {
-                      errors: [],
-                      explanation: "발음이 자연스러워요.",
-                      suggestion: text,
-                    }
-                  : undefined,
-            };
-            setTranscript((prev) => [...prev, newTranscript]);
-          }
-        };
-
-        recognitionRef.current = recognition;
-      }
-
-      try {
-        if (isConnected && !isMuted && recognitionRef.current)
-          recognitionRef.current.start();
-      } catch {
-        // intentionally empty
-      }
-    }
-
-    const speakingInterval = setInterval(() => {
-      const other = ["2", "3", "4"];
-      const rand = other[Math.floor(Math.random() * other.length)];
-      setParticipants((prev) =>
-        prev.map((p) =>
-          p.id === rand
-            ? { ...p, isSpeaking: true }
-            : p.id !== "1"
-            ? { ...p, isSpeaking: false }
-            : p
-        )
-      );
-      setTimeout(() => {
-        setParticipants((prev) =>
-          prev.map((p) => (p.id === rand ? { ...p, isSpeaking: false } : p))
-        );
-      }, 2000 + Math.random() * 3000);
-    }, 5000);
-
-    return () => {
-      clearInterval(speakingInterval);
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.onresult = null;
-          recognitionRef.current.onend = null;
-          recognitionRef.current.onstart = null;
-          recognitionRef.current.stop();
-        } catch {
-          // intentionally empty
-        }
-        recognitionRef.current = null;
-      }
-    };
-  }, [isConnected, isMuted]);
-
-  // keep scroll bottom
+  const analyzingStatusKey = transcript
+    .map((t) => (t.isAnalyzing ? "1" : "0"))
+    .join("");
   useEffect(() => {
     transcriptRef.current?.scrollTo({
       top: transcriptRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [transcript.length]);
-
-  const toggleMute = () => {
-    setIsMuted((s) => {
-      const newMuted = !s;
-      const rec = recognitionRef.current;
-      if (rec) {
-        try {
-          if (newMuted) rec.stop();
-          else if (isConnected) rec.start();
-        } catch {
-          // intentionally empty
-        }
-      }
-      return newMuted;
-    });
-  };
+  }, [transcript.length, analyzingStatusKey]);
 
   const handleLeaveRoom = () => {
-    const rec = recognitionRef.current;
-    if (rec) {
-      try {
-        rec.stop();
-      } catch {
-        // intentionally empty
-      }
-    }
-    setIsConnected(false);
+    if (socketRef.current) socketRef.current.disconnect();
+    stopRecording();
     navigate("/voiceroom");
   };
 
   const handleSend = () => {
     const text = inputText.trim();
     if (!text) return;
+
+    const finalId = makeId();
     const newTranscript: TranscriptItem = {
-      id: Date.now().toString(),
+      id: finalId,
       speaker: "나",
       text,
       timestamp: new Date(),
+      isAnalyzing: true,
     };
-    setTranscript((prev) => [...prev, newTranscript]);
+
+    addOrUpdateTranscript(newTranscript);
     setInputText("");
+
+    socketRef.current?.emit("local_transcript", {
+      id: finalId,
+      speaker: profileRef.current ? profileRef.current.name : "나",
+      text: text,
+      timestamp: new Date().toISOString(),
+    });
+
+    const currentTranscript = transcriptStateRef.current;
+    socketRef.current?.emit("text_analysis", {
+      id: finalId,
+      text: text,
+      context: currentTranscript
+        .slice(-5)
+        .map((t) => `${t.speaker}: ${t.text}`),
+    });
   };
 
   const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
@@ -417,59 +890,41 @@ export default function VoiceRoomDetail(): React.ReactElement {
     }
   };
 
-  // helpers
-  function isWordErrored(index: number, feedback?: FeedbackPayload) {
-    if (!feedback) return { errored: false, kind: null as ErrorType | null };
-    for (const e of feedback.errors) {
-      if (e.type !== "style" && e.index === index) {
-        return { errored: true, kind: e.type };
+  // --- 툴팁 위치 로직 ---
+  const updateCardPosition = useCallback(
+    (msgId: string) => {
+      if (isMobile) return;
+
+      const node = bubbleRefs.current[msgId];
+      if (!node) return;
+
+      const rect = node.getBoundingClientRect();
+      const viewportW = window.innerWidth;
+      // [수정] 미사용 변수 제거
+      // const viewportH = window.innerHeight;
+
+      const desiredWidth = 360;
+      const center = rect.left + rect.width / 2;
+      let left = center - desiredWidth / 2;
+      left = Math.max(8, Math.min(left, viewportW - desiredWidth - 8));
+
+      const estimatedCardHeight = 200;
+
+      const spaceAbove = rect.top - HEADER_HEIGHT;
+      const preferAbove = spaceAbove >= estimatedCardHeight + TOOLTIP_GAP_ABOVE;
+
+      let top;
+      if (preferAbove) {
+        top = rect.top - TOOLTIP_GAP_ABOVE;
+      } else {
+        top = rect.bottom + TOOLTIP_GAP_BELOW;
       }
-    }
-    return { errored: false, kind: null as ErrorType | null };
-  }
-  function hasStyleError(feedback?: FeedbackPayload) {
-    return Boolean(feedback?.errors.find((e) => e.type === "style"));
-  }
 
-  // card position (clamped to viewport)
-  const updateCardPosition = useCallback((msgId: string) => {
-    const node = bubbleRefs.current[msgId];
-    if (!node) return;
-    const rect = node.getBoundingClientRect();
-    const margin = 8;
-    const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
+      setCardPos({ top, left, width: desiredWidth, isAbove: preferAbove });
+    },
+    [isMobile]
+  );
 
-    const desiredWidth = Math.min(rect.width, viewportW * 0.92);
-    const center = rect.left + rect.width / 2;
-    let left = center - desiredWidth / 2;
-    left = Math.max(8, Math.min(left, viewportW - desiredWidth - 8));
-
-    const spaceBelow = viewportH - rect.bottom;
-    const spaceAbove = rect.top;
-    const cardHeightEstimate = 160;
-
-    let top: number;
-    if (spaceBelow >= cardHeightEstimate + margin) {
-      top = rect.bottom + margin;
-    } else if (spaceAbove >= cardHeightEstimate + margin) {
-      top = Math.max(8, rect.top - cardHeightEstimate - margin);
-    } else {
-      top = Math.max(
-        8,
-        Math.min(rect.bottom + margin, viewportH - cardHeightEstimate - 8)
-      );
-    }
-
-    setCardPos({ top, left, width: desiredWidth });
-
-    const outOfView = rect.bottom < 0 || rect.top > viewportH;
-    if (outOfView) {
-      closeTooltip();
-    }
-  }, []);
-
-  // interactions
   function onWordInteract(
     msgId: string,
     wordIndex: number,
@@ -480,15 +935,15 @@ export default function VoiceRoomDetail(): React.ReactElement {
     if (errorsForWord.length === 0) return;
     setActiveTooltipMsgId(msgId);
     setActiveTooltipWordIndexes([wordIndex]);
-    updateCardPosition(msgId);
+    requestAnimationFrame(() => updateCardPosition(msgId));
   }
 
   function onSentenceInteract(msgId: string, feedback?: FeedbackPayload) {
     if (!feedback) return;
     if (!hasStyleError(feedback)) return;
     setActiveTooltipMsgId(msgId);
-    setActiveTooltipWordIndexes([]); // style-only
-    updateCardPosition(msgId);
+    setActiveTooltipWordIndexes([]);
+    requestAnimationFrame(() => updateCardPosition(msgId));
   }
 
   function closeTooltip() {
@@ -496,26 +951,40 @@ export default function VoiceRoomDetail(): React.ReactElement {
     setActiveTooltipWordIndexes([]);
   }
 
+  // 스크롤/리사이즈 시 툴팁 위치 업데이트
   useEffect(() => {
     function onScroll() {
-      if (activeTooltipMsgId) updateCardPosition(activeTooltipMsgId);
+      if (activeTooltipMsgId && !isMobile)
+        updateCardPosition(activeTooltipMsgId);
     }
     function onResize() {
-      if (activeTooltipMsgId) updateCardPosition(activeTooltipMsgId);
+      if (activeTooltipMsgId && !isMobile)
+        updateCardPosition(activeTooltipMsgId);
     }
-    window.addEventListener("scroll", onScroll, { passive: true });
+    const scrollContainer = transcriptRef.current;
+    if (scrollContainer)
+      scrollContainer.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onResize);
     return () => {
-      window.removeEventListener("scroll", onScroll);
+      if (scrollContainer)
+        scrollContainer.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
     };
-  }, [activeTooltipMsgId, updateCardPosition]);
+  }, [activeTooltipMsgId, updateCardPosition, isMobile]);
 
-  // 레이아웃: AITalkPageDetail과 동일한 중앙 정렬 + 여백(max-w-4xl)
+  if (isProfileLoading || (isLoading && !roomInfo)) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+        <Loader2 className="w-10 h-10 animate-spin mb-4 text-rose-500" />
+        <p className="text-gray-600 font-medium">{statusMessage}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen h-screen w-screen overflow-hidden bg-white text-gray-900 flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-gray-200 flex-shrink-0">
+      <header className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-gray-200 shrink-0">
         <div className="max-w-4xl w-full mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3.5">
             <div className="flex items-center gap-2.5">
@@ -524,7 +993,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
               </div>
               <div className="flex flex-col leading-tight">
                 <span className="text-sm sm:text-base font-bold">
-                  초보자 환영방
+                  {roomInfo?.name || "초보자 환영방"}
                 </span>
                 <span className="text-xs text-gray-600">
                   {participants.length}명 · {formatTime(sessionTime)}
@@ -532,31 +1001,27 @@ export default function VoiceRoomDetail(): React.ReactElement {
               </div>
             </div>
           </div>
-
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => setIsSpeakerOn((s) => !s)}
               className={`p-2.5 rounded-full flex items-center justify-center ${
                 isSpeakerOn
                   ? "bg-rose-50 text-rose-600"
-                  : "bg-gray-50 text-gray-500"
-              } hover:brightness-95`}
-              aria-pressed={isSpeakerOn}
-              aria-label={isSpeakerOn ? "스피커 끄기" : "스피커 켜기"}
-              title={isSpeakerOn ? "스피커 켜짐" : "스피커 꺼짐"}
+                  : "bg-gray-100 text-gray-500"
+              } hover:brightness-95 transition-colors`}
               style={{ width: 40, height: 40 }}
             >
-              <Volume2 className="w-5 h-5" />
+              {isSpeakerOn ? (
+                <Volume2 className="w-5 h-5" />
+              ) : (
+                <VolumeX className="w-5 h-5" />
+              )}
             </button>
-
             <button
               onClick={toggleMute}
               className={`p-2.5 rounded-full flex items-center justify-center ${
-                isMuted ? "bg-red-50 text-red-600" : "bg-gray-50 text-gray-700"
-              } hover:brightness-95`}
-              aria-pressed={isMuted}
-              aria-label={isMuted ? "음소거 해제" : "음소거"}
-              title={isMuted ? "마이크 음소거됨" : "마이크 음소거 아님"}
+                isMuted ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-700"
+              } hover:brightness-95 transition-colors`}
               style={{ width: 40, height: 40 }}
             >
               {isMuted ? (
@@ -565,85 +1030,116 @@ export default function VoiceRoomDetail(): React.ReactElement {
                 <Mic className="w-5 h-5" />
               )}
             </button>
-
             <button
               onClick={handleLeaveRoom}
-              className="flex items-center gap-1 px-4.5 py-1.5 rounded-full bg-red-600 text-white text-sm hover:bg-red-700"
-              aria-label="나가기"
-              title="나가기"
+              className="flex items-center gap-1 px-4 py-1.5 rounded-full bg-red-600 text-white text-sm hover:bg-red-700 transition-colors"
             >
-              <div className="w-8 h-8 flex items-center justify-center">
+              <div className="w-5 h-5 flex items-center justify-center">
                 <PhoneOff className="w-4 h-4 text-white" />
               </div>
-              <span className="hidden sm:inline">나가기</span>
+              <span className="hidden sm:inline font-medium">나가기</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main (centered content area) */}
+      {participants.map((p) => {
+        if (p.socketId === "me" || !p.stream) return null;
+        return (
+          <AudioPlayer
+            key={p.socketId}
+            stream={p.stream}
+            isSpeakerOn={isSpeakerOn}
+          />
+        );
+      })}
+
       <main className="flex-1 flex flex-col min-h-0">
-        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 pt-4 pb-0 flex-1 flex flex-col gap-4">
-          {/* Participants strip */}
+        {/* 수정됨: min-h-0 클래스 추가로 flex 자식 요소의 높이 제한 적용 */}
+        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 pt-4 pb-0 flex-1 flex flex-col gap-4 min-h-0">
           <div className="w-full border-b border-gray-100">
             <div
               ref={participantsRef}
-              className="flex gap-3 overflow-x-auto py-3 px-3 no-scrollbar"
+              className="flex gap-3 overflow-x-auto py-3 px-3 scrollbar-hide"
               style={{ WebkitOverflowScrolling: "touch" }}
             >
               {participants.map((p) => (
-                <div key={p.id} className="flex-none w-20 text-center">
-                  <div className="relative mx-auto w-14 h-14">
+                <div
+                  key={p.socketId}
+                  className="flex-none w-20 text-center relative group"
+                >
+                  <div
+                    className="relative mx-auto w-14 h-14 cursor-pointer"
+                    onClick={(e) => {
+                      if (isHost && p.socketId !== "me") {
+                        e.stopPropagation();
+                        if (menuState?.socketId === p.socketId) {
+                          setMenuState(null);
+                        } else {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setMenuState({
+                            socketId: p.socketId,
+                            userId: p.userId,
+                            name: p.name,
+                            x: rect.left + rect.width / 2,
+                            y: rect.bottom + 8,
+                          });
+                        }
+                      }
+                    }}
+                  >
                     {p.isSpeaking && (
                       <div className="absolute inset-0 rounded-full ring-4 ring-rose-400 ring-opacity-60 animate-pulse" />
                     )}
                     <div
-                      className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold shadow-md ${
-                        p.id === "1" ? "bg-rose-500" : "bg-gray-300"
+                      className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold shadow-md border-2 border-white ${
+                        p.socketId === "me"
+                          ? "bg-linear-to-br from-rose-400 to-rose-600"
+                          : "bg-gray-300"
                       }`}
                     >
                       {p.name.charAt(0)}
                     </div>
+                    {p.isMuted && (
+                      <div className="absolute -bottom-1 -right-1 bg-red-500 rounded-full p-1 border-2 border-white shadow-sm flex items-center justify-center">
+                        <MicOff className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+                    {isHost && p.socketId !== "me" && (
+                      <div className="absolute inset-0 hover:bg-black/20 rounded-full transition-colors flex items-center justify-center group-hover:opacity-100 opacity-0">
+                        <MoreHorizontal className="text-white" />
+                      </div>
+                    )}
                   </div>
                   <div className="mt-2 text-xs font-medium text-gray-900 truncate">
                     {p.name}
                   </div>
-                  {p.isMuted && (
-                    <div className="text-xs text-gray-400 mt-1">Muted</div>
-                  )}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Transcript / Feedback */}
-          <section className="flex-1 relative min-h-0">
-            <div className="flex items-center justify-between px-1 py-2 border-b border-gray-100">
+          <section className="flex-1 relative min-h-0 flex flex-col">
+            <div className="flex items-center justify-between px-1 py-2 border-b border-gray-100 mb-2">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-rose-500" />
-                <span className="text-sm font-bold">
-                  실시간 자막 & AI 피드백
+                <span className="text-sm font-bold text-gray-800">
+                  실시간 자막 & 피드백
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-rose-600">
-                <div className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse" />
+              <div className="flex items-center gap-2 text-xs text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">
+                <div className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
                 <span className="font-medium">LIVE</span>
               </div>
             </div>
 
-            {/* transcript 컨테이너: bottom을 FOOTER_HEIGHT로 띄워 푸터와 겹치지 않게 함.
-                paddingBottom은 내부 여유만 주도록 작게 설정 (푸터와 붙어 보이게). */}
             <div
               ref={transcriptRef}
-              className="absolute inset-x-0 top-[56px] overflow-y-auto px-3"
-              style={{
-                bottom: FOOTER_HEIGHT,
-                paddingBottom: 12,
-                background: "white",
-              }}
+              className="flex-1 overflow-y-auto px-2 pb-4 scrollbar-hide"
             >
               {transcript.map((item) => {
-                const isMe = item.speaker === "나";
+                const isMe =
+                  item.speaker === "나" || item.speaker === profile?.name;
                 const tokens = isMe
                   ? tokenizeWithIndices(item.text)
                   : [{ token: item.text, index: -1 }];
@@ -657,99 +1153,106 @@ export default function VoiceRoomDetail(): React.ReactElement {
                     } mb-4`}
                   >
                     <div
-                      className={`w-full max-w-[90%] ${
+                      className={`w-full max-w-[85%] sm:max-w-[75%] ${
                         isMe ? "items-end" : "items-start"
-                      } flex flex-col gap-2`}
+                      } flex flex-col gap-1`}
                     >
                       <div
                         className={`flex items-center gap-2 ${
                           isMe ? "flex-row-reverse justify-end" : ""
                         }`}
                       >
-                        <span className="text-xs font-medium text-gray-600">
+                        <span className="text-xs font-bold text-gray-700">
                           {item.speaker}
                         </span>
-                        <span className="text-xs text-gray-400">
+                        <span className="text-[10px] text-gray-400">
                           {item.timestamp.toLocaleTimeString("ko-KR", {
                             hour: "2-digit",
                             minute: "2-digit",
                           })}
                         </span>
                       </div>
-
                       <div
                         ref={(el) => {
                           bubbleRefs.current[item.id] = el;
                         }}
-                        className={`${
+                        className={`rounded-2xl px-4 py-3 text-[15px] sm:text-base leading-relaxed shadow-sm transition-all
+                        ${
                           isMe
-                            ? "bg-rose-500 text-white"
-                            : "bg-gray-100 text-gray-900"
-                        } rounded-2xl p-3 ${
-                          styleError && isMe ? "ring-2 ring-yellow-300" : ""
-                        }`}
-                        onMouseEnter={() => {
-                          if (!isMobile && styleError && isMe)
-                            onSentenceInteract(item.id, item.feedback);
-                        }}
-                        onMouseLeave={() => {
-                          if (!isMobile) closeTooltip();
-                        }}
-                        onClick={() => {
-                          if (isMobile && styleError && isMe)
-                            onSentenceInteract(item.id, item.feedback);
-                        }}
+                            ? "bg-rose-500 text-white rounded-tr-none"
+                            : "bg-white text-gray-800 border border-gray-200 rounded-tl-none"
+                        } 
+                        ${
+                          styleError && isMe
+                            ? "ring-2 ring-yellow-300 cursor-pointer hover:ring-4"
+                            : ""
+                        }
+                        ${item.interim ? "opacity-80" : ""}`}
+                        onMouseEnter={() =>
+                          !isMobile &&
+                          styleError &&
+                          isMe &&
+                          onSentenceInteract(item.id, item.feedback)
+                        }
+                        onMouseLeave={() => !isMobile && closeTooltip()}
+                        onClick={() =>
+                          isMobile &&
+                          styleError &&
+                          isMe &&
+                          onSentenceInteract(item.id, item.feedback)
+                        }
                       >
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                        <div className="whitespace-pre-wrap wrap-break-word">
                           {isMe ? (
                             <span>
                               {tokens.map(({ token, index }, i) => {
                                 if (index === -1)
-                                  return (
-                                    <span key={`${item.id}-ws-${i}`}>
-                                      {token}
-                                    </span>
-                                  );
+                                  return <span key={i}>{token}</span>;
+
                                 const res = item.feedback
                                   ? isWordErrored(index, item.feedback)
-                                  : {
-                                      errored: false,
-                                      kind: null as ErrorType | null,
-                                    };
-                                const base = "rounded-sm px-0.5 inline-block";
-                                const highlight =
-                                  res.kind === "word"
-                                    ? "bg-blue-600/30 underline decoration-2 underline-offset-2"
-                                    : res.kind === "grammar"
-                                    ? "bg-purple-600/30 underline decoration-dotted"
-                                    : res.kind === "spelling"
-                                    ? "bg-orange-500/30 underline decoration-wavy"
-                                    : "";
+                                  : { errored: false, kind: null };
+
+                                let highlight = "";
+                                if (res.kind === "word")
+                                  highlight =
+                                    "bg-red-400/40 underline decoration-red-200 decoration-2";
+                                else if (res.kind === "grammar")
+                                  highlight =
+                                    "bg-yellow-400/40 underline decoration-yellow-200 decoration-2";
+                                else if (res.kind === "spelling")
+                                  highlight =
+                                    "bg-orange-400/40 underline decoration-orange-200 decoration-2";
 
                                 return (
                                   <span
-                                    key={`${item.id}-w-${index}`}
-                                    className={`${base} ${highlight} ${
-                                      res.errored ? "cursor-pointer" : ""
+                                    key={i}
+                                    className={`rounded-sm px-0.5 inline-block transition-colors ${highlight} ${
+                                      res.errored
+                                        ? "cursor-pointer hover:bg-opacity-60"
+                                        : ""
                                     }`}
-                                    onMouseEnter={() => {
-                                      if (!isMobile && res.errored)
+                                    onMouseEnter={() =>
+                                      !isMobile &&
+                                      res.errored &&
+                                      onWordInteract(
+                                        item.id,
+                                        index,
+                                        item.feedback
+                                      )
+                                    }
+                                    onMouseLeave={() =>
+                                      !isMobile && closeTooltip()
+                                    }
+                                    onClick={(e) => {
+                                      if (res.errored && isMobile) {
+                                        e.stopPropagation();
                                         onWordInteract(
                                           item.id,
                                           index,
                                           item.feedback
                                         );
-                                    }}
-                                    onMouseLeave={() => {
-                                      if (!isMobile) closeTooltip();
-                                    }}
-                                    onClick={() => {
-                                      if (isMobile && res.errored)
-                                        onWordInteract(
-                                          item.id,
-                                          index,
-                                          item.feedback
-                                        );
+                                      }
                                     }}
                                   >
                                     {token}
@@ -760,13 +1263,18 @@ export default function VoiceRoomDetail(): React.ReactElement {
                           ) : (
                             <span>{item.text}</span>
                           )}
-                        </p>
-
-                        {styleError && isMe && (
-                          <div className="mt-2 flex items-center gap-2 text-yellow-900">
-                            <AlertCircle size={16} />
-                            <span className="text-[13px]">
-                              문장 전체 스타일 개선 필요
+                        </div>
+                        {item.isAnalyzing && (
+                          <div className="mt-2 flex items-center gap-2 text-white/90 text-xs bg-white/20 rounded-lg px-2 py-1 w-fit animate-pulse">
+                            <Sparkles size={12} />
+                            <span>분석 중...</span>
+                          </div>
+                        )}
+                        {styleError && isMe && !item.isAnalyzing && (
+                          <div className="mt-2 flex items-center gap-1.5 text-yellow-200 bg-yellow-900/20 px-2 py-1 rounded-md border border-yellow-200/30 w-fit">
+                            <AlertCircle size={14} />
+                            <span className="text-xs font-medium">
+                              표현 개선 제안
                             </span>
                           </div>
                         )}
@@ -777,54 +1285,23 @@ export default function VoiceRoomDetail(): React.ReactElement {
               })}
             </div>
 
-            {/* 채팅 푸터: 푸터 내부 padding-bottom/외부 마진 제거하여 화면 바닥에 딱 붙게 함 */}
-            <div
-              className="absolute left-0 right-0 bottom-0 border-t border-gray-100 bg-white flex items-center"
-              style={{ height: FOOTER_HEIGHT, padding: 0, boxShadow: "none" }}
-            >
+            {/* Bottom Input Area */}
+            <div className="border-t border-gray-100 bg-white py-3">
               <div className="max-w-4xl mx-auto w-full px-0 sm:px-6 flex items-center gap-3">
                 <div className="flex-1">
-                  <label htmlFor="voice-input" className="sr-only">
-                    메시지 입력
-                  </label>
                   <input
-                    id="voice-input"
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="메시지를 입력하세요..."
-                    className="w-full rounded-xl bg-gray-50 border border-gray-200 px-5 py-4 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200"
-                    aria-label="메시지 입력"
+                    className="w-full rounded-full bg-gray-50 border border-gray-200 px-5 py-3.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-rose-200 transition-all"
                   />
                 </div>
                 <button
                   onClick={handleSend}
-                  className="w-12 h-12 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-md hover:bg-rose-600"
-                  aria-label="전송"
+                  className="w-11 h-11 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-md hover:bg-rose-600 transition-colors active:scale-95"
                 >
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    aria-hidden="true"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M22 2L11 13"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M22 2L15 22L11 13L2 9L22 2Z"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  <Send className="w-5 h-5 ml-0.5" />
                 </button>
               </div>
             </div>
@@ -832,7 +1309,30 @@ export default function VoiceRoomDetail(): React.ReactElement {
         </div>
       </main>
 
-      {/* FloatingFeedbackCard는 푸터 위에 떠야 하므로 컴포넌트 내부 또는 전역 CSS에서 z-index 처리 필요 */}
+      {/* User Menu Popup */}
+      {menuState && (
+        <div
+          style={{
+            position: "fixed",
+            top: menuState.y,
+            left: menuState.x,
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+          }}
+          className="bg-white rounded-xl shadow-xl border border-gray-100 py-1 min-w-[140px] overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={handleKickUser}
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <UserMinus className="w-4 h-4" />
+            강퇴하기
+          </button>
+        </div>
+      )}
+
+      {/* Feedback Card */}
       <FloatingFeedbackCard
         show={Boolean(activeTooltipMsgId)}
         top={cardPos.top}
@@ -842,19 +1342,22 @@ export default function VoiceRoomDetail(): React.ReactElement {
         mobile={isMobile}
         feedback={transcript.find((t) => t.id === activeTooltipMsgId)?.feedback}
         activeWordIndexes={activeTooltipWordIndexes}
+        isAbove={cardPos.isAbove}
       />
-
-      <style>
-        {`
-          @keyframes ringPulse {
-            0%   { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.40); }
-            70%  { box-shadow: 0 0 0 14px rgba(244, 63, 94, 0.00); }
-            100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.00); }
-          }
-        `}
-      </style>
     </div>
   );
 }
 
-/* ------------------------------ End of file ------------------------------ */
+const AudioPlayer: React.FC<{ stream: MediaStream; isSpeakerOn: boolean }> = ({
+  stream,
+  isSpeakerOn,
+}) => {
+  const ref = useRef<HTMLAudioElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.srcObject = stream;
+  }, [stream]);
+  useEffect(() => {
+    if (ref.current) ref.current.muted = !isSpeakerOn;
+  }, [isSpeakerOn]);
+  return <audio ref={ref} autoPlay playsInline />;
+};

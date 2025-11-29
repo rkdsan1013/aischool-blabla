@@ -1,3 +1,4 @@
+// frontend/src/pages/AITalkPageDetail.tsx
 import React, {
   useCallback,
   useEffect,
@@ -5,23 +6,22 @@ import React, {
   useState,
   useMemo,
 } from "react";
-import { Mic, Volume2, Languages, AlertCircle } from "lucide-react";
-// ✅ useLocation과 useNavigate를 import하여 state를 읽고 목록으로 복귀
+import {
+  Mic,
+  Volume2,
+  Loader2,
+  AlertCircle,
+  ChevronLeft,
+  AlertTriangle,
+} from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import FloatingFeedbackCard, {
   type FeedbackPayload,
-  type ErrorType,
 } from "../components/FloatingFeedbackCard";
+import { aiTalkService, type AIMessage } from "../services/aiTalkService";
+import { useAITalkRecorder } from "../hooks/useAITalkRecorder";
 
-// ✅ [수정] ErrorType을 명시적으로 사용하여 타입 오류 해결
-type DummyErrorInput = {
-  index?: number;
-  word?: string;
-  type: ErrorType;
-  message: string;
-};
-
-// 프론트엔드 표시용 메시지 타입
+// --- 타입 정의 ---
 type Message = {
   id: string;
   role: "user" | "ai";
@@ -31,154 +31,7 @@ type Message = {
   feedback?: FeedbackPayload;
 };
 
-// 기존 하드코딩 데이터 구조
-const STATIC_SCENARIOS = {
-  "1": {
-    id: "free",
-    title: "자유 대화",
-    initialMessage:
-      "Hello! I'm your AI conversation partner. What would you like to talk about today?",
-    context: "You are a friendly AI assistant ready to discuss any topic.",
-  },
-  "2": {
-    id: "smalltalk",
-    title: "스몰토크",
-    initialMessage: "Hi! How's the weather today?",
-    context:
-      "You are a friendly person interested in chatting about hobbies and weather.",
-  },
-  "3": {
-    id: "cafe",
-    title: "카페에서 주문하기",
-    initialMessage:
-      "Hello! Welcome to our coffee shop. What can I get for you today?",
-    context: "You are a friendly barista at a coffee shop.",
-  },
-  "4": {
-    id: "shopping",
-    title: "쇼핑하기",
-    initialMessage: "Hi there! Are you looking for something specific today?",
-    context: "You are a helpful sales assistant.",
-  },
-  "5": {
-    id: "study",
-    title: "학교 생활",
-    initialMessage: "Hi! What class do you have next?",
-    context: "You are a friendly classmate.",
-  },
-  "6": {
-    id: "travel",
-    title: "여행 대화",
-    initialMessage: "Welcome! How can I help you with your travel plans today?",
-    context: "You are a travel agent.",
-  },
-  "7": {
-    id: "dating",
-    title: "데이트 대화",
-    initialMessage:
-      "It's nice meeting you here. What do you enjoy doing for fun?",
-    context: "You are a friendly date partner.",
-  },
-  "8": {
-    id: "interview",
-    title: "면접 연습",
-    initialMessage:
-      "Good morning! Thank you for coming in today. Please tell me about yourself.",
-    context: "You are a hiring manager conducting an interview.",
-  },
-};
-
-// ✅ [수정] feedbackErrors: type 캐스팅 및 word null 처리로 타입 오류 해결
-function buildDummyMessages(initial: string): Message[] {
-  const feedbackErrors = (errors: DummyErrorInput[]) =>
-    errors.map((e) => ({
-      ...e,
-      index: e.index ?? null,
-      word: e.word ?? null,
-    }));
-  const now = () => new Date();
-
-  return [
-    { id: "ai-0", role: "ai", content: initial, timestamp: now() },
-    {
-      id: "user-1",
-      role: "user",
-      content: "He ain't coming to the meeting.",
-      timestamp: now(),
-      feedback: {
-        errors: feedbackErrors([
-          {
-            index: 1,
-            word: "ain't",
-            type: "word" as ErrorType,
-            message: "비표준적이고 구어체적인 표현",
-          },
-        ]),
-        explanation: "공식적 맥락에서는 'isn't' 또는 'is not'을 사용합니다.",
-        suggestion: "He isn't coming to the meeting.",
-      },
-    },
-    {
-      id: "ai-1",
-      role: "ai",
-      content:
-        "Thanks for letting me know. Is there a reason he can't make it?",
-      timestamp: now(),
-    },
-    {
-      id: "user-2",
-      role: "user",
-      content: "She go to the office every day.",
-      timestamp: now(),
-      feedback: {
-        errors: feedbackErrors([
-          {
-            index: 1,
-            word: "go",
-            type: "grammar" as ErrorType,
-            message: "주어 'She'에 맞게 현재형 동사에 -s 필요",
-          },
-        ]),
-        explanation: "3인칭 단수 주어에는 현재형 동사에 -s를 붙입니다.",
-        suggestion: "She goes to the office every day.",
-      },
-    },
-    {
-      id: "ai-2",
-      role: "ai",
-      content: "Got it. What does she usually do there?",
-      timestamp: now(),
-    },
-    {
-      id: "user-3",
-      role: "user",
-      content: "I didn't receive the email yet.",
-      timestamp: now(),
-      feedback: {
-        errors: feedbackErrors([
-          {
-            index: 3,
-            word: "receive",
-            type: "spelling" as ErrorType,
-            message: "'receive'로 철자 수정 필요",
-          },
-        ]),
-        explanation: "'receive'가 올바른 철자입니다.",
-        suggestion: "I didn't receive the email yet.",
-      },
-    },
-  ];
-}
-
-// Props 정의를 비활성화합니다. 라우터 State에서 정보를 가져옵니다.
-/*
-type Props = {
-  scenarioId: number;
-  onBack: () => void;
-};
-*/
-
-// --- 유틸리티 함수들 (변화 없음) ---
+// --- 유틸리티 ---
 function tokenizeWithIndices(text: string): { token: string; index: number }[] {
   const parts = text.split(/(\s+)/);
   const tokens: { token: string; index: number }[] = [];
@@ -202,29 +55,40 @@ function isMobileUA(): boolean {
   );
 }
 
-const FOOTER_HEIGHT = 96;
-const LAST_MESSAGE_SPACING = 16;
+// --- 상수 설정 ---
+const FOOTER_HEIGHT = 100;
+const LAST_MESSAGE_SPACING = 24;
 const TOOLTIP_GAP_BELOW = 12;
 const TOOLTIP_GAP_ABOVE = 6;
 
-// ✅ [수정] Props 제거
 const AITalkPageDetail: React.FC = () => {
-  // 라우터 훅을 사용하여 State에서 데이터를 가져옵니다.
   const location = useLocation();
   const navigate = useNavigate();
-
-  // URL State에서 scenarioId 추출
   const scenarioId = location.state?.scenarioId as number | undefined;
 
+  // --- UI Refs ---
   const headerRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
+  // --- 상태 관리 ---
   const [scenarioTitle, setScenarioTitle] = useState("");
+  const [sessionId, setSessionId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
 
-  const [isRecording, setIsRecording] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isAISpeaking, setIsAISpeaking] = useState(false);
+  const [isConversationEnded, setIsConversationEnded] = useState(false);
 
-  // 툴팁 관련 상태 (이전과 동일)
+  // 종료 확인 모달 상태
+  const [showExitModal, setShowExitModal] = useState(false);
+
+  const isUnmountedRef = useRef(false);
+  const isMobile = isMobileUA();
+
+  // --- 툴팁 상태 ---
   const [activeTooltipMsgId, setActiveTooltipMsgId] = useState<string | null>(
     null
   );
@@ -237,100 +101,237 @@ const AITalkPageDetail: React.FC = () => {
     width: 0,
     preferAbove: false,
   });
-  const bubbleRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const isMobile = isMobileUA();
 
-  // ✅ [수정] 데이터 로드 로직: scenarioId를 문자열 키로 변환하여 접근
+  // -----------------------------------------------------------------------
+  // [1] 오디오 재생 (AI)
+  // -----------------------------------------------------------------------
+  const playAudioData = useCallback(
+    (base64Audio: string | null | undefined) => {
+      if (isUnmountedRef.current) return;
+
+      if (!base64Audio || !audioPlayerRef.current) {
+        setIsAISpeaking(false);
+        return;
+      }
+
+      try {
+        const player = audioPlayerRef.current;
+        player.src = `data:audio/mp3;base64,${base64Audio}`;
+
+        setIsAISpeaking(true);
+
+        player.play().catch((e) => {
+          console.error("Autoplay blocked:", e);
+          setIsAISpeaking(false);
+        });
+      } catch (error) {
+        console.error("Failed to play audio:", error);
+        setIsAISpeaking(false);
+      }
+    },
+    []
+  );
+
+  const handleAIThinkingEnd = () => {
+    if (isUnmountedRef.current) return;
+    setIsAISpeaking(false);
+  };
+
+  // -----------------------------------------------------------------------
+  // [2] 메시지 전송 핸들러
+  // -----------------------------------------------------------------------
+  const handleSendAudio = useCallback(
+    async (audioBlob: Blob) => {
+      if (!sessionId || isUnmountedRef.current || isProcessing) return;
+
+      setIsProcessing(true);
+
+      const tempUserMsgId = `temp-${Date.now()}`;
+      const newUserMsg: Message = {
+        id: tempUserMsgId,
+        role: "user",
+        content: "🎤 음성 인식 중...",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, newUserMsg]);
+
+      try {
+        const { userMessage, aiMessage, audioData, ended } =
+          await aiTalkService.sendAudioMessage(sessionId, audioBlob);
+
+        if (isUnmountedRef.current) return;
+
+        setMessages((prev) => {
+          const filtered = prev.filter((m) => m.id !== tempUserMsgId);
+          return [
+            ...filtered,
+            {
+              id: String(userMessage.message_id),
+              role: userMessage.sender_role,
+              content: userMessage.content,
+              timestamp: new Date(userMessage.created_at),
+              feedback: userMessage.feedback as FeedbackPayload | undefined,
+            },
+            {
+              id: String(aiMessage.message_id),
+              role: aiMessage.sender_role,
+              content: aiMessage.content,
+              timestamp: new Date(aiMessage.created_at),
+            },
+          ];
+        });
+
+        if (ended) {
+          setIsConversationEnded(true);
+          if (audioData) playAudioData(audioData);
+        } else {
+          if (audioData) {
+            playAudioData(audioData);
+          } else {
+            setIsProcessing(false);
+          }
+        }
+      } catch (error) {
+        console.error("음성 전송 실패:", error);
+        if (!isUnmountedRef.current) {
+          setMessages((prev) => prev.filter((m) => m.id !== tempUserMsgId));
+        }
+      } finally {
+        if (!isUnmountedRef.current) setIsProcessing(false);
+      }
+    },
+    [sessionId, playAudioData, isProcessing]
+  );
+
+  // -----------------------------------------------------------------------
+  // [3] 커스텀 훅 사용
+  // -----------------------------------------------------------------------
+  const {
+    start: startRecording,
+    stop: stopRecording,
+    isRecording,
+    isTalking,
+  } = useAITalkRecorder(handleSendAudio);
+
   useEffect(() => {
-    // scenarioId가 없으면 목록으로 복귀
+    if (
+      !isConversationEnded &&
+      !isProcessing &&
+      !isAISpeaking &&
+      !isLoading &&
+      sessionId
+    ) {
+      startRecording();
+    } else {
+      stopRecording();
+    }
+  }, [
+    isConversationEnded,
+    isProcessing,
+    isAISpeaking,
+    isLoading,
+    sessionId,
+    startRecording,
+    stopRecording,
+  ]);
+
+  // -----------------------------------------------------------------------
+  // [4] 초기화
+  // -----------------------------------------------------------------------
+  useEffect(() => {
+    isUnmountedRef.current = false;
+
     if (!scenarioId) {
+      alert("잘못된 접근입니다.");
       navigate("/ai-talk", { replace: true });
       return;
     }
 
-    // 1. scenarioId(number)를 string으로 변환하여 객체 접근
-    const scenarioKey = String(scenarioId) as keyof typeof STATIC_SCENARIOS;
+    const initConversation = async () => {
+      try {
+        setIsLoading(true);
+        const scenarioData = await aiTalkService.getScenarioById(scenarioId);
+        setScenarioTitle(scenarioData.title);
 
-    // 2. 안전한 접근 (키가 없으면 기본값인 1번(자유 대화) 사용)
-    const scenario = STATIC_SCENARIOS[scenarioKey] || STATIC_SCENARIOS["1"];
+        const { session, initialMessages, audioData } =
+          await aiTalkService.startSession(scenarioId);
+        setSessionId(session.session_id);
 
-    setScenarioTitle(scenario.title);
-    setMessages(buildDummyMessages(scenario.initialMessage));
-  }, [scenarioId, navigate]);
+        const formatted = initialMessages.map((m: AIMessage) => ({
+          id: String(m.message_id),
+          role: m.sender_role,
+          content: m.content,
+          timestamp: new Date(m.created_at),
+          feedback: m.feedback as FeedbackPayload | undefined,
+        }));
+        setMessages(formatted);
 
-  // 자동 스크롤
+        if (audioData) {
+          playAudioData(audioData);
+        }
+      } catch (error) {
+        console.error(error);
+        navigate("/ai-talk");
+      } finally {
+        if (!isUnmountedRef.current) setIsLoading(false);
+      }
+    };
+
+    initConversation();
+
+    return () => {
+      isUnmountedRef.current = true;
+      stopRecording();
+    };
+    // [수정됨] 의존성 배열에 playAudioData, stopRecording 추가
+  }, [scenarioId, navigate, playAudioData, stopRecording]);
+
   useEffect(() => {
     const el = listRef.current;
-    if (!el) return;
-    setTimeout(() => {
-      el.scrollTo({
-        top: Math.max(0, el.scrollHeight - LAST_MESSAGE_SPACING),
-        behavior: "smooth",
-      });
-    }, 100);
-  }, [messages]);
-
-  // --- 메시지 전송 로직 (더미) ---
-  const toggleRecording = () => {
-    if (isRecording) {
-      // 녹음 중지 시 더미 응답 추가
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `user-${prev.length}`,
-          role: "user",
-          content: "Just a dummy user message for testing.",
-          timestamp: new Date(),
-        },
-        {
-          id: `ai-${prev.length + 1}`,
-          role: "ai",
-          content: "Thank you. This is a dummy AI response.",
-          timestamp: new Date(),
-        },
-      ]);
-      setIsRecording(false);
-    } else {
-      setIsRecording(true);
+    if (el) {
+      setTimeout(() => {
+        el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      }, 100);
     }
+  }, [messages, isProcessing, isTalking]);
+
+  // 뒤로가기 핸들러
+  const handleBackClick = () => {
+    if (isConversationEnded) {
+      navigate(-1);
+      return;
+    }
+    setShowExitModal(true);
   };
 
-  // ✅ [수정] 대화 종료 버튼 핸들러: 목록 페이지로 복귀
-  const handleEndConversation = () => {
-    navigate("/ai-talk");
-  };
-
-  // --- UI 헬퍼 함수들 (이전과 동일) ---
-  const playAIVoice = (text: string) =>
-    console.log("[v0] Playing AI voice:", text);
-  const translateText = (text: string) =>
-    console.log("[v0] Translating AI text:", text);
-
-  function isWordErrored(index: number, feedback?: FeedbackPayload) {
-    if (!feedback) return { errored: false, kind: null as ErrorType | null };
-    for (const e of feedback.errors) {
-      if (e.type !== "style" && e.index === index) {
-        return { errored: true, kind: e.type };
+  // 모달 확인 핸들러
+  const handleConfirmExit = async () => {
+    stopRecording();
+    isUnmountedRef.current = true;
+    if (sessionId) {
+      try {
+        await aiTalkService.endSession(sessionId);
+      } catch (error) {
+        console.error("세션 종료 중 오류:", error);
       }
     }
-    return { errored: false, kind: null as ErrorType | null };
-  }
+    navigate(-1);
+  };
 
-  function hasStyleError(feedback?: FeedbackPayload) {
-    return Boolean(feedback?.errors.find((e) => e.type === "style"));
-  }
+  const handleCancelExit = () => {
+    setShowExitModal(false);
+  };
 
+  // --- 레이아웃/UI ---
   const getHeaderHeight = useCallback(() => {
-    const el = headerRef.current;
-    if (!el) return 64;
-    return el.getBoundingClientRect().height;
+    if (headerRef.current)
+      return headerRef.current.getBoundingClientRect().height;
+    return 64;
   }, []);
 
-  const [listHeight, setListHeight] = useState<string>("calc(100vh - 160px)");
+  const [listHeight, setListHeight] = useState("calc(100vh - 160px)");
   const adjustLayout = useCallback(() => {
-    const headerH = getHeaderHeight();
-    const footerH = FOOTER_HEIGHT;
-    setListHeight(`calc(100vh - ${headerH + footerH}px)`);
+    setListHeight(`calc(100vh - ${getHeaderHeight() + FOOTER_HEIGHT}px)`);
   }, [getHeaderHeight]);
 
   useEffect(() => {
@@ -339,49 +340,42 @@ const AITalkPageDetail: React.FC = () => {
     return () => window.removeEventListener("resize", adjustLayout);
   }, [adjustLayout]);
 
+  // --- 툴팁 위치 로직 (데스크톱 전용) ---
   const updateCardPosition = useCallback((msgId: string) => {
     const node = bubbleRefs.current[msgId];
     if (!node) return;
+
     const rect = node.getBoundingClientRect();
     const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
+    // const viewportH = window.innerHeight; // [수정됨] spaceBelow 제거로 미사용
+
     const desiredWidth = Math.min(rect.width, viewportW * 0.92);
     const center = rect.left + rect.width / 2;
     let left = center - desiredWidth / 2;
     left = Math.max(8, Math.min(left, viewportW - desiredWidth - 8));
-    const estimatedCardHeight = 180;
-    const safeBottom = FOOTER_HEIGHT + 8;
-    const spaceBelow = viewportH - rect.bottom - safeBottom;
-    const spaceAbove = rect.top;
-    let preferAbove = false;
-    let top: number;
 
-    if (spaceBelow >= estimatedCardHeight + TOOLTIP_GAP_BELOW) {
-      top = rect.bottom + TOOLTIP_GAP_BELOW;
-      preferAbove = false;
-    } else if (spaceAbove >= estimatedCardHeight + TOOLTIP_GAP_ABOVE) {
-      top = rect.top - estimatedCardHeight - TOOLTIP_GAP_ABOVE;
-      preferAbove = true;
+    const estimatedCardHeight = 260;
+    const headerHeight = 80;
+    // const safeBottom = FOOTER_HEIGHT + 8; // [수정됨] spaceBelow 제거로 미사용
+
+    // const spaceBelow = viewportH - rect.bottom - safeBottom; // [수정됨] 제거
+    const spaceAbove = rect.top - headerHeight;
+
+    const preferAbove = spaceAbove >= estimatedCardHeight + TOOLTIP_GAP_ABOVE;
+
+    let top;
+    if (preferAbove) {
+      top = rect.top - TOOLTIP_GAP_ABOVE;
     } else {
-      preferAbove = spaceAbove >= spaceBelow;
-      if (preferAbove) {
-        top = Math.max(
-          8,
-          rect.top -
-            Math.min(estimatedCardHeight, spaceAbove) -
-            TOOLTIP_GAP_ABOVE
-        );
-      } else {
-        const maxAllowedTop = Math.max(
-          8,
-          viewportH -
-            safeBottom -
-            Math.min(estimatedCardHeight, Math.max(0, spaceBelow))
-        );
-        top = Math.min(rect.bottom + TOOLTIP_GAP_BELOW, maxAllowedTop);
-      }
+      top = rect.bottom + TOOLTIP_GAP_BELOW;
     }
-    setCardPos({ top, left, width: desiredWidth, preferAbove });
+
+    setCardPos({
+      top,
+      left,
+      width: desiredWidth,
+      preferAbove,
+    });
   }, []);
 
   function onWordInteract(
@@ -389,37 +383,23 @@ const AITalkPageDetail: React.FC = () => {
     wordIndex: number,
     feedback?: FeedbackPayload
   ) {
-    if (!feedback) return;
-    const errorsForWord = feedback.errors.filter((e) => e.index === wordIndex);
-    if (errorsForWord.length === 0) return;
+    if (!feedback?.errors?.find((e) => e.index === wordIndex)) return;
     setActiveTooltipMsgId(msgId);
     setActiveTooltipWordIndexes([wordIndex]);
-    requestAnimationFrame(() => updateCardPosition(msgId));
+    if (!isMobile) requestAnimationFrame(() => updateCardPosition(msgId));
   }
 
   function onSentenceInteract(msgId: string, feedback?: FeedbackPayload) {
-    if (!feedback) return;
-    if (!hasStyleError(feedback)) return;
+    if (!feedback?.errors?.find((e) => e.type === "style")) return;
     setActiveTooltipMsgId(msgId);
     setActiveTooltipWordIndexes([]);
-    requestAnimationFrame(() => updateCardPosition(msgId));
+    if (!isMobile) requestAnimationFrame(() => updateCardPosition(msgId));
   }
 
   function closeTooltip() {
     setActiveTooltipMsgId(null);
     setActiveTooltipWordIndexes([]);
   }
-
-  useEffect(() => {
-    function onResize() {
-      if (activeTooltipMsgId) updateCardPosition(activeTooltipMsgId);
-      adjustLayout();
-    }
-    window.addEventListener("resize", onResize);
-    return () => {
-      window.removeEventListener("resize", onResize);
-    };
-  }, [activeTooltipMsgId, updateCardPosition, adjustLayout]);
 
   const memoizedTokens = useMemo(() => {
     const map: Record<string, { token: string; index: number }[]> = {};
@@ -431,195 +411,279 @@ const AITalkPageDetail: React.FC = () => {
   }, [messages]);
 
   return (
-    <div className="h-screen flex flex-col bg-white">
-      {/* 헤더 */}
+    <div className="h-screen flex flex-col bg-slate-50">
+      <audio
+        ref={audioPlayerRef}
+        className="hidden"
+        onEnded={handleAIThinkingEnd}
+      />
+
+      {/* Header */}
       <header
         ref={headerRef}
-        className="w-full bg-white flex-shrink-0 border-b border-gray-100"
+        className="w-full bg-white/80 backdrop-blur-md shrink-0 border-b border-gray-200 sticky top-0 z-30"
       >
-        <div className="max-w-5xl mx-auto flex items-center gap-4 px-4 sm:px-6 py-3">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-[19px] sm:text-[22px] font-semibold text-gray-900 truncate">
-              {scenarioTitle}
-            </h1>
-          </div>
-
-          <div className="flex items-center">
+        <div className="max-w-2xl mx-auto flex items-center justify-between px-4 sm:px-6 h-14 sm:h-16">
+          <div className="flex items-center gap-3 min-w-0">
             <button
-              type="button"
-              onClick={handleEndConversation} // ✅ 수정된 함수 사용
-              className="ml-3 inline-flex items-center gap-2 rounded-md bg-rose-50 text-rose-700 px-3 py-2 text-sm font-medium hover:bg-rose-100 shadow-sm"
+              onClick={handleBackClick}
+              className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-600"
+              aria-label="뒤로 가기"
             >
-              대화 종료
+              <ChevronLeft className="w-6 h-6" />
             </button>
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
+              {isLoading ? "연결 중..." : scenarioTitle}
+            </h1>
           </div>
         </div>
       </header>
 
-      {/* 메시지 리스트 */}
-      <main className="flex-1 overflow-hidden" aria-live="polite">
+      {/* Messages Area */}
+      <main className="flex-1 overflow-hidden relative" aria-live="polite">
         <div
           ref={listRef}
-          className="max-w-5xl mx-auto px-4 sm:px-6 pt-4 overflow-y-auto flex flex-col gap-6"
+          className="max-w-2xl mx-auto px-4 sm:px-6 pt-6 overflow-y-auto flex flex-col gap-6 scrollbar-hide"
           style={{
             minHeight: 0,
             height: listHeight,
             paddingBottom: LAST_MESSAGE_SPACING,
           }}
         >
-          {messages.map((m) => {
-            const isUser = m.role === "user";
-            const tokens = memoizedTokens[m.id];
-            const styleError = hasStyleError(m.feedback);
-
-            return (
-              <div
-                key={m.id}
-                className={`relative flex items-start ${
-                  isUser ? "justify-end" : "justify-start"
-                }`}
-              >
-                <div className="flex-1 max-w-[88%] sm:max-w-[70%]">
-                  <div
-                    ref={(el) => {
-                      bubbleRefs.current[m.id] = el;
-                    }}
-                    className={`rounded-xl px-3 py-2 text-[15px] sm:text-[18px] leading-snug break-words 
-                      ${
-                        isUser
-                          ? "bg-rose-500 text-white"
-                          : "bg-gray-100 text-gray-800"
-                      } 
-                      ${styleError && isUser ? "ring-2 ring-yellow-300" : ""}`}
-                    onMouseEnter={() => {
-                      if (!isMobile && styleError && isUser)
-                        onSentenceInteract(m.id, m.feedback);
-                    }}
-                    onMouseLeave={() => {
-                      if (!isMobile) closeTooltip();
-                    }}
-                    onClick={() => {
-                      if (isMobile && styleError && isUser)
-                        onSentenceInteract(m.id, m.feedback);
-                    }}
-                  >
-                    <div
-                      className={`whitespace-pre-wrap break-words ${
-                        styleError && isUser ? "bg-yellow-50/20" : ""
-                      }`}
-                    >
-                      {isUser ? (
-                        <span>
-                          {tokens.map(({ token, index }, i) => {
-                            if (index === -1)
-                              return (
-                                <span key={`${m.id}-ws-${i}`}>{token}</span>
-                              );
-                            const { errored, kind } = isWordErrored(
-                              index,
-                              m.feedback
-                            );
-                            const base = "rounded-sm px-0.5 inline-block";
-                            const highlight =
-                              kind === "word"
-                                ? "bg-blue-600/30 underline decoration-2 underline-offset-2"
-                                : kind === "grammar"
-                                ? "bg-purple-600/30 underline decoration-dotted"
-                                : kind === "spelling"
-                                ? "bg-orange-500/30 underline decoration-wavy"
-                                : "";
-                            const clickable = errored ? "cursor-pointer" : "";
-
-                            return (
-                              <span
-                                key={`${m.id}-w-${index}`}
-                                className={`${base} ${highlight} ${clickable}`}
-                                onMouseEnter={() => {
-                                  if (!isMobile && errored)
-                                    onWordInteract(m.id, index, m.feedback);
-                                }}
-                                onMouseLeave={() => {
-                                  if (!isMobile) closeTooltip();
-                                }}
-                                onClick={() => {
-                                  if (isMobile && errored)
-                                    onWordInteract(m.id, index, m.feedback);
-                                }}
-                              >
-                                {token}
-                              </span>
-                            );
-                          })}
-                        </span>
-                      ) : (
-                        <span>{m.content}</span>
-                      )}
-                    </div>
-
-                    {m.role === "ai" && (
-                      <div className="flex gap-3 mt-2">
-                        <button
-                          type="button"
-                          onClick={() => playAIVoice(m.content)}
-                          className="inline-flex items-center text-gray-400 hover:text-gray-600"
-                        >
-                          <Volume2 size={18} />
-                          <span className="sr-only">듣기</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => translateText(m.content)}
-                          className="inline-flex items-center text-gray-400 hover:text-gray-600"
-                        >
-                          <Languages size={18} />
-                          <span className="sr-only">번역</span>
-                        </button>
-                      </div>
-                    )}
-
-                    {styleError && isUser && (
-                      <div className="mt-2 flex items-center gap-2 text-yellow-900">
-                        <AlertCircle size={16} />
-                        <span className="text-[14px]">
-                          문장 전체 스타일 개선 필요
-                        </span>
-                      </div>
-                    )}
-                  </div>
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-4">
+              <div className="relative">
+                <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center animate-pulse">
+                  <Loader2 className="w-6 h-6 text-rose-500 animate-spin" />
                 </div>
               </div>
-            );
-          })}
+              <p className="text-sm font-medium">
+                AI가 대화를 준비하고 있어요...
+              </p>
+            </div>
+          ) : (
+            <>
+              {messages.map((m) => {
+                const isUser = m.role === "user";
+                const tokens = memoizedTokens[m.id];
+                const styleError = m.feedback?.errors?.find(
+                  (e) => e.type === "style"
+                );
+
+                return (
+                  <div
+                    key={m.id}
+                    className={`relative flex items-end gap-2 ${
+                      isUser ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    {!isUser && (
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mb-1 border border-indigo-200">
+                        <span className="text-xs font-bold text-indigo-600">
+                          AI
+                        </span>
+                      </div>
+                    )}
+
+                    <div
+                      className={`flex flex-col max-w-[85%] sm:max-w-[75%] ${
+                        isUser ? "items-end" : "items-start"
+                      }`}
+                    >
+                      <div
+                        ref={(el) => {
+                          bubbleRefs.current[m.id] = el;
+                        }}
+                        className={`rounded-2xl px-4 py-3 text-[15px] sm:text-base leading-relaxed shadow-sm
+                        ${
+                          isUser
+                            ? "bg-rose-500 text-white rounded-tr-none"
+                            : "bg-white text-gray-800 border border-gray-200 rounded-tl-none"
+                        } 
+                        ${
+                          styleError && isUser
+                            ? "ring-2 ring-yellow-300 cursor-pointer"
+                            : ""
+                        }`}
+                        onMouseEnter={() => {
+                          if (!isMobile && styleError && isUser)
+                            onSentenceInteract(m.id, m.feedback);
+                        }}
+                        onMouseLeave={() => {
+                          if (!isMobile) closeTooltip();
+                        }}
+                        onClick={() => {
+                          if (isMobile && styleError && isUser)
+                            onSentenceInteract(m.id, m.feedback);
+                        }}
+                      >
+                        <div
+                          className={`whitespace-pre-wrap wrap-break-word ${
+                            styleError && isUser
+                              ? "bg-yellow-400/20 rounded px-1 -mx-1"
+                              : ""
+                          }`}
+                        >
+                          {isUser ? (
+                            <span>
+                              {tokens.map(({ token, index }, i) => {
+                                if (index === -1)
+                                  return <span key={i}>{token}</span>;
+
+                                const err = m.feedback?.errors?.find(
+                                  (e) => e.index === index && e.type !== "style"
+                                );
+
+                                let cls =
+                                  "inline-block rounded px-0.5 transition-colors ";
+                                if (err) {
+                                  cls += "cursor-pointer ";
+                                  if (err.type === "word")
+                                    cls +=
+                                      "bg-red-400/40 underline decoration-red-200 decoration-2";
+                                  else if (err.type === "grammar")
+                                    cls +=
+                                      "bg-yellow-400/40 underline decoration-yellow-200 decoration-2";
+                                  else if (err.type === "spelling")
+                                    cls +=
+                                      "bg-orange-400/40 underline decoration-orange-200 decoration-2";
+                                }
+                                return (
+                                  <span
+                                    key={i}
+                                    className={cls}
+                                    onMouseEnter={(e) => {
+                                      if (err) {
+                                        e.stopPropagation();
+                                        if (!isMobile)
+                                          onWordInteract(
+                                            m.id,
+                                            index,
+                                            m.feedback
+                                          );
+                                      }
+                                    }}
+                                    onClick={(e) => {
+                                      if (err && isMobile) {
+                                        e.stopPropagation();
+                                        onWordInteract(m.id, index, m.feedback);
+                                      }
+                                    }}
+                                  >
+                                    {token}
+                                  </span>
+                                );
+                              })}
+                            </span>
+                          ) : (
+                            <span>{m.content}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* AI Message Controls */}
+                      {m.role === "ai" && (
+                        <div className="flex gap-2 mt-1 ml-1">
+                          <button
+                            onClick={() => playAudioData(null)}
+                            className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-indigo-500 transition-colors"
+                            title="다시 듣기"
+                          >
+                            <Volume2 size={16} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* User Style Feedback Indicator */}
+                      {styleError && isUser && (
+                        <div className="mt-1 mr-1 flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-100">
+                          <AlertCircle size={12} />
+                          <span className="font-medium">표현 개선 제안</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {isProcessing && !isAISpeaking && (
+                <div className="flex justify-start items-end gap-2">
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mb-1 border border-indigo-200">
+                    <span className="text-xs font-bold text-indigo-600">
+                      AI
+                    </span>
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center gap-2">
+                    <div className="flex gap-1">
+                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isConversationEnded && (
+                <div className="flex justify-center my-6">
+                  <span className="bg-gray-100 text-gray-500 px-4 py-2 rounded-full text-xs font-medium border border-gray-200">
+                    대화가 종료되었습니다.
+                  </span>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </main>
 
-      {/* 하단 입력창 (푸터) */}
       <footer
-        className="fixed inset-x-0 bottom-0 bg-white/95 backdrop-blur-sm z-40"
+        className="fixed inset-x-0 bottom-0 z-40 pointer-events-none"
         style={{ height: FOOTER_HEIGHT }}
       >
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="h-full flex items-center justify-center gap-4">
-            <button
-              type="button"
-              onClick={toggleRecording}
-              aria-pressed={isRecording}
-              className={`relative w-16 h-16 rounded-full flex items-center justify-center text-white shadow-md ${
-                isRecording ? "bg-rose-600" : "bg-rose-500 hover:bg-rose-600"
-              }`}
-              style={{ transform: "translateY(15px)" }}
-            >
-              <Mic size={30} />
-              {isRecording && (
-                <span
-                  className="pointer-events-none absolute inset-0 rounded-full"
-                  style={{
-                    boxShadow: "0 0 0 0 rgba(244, 63, 94, 0.4)",
-                    animation: "ringPulse 1.8s ease-out infinite",
-                  }}
-                />
-              )}
-            </button>
+        {/* Gradient Overlay */}
+        <div className="absolute inset-0 bg-linear-to-t from-white via-white/90 to-transparent pointer-events-none" />
+
+        <div className="relative h-full max-w-2xl mx-auto px-4 sm:px-6 flex items-center justify-center pb-4 pointer-events-auto">
+          <div
+            className={`relative w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 cursor-pointer
+              ${
+                isRecording
+                  ? isTalking
+                    ? "bg-rose-500 scale-110 shadow-rose-500/40 ring-4 ring-rose-200"
+                    : "bg-rose-400 shadow-rose-400/30"
+                  : isProcessing
+                  ? "bg-white border-2 border-gray-100 shadow-sm"
+                  : isAISpeaking
+                  ? "bg-indigo-500 shadow-indigo-500/40 ring-4 ring-indigo-200"
+                  : "bg-white border border-gray-200 shadow-md hover:shadow-lg hover:border-rose-200 group"
+              }
+            `}
+            onClick={() => {
+              if (!isRecording && !isProcessing && !isAISpeaking) {
+                startRecording();
+              } else if (isRecording) {
+                stopRecording();
+              }
+            }}
+          >
+            {isRecording ? (
+              <Mic
+                size={32}
+                className={`text-white ${isTalking ? "animate-pulse" : ""}`}
+              />
+            ) : isProcessing ? (
+              <Loader2 size={32} className="text-rose-500 animate-spin" />
+            ) : isAISpeaking ? (
+              <Volume2 size={32} className="text-white animate-pulse" />
+            ) : (
+              <Mic
+                size={32}
+                className="text-gray-400 group-hover:text-rose-500 transition-colors"
+              />
+            )}
+
+            {isRecording && isTalking && (
+              <span className="absolute inset-0 rounded-full animate-ping bg-rose-400 opacity-20"></span>
+            )}
           </div>
         </div>
       </footer>
@@ -633,17 +697,47 @@ const AITalkPageDetail: React.FC = () => {
         mobile={isMobile}
         feedback={messages.find((mm) => mm.id === activeTooltipMsgId)?.feedback}
         activeWordIndexes={activeTooltipWordIndexes}
+        isAbove={cardPos.preferAbove}
       />
 
-      <style>
-        {`
-          @keyframes ringPulse {
-            0%   { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.40); }
-            70%  { box-shadow: 0 0 0 14px rgba(244, 63, 94, 0.00); }
-            100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.00); }
-          }
-        `}
-      </style>
+      {/* 종료 확인 모달 */}
+      {showExitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-fade-in">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={handleCancelExit}
+          />
+
+          <div className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-scale-in">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="w-14 h-14 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center mb-4">
+                <AlertTriangle size={28} strokeWidth={2.5} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                대화를 종료하시겠습니까?
+              </h3>
+              <p className="text-gray-500 text-sm leading-relaxed break-keep">
+                지금 나가시면 대화가 저장되지 않을 수 있습니다.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleConfirmExit}
+                className="w-full py-3.5 bg-rose-500 text-white rounded-xl font-bold hover:bg-rose-600 active:scale-95 transition-all"
+              >
+                종료하고 나가기
+              </button>
+              <button
+                onClick={handleCancelExit}
+                className="w-full py-3.5 bg-white text-gray-600 border border-gray-200 rounded-xl font-bold hover:bg-gray-50 active:scale-95 transition-all"
+              >
+                계속 대화하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

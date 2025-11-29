@@ -1,3 +1,4 @@
+// backend/src/controllers/authController.ts
 import { Request, Response } from "express";
 import {
   registerUser,
@@ -6,25 +7,23 @@ import {
   logoutUser,
 } from "../services/authService";
 
-// 회원가입
+// ✅ [수정됨] score 제거, level만 받음
 export async function register(req: Request, res: Response) {
-  // ✅ name 필드 추가
-  const { name, email, password } = req.body;
+  // name, level 필드 추가 (score 제외)
+  const { name, email, password, level } = req.body;
   console.log("📥 [REGISTER 요청 바디]", req.body);
 
-  // ✅ name이 비어있는지 확인
-  if (!name || !email || !password) {
-    return res.status(400).json({ message: "모든 필드를 입력해주세요." });
+  if (!email || !password) {
+    return res.status(400).json({ message: "필수 정보를 입력해주세요." });
   }
 
   try {
-    // ✅ registerUser로 name 전달
-    const result = await registerUser(name, email, password);
+    // registerUser로 level만 전달
+    const result = await registerUser(name, email, password, level);
     console.log("✅ [REGISTER 성공]", result);
     res.status(201).json(result);
   } catch (err: any) {
     console.error("❌ [REGISTER 에러]", err.message);
-    // ✅ 409 Conflict: 이미 존재하는 이메일
     if (err.message === "이미 존재하는 이메일입니다.") {
       return res.status(409).json({ message: err.message });
     }

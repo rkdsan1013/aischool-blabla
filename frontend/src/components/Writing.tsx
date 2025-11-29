@@ -22,39 +22,47 @@ const Writing: React.FC<Props> = ({
   onChange,
   disabled = false,
 }) => {
-  // 내부 상태는 controlled(value가 주어지지 않은 경우에만 사용)
-  const [internalValue, setInternalValue] = useState<string>(
-    value !== undefined ? value : initialValue
-  );
+  // [수정 핵심 1] Controlled 모드(value prop 존재)인지 확인
+  const isControlled = value !== undefined;
 
-  // 부모가 controlled value를 제공하면 내부 상태를 동기화
+  // [수정 핵심 2] Uncontrolled 모드일 때만 사용할 내부 State
+  // Controlled 모드일 때는 이 state를 업데이트하지 않음으로써 충돌 방지
+  const [uncontrolledValue, setUncontrolledValue] =
+    useState<string>(initialValue);
+
+  // [수정 핵심 3] 실제로 렌더링할 값 결정 (prop이 있으면 prop 우선)
+  const displayValue = isControlled ? value : uncontrolledValue;
+
+  // initialValue가 변경되었을 때 내부 상태 리셋 (Uncontrolled 모드 리셋용)
   useEffect(() => {
-    if (value !== undefined) {
-      setInternalValue(value);
+    if (!isControlled) {
+      setUncontrolledValue(initialValue);
     }
-  }, [value]);
+  }, [initialValue, isControlled]);
 
-  // initialValue가 바뀔 때 (uncontrolled 사용 시) 내부 상태 동기화
-  useEffect(() => {
-    if (value === undefined) {
-      setInternalValue(initialValue);
-    }
-  }, [initialValue, value]);
+  /* [삭제됨] useEffect(() => { if (value !== undefined) setInternalValue(value); }, [value]);
+    -> 이 코드가 입력할 때마다 실행되어 커서를 끝으로 보내고 한글을 깨뜨리는 원인이었음.
+  */
 
-  const handleChange = (v: string) => {
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (disabled) return;
+
+    const v = e.target.value;
     const newValue = v.slice(0, maxLength);
-    // controlled 모드가 아닐 때만 내부 상태를 업데이트
-    if (value === undefined) {
-      setInternalValue(newValue);
+
+    // [수정 핵심 4] Uncontrolled 모드일 때만 내부 state 업데이트
+    // Controlled 모드일 때는 부모에게 알리기만 하고, 부모가 내려준 props로만 렌더링 (React의 기본 동작에 맡김)
+    if (!isControlled) {
+      setUncontrolledValue(newValue);
     }
+
     onChange?.(newValue);
   };
 
-  const remaining = maxLength - internalValue.length;
+  const remaining = maxLength - (displayValue?.length || 0);
 
   return (
-    <div className="w-full h-full min-h-0 flex flex-col space-y-4 sm:space-y-5">
+    <div className="w-full flex flex-col space-y-4 sm:space-y-5">
       {/* 제목 및 설명 */}
       <div className="text-left px-0">
         <h1 className="text-xl sm:text-2xl font-bold text-foreground">
@@ -76,13 +84,13 @@ const Writing: React.FC<Props> = ({
       </div>
 
       {/* 입력 영역 */}
-      <div className="relative flex-1 min-h-0">
+      <div className="relative w-full">
         <textarea
-          value={internalValue}
-          onChange={(e) => handleChange(e.target.value)}
+          value={displayValue}
+          onChange={handleChange}
           placeholder="여기에 영어로 번역하여 작성하세요..."
-          className={`w-full h-full min-h-[200px] sm:min-h-[240px] p-4 sm:p-5 rounded-2xl border border-gray-200 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-500 transition-colors placeholder:text-muted-foreground text-base text-foreground ${
-            disabled ? "opacity-60 pointer-events-none" : ""
+          className={`w-full h-48 sm:h-56 p-4 sm:p-5 rounded-2xl border border-gray-200 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-rose-500 transition-colors placeholder:text-muted-foreground text-base text-foreground shadow-sm ${
+            disabled ? "opacity-60 pointer-events-none bg-gray-50" : ""
           }`}
           aria-label="작문 입력"
         />
@@ -91,7 +99,7 @@ const Writing: React.FC<Props> = ({
             remaining < 20 ? "text-red-500" : "text-muted-foreground"
           }`}
         >
-          {internalValue.length}/{maxLength}
+          {displayValue?.length || 0}/{maxLength}
         </div>
       </div>
     </div>

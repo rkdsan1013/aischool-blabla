@@ -11,22 +11,30 @@ import MyPage from "../pages/MyPage";
 import AITalk from "../pages/AITalkPage";
 import VoiceRoomPage from "../pages/VoiceRoomPage";
 import TrainingPage from "../pages/Training";
-import TrainingResult from "../pages/TrainingResult"; // [신규 Import]
+import TrainingResult from "../pages/TrainingResult";
 import VoiceRoomDetail from "../pages/VoiceRoomDetail";
 import VoiceRoomCreate from "../pages/VoiceRoomCreate";
 import AITalkPageDetail from "../pages/AITalkPageDetail";
 import AITalkCustomScenario from "../pages/AITalkCustomScenario";
 import MyPageHistory from "../pages/MyPageHistory";
 import MyPageProfile from "../pages/MyPageProfile";
+import HomeLeaderBoard from "../pages/HomeLeaderBoard";
+import LevelTestPage from "../pages/LevelTestPage";
+import LevelTestResultPage from "../pages/LevelTestResultPage";
+import HistoryAI from "../pages/HistoryAI";
+import HistoryTraining from "../pages/HistoryTraining";
 
 import PublicOnlyRoute from "./PublicOnlyRoute";
 import ProtectedRoute from "./ProtectedRoute";
 
 export const routes: RouteObject[] = [
-  // 네비게이션 없는 레이아웃 그룹
+  // ----------------------------------------------------------------
+  // 1. 네비게이션 바가 없는 레이아웃 그룹 (집중이 필요한 페이지, 랜딩, 인증 등)
+  // ----------------------------------------------------------------
   {
     element: <LayoutWithoutNav />,
     children: [
+      // [PublicOnly] 로그인한 유저는 접근 불가 (홈으로 리다이렉트)
       {
         path: "/",
         element: (
@@ -43,16 +51,26 @@ export const routes: RouteObject[] = [
           </PublicOnlyRoute>
         ),
       },
+
+      // [Open Access] 게스트/로그인 유저 모두 접근 가능
+      {
+        path: "/ai-talk/level-test",
+        element: <LevelTestPage />,
+      },
+      {
+        path: "/ai-talk/level-test/result",
+        element: <LevelTestResultPage />,
+      },
+
+      // [Protected] 로그인 필요 (미로그인 시 /auth로 리다이렉트)
       {
         path: "/training",
         element: (
-          // 훈련 페이지도 로그인한 사용자만 접근 가능하도록 보호하는 것을 권장합니다.
           <ProtectedRoute redirectTo="/auth">
             <TrainingPage />
           </ProtectedRoute>
         ),
       },
-      // --- [신규] 결과 페이지 라우트 추가 ---
       {
         path: "/training/result",
         element: (
@@ -61,16 +79,14 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
-      // --- [추가 완료] ---
       {
-        path: "/voiceroom/room/:roomId",
+        path: "/voiceroom/:id",
         element: (
           <ProtectedRoute redirectTo="/auth">
             <VoiceRoomDetail />
           </ProtectedRoute>
         ),
       },
-      // VoiceRoom 생성 페이지
       {
         path: "/voiceroom/create",
         element: (
@@ -103,6 +119,24 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
+      // [추가됨] AI 회화 상세 기록
+      {
+        path: "/history/ai/:sessionId",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <HistoryAI />
+          </ProtectedRoute>
+        ),
+      },
+      // [추가됨] 일반 트레이닝 상세 기록
+      {
+        path: "/history/training/:sessionId",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <HistoryTraining />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: "/my/profile",
         element: (
@@ -111,17 +145,23 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
+      {
+        path: "/leaderboard",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <HomeLeaderBoard />
+          </ProtectedRoute>
+        ),
+      },
     ],
   },
 
-  // --- 네비게이션 있는 레이아웃 그룹 ---
+  // ----------------------------------------------------------------
+  // 2. 네비게이션 바가 있는 레이아웃 그룹 (메인 서비스 페이지)
+  // ----------------------------------------------------------------
   {
     element: <LayoutWithNav />,
     children: [
-      {
-        path: "/level-test",
-        element: <div>레벨 테스트</div>,
-      },
       {
         path: "/home",
         element: (

@@ -1,3 +1,4 @@
+// frontend/src/components/SideNav.tsx
 import { useLocation, useNavigate } from "react-router-dom";
 import { Home, MessageCircle, Radio, User } from "lucide-react";
 
@@ -34,22 +35,30 @@ export default function SideNav() {
   ];
 
   return (
-    <nav className="flex flex-col p-4 space-y-3">
+    <nav className="flex flex-col p-4 space-y-2">
       {navItems.map((item) => {
         const Icon = item.icon;
         return (
           <button
             key={item.path}
             onClick={() => navigate(item.path)}
-            className={`flex items-center gap-4 px-4 py-3 rounded-md text-base font-medium transition-all ${
+            className={`flex items-center gap-4 px-5 py-3.5 rounded-2xl text-base transition-all duration-200 group w-full text-left ${
               item.active
-                ? "text-rose-500 bg-rose-50 dark:bg-gray-800"
-                : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                ? "text-rose-600 bg-rose-50 font-bold shadow-sm shadow-rose-100/50"
+                : "text-gray-500 hover:bg-gray-50 hover:text-gray-900 font-medium"
             }`}
           >
-            <Icon className="w-6 h-6" />
-            {/* SideNav는 lg 이상에서만 보이므로 텍스트를 항상 표시합니다. */}
-            <span>{item.name}</span>
+            <Icon
+              className={`w-6 h-6 transition-colors ${
+                item.active ? "stroke-[2.5px]" : "group-hover:text-rose-500"
+              }`}
+            />
+            <span className="flex-1">{item.name}</span>
+
+            {/* Active Indicator */}
+            {item.active && (
+              <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-fade-in" />
+            )}
           </button>
         );
       })}

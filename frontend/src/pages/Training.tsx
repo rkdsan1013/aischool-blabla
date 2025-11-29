@@ -7,17 +7,22 @@ import React, {
   useLayoutEffect,
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Check } from "lucide-react";
 
 import Vocabulary from "../components/Vocabulary";
 import Sentence from "../components/Sentence";
 import Blank from "../components/Blank";
 import Writing from "../components/Writing";
 import Speaking from "../components/Speaking";
-import type { QuestionItem, TrainingType } from "../services/trainingService";
+import type {
+  QuestionItem,
+  TrainingType,
+  TrainingSessionDetail,
+} from "../services/trainingService";
 import {
   fetchTrainingQuestions,
   verifyAnswer,
+  completeTrainingSession,
 } from "../services/trainingService";
 import { useProfile } from "../hooks/useProfile";
 
@@ -46,20 +51,6 @@ function normalizeForCompare(s: string) {
     .normalize("NFKC")
     .replace(/[\u2018\u2019\u201C\u201D]/g, "'")
     .replace(/\u00A0/g, " ")
-    .replace(/\b(i|you|he|she|it|we|they)'m\b/gi, "$1 am")
-    .replace(/\b(i|you|he|she|it|we|they)'re\b/gi, "$1 are")
-    .replace(/\b(i|you|he|she|it|we|they)'ve\b/gi, "$1 have")
-    .replace(/\b(i|you|he|she|it|we|they)'ll\b/gi, "$1 will")
-    .replace(/\b(i|you|he|she|it|we|they)'d\b/gi, "$1 would")
-    .replace(/\bcan't\b/gi, "cannot")
-    .replace(/\bdon't\b/gi, "do not")
-    .replace(/\bdoesn't\b/gi, "does not")
-    .replace(/\bdidn't\b/gi, "did not")
-    .replace(/\bwon't\b/gi, "will not")
-    .replace(/\bisn't\b/gi, "is not")
-    .replace(/\baren't\b/gi, "are not")
-    .replace(/\bwasn't\b/gi, "was not")
-    .replace(/\bweren't\b/gi, "were not")
     .replace(/[.,!?]/g, "")
     .replace(/\s+/g, " ")
     .trim()
@@ -69,7 +60,6 @@ function normalizeForCompare(s: string) {
 const TrainingPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-
   const { profile, setProfileLocal } = useProfile();
 
   const locState = isLocState(location.state)
@@ -93,8 +83,9 @@ const TrainingPage: React.FC = () => {
 
   const [correctCount, setCorrectCount] = useState<number>(0);
   const [sessionScore, setSessionScore] = useState<number>(0);
+  const [history, setHistory] = useState<TrainingSessionDetail[]>([]);
+  const startTimeRef = useRef<number>(Date.now());
 
-  // UI 상태
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<string[]>([]);
   const [writingValue, setWritingValue] = useState<string>("");
@@ -105,8 +96,6 @@ const TrainingPage: React.FC = () => {
 
   const [answerToShow, setAnswerToShow] = useState<string | null>(null);
   const [answerLabel, setAnswerLabel] = useState<string>("정답");
-
-  // [신규] 서버에서 인식된 텍스트를 별도로 저장 (정답/오답 무관하게 저장)
   const [finalTranscript, setFinalTranscript] = useState<string | null>(null);
 
   const [feedbackContentHeight, setFeedbackContentHeight] = useState(
@@ -120,7 +109,6 @@ const TrainingPage: React.FC = () => {
       navigate("/home");
       return;
     }
-
     if (!questions && startType) {
       const load = async () => {
         try {
@@ -130,9 +118,10 @@ const TrainingPage: React.FC = () => {
           setIndex(0);
           setCorrectCount(0);
           setSessionScore(0);
+          setHistory([]);
+          startTimeRef.current = Date.now();
         } catch (err) {
           console.error(err);
-          console.error("문제를 불러오지 못했습니다.");
           navigate("/home");
         } finally {
           setLoading(false);
@@ -176,10 +165,11 @@ const TrainingPage: React.FC = () => {
     setVerifying(false);
     setAnswerToShow(null);
     setAnswerLabel("정답");
-    setFinalTranscript(null); // 초기화
+    setFinalTranscript(null);
     setFeedbackContentHeight(FEEDBACK_AREA_MIN_HEIGHT);
   };
 
+  // 핸들러 함수들 생략 (기존과 동일)
   const handleSelect = (option: string) => {
     if (showFeedback || verifying) return;
     setSelectedAnswer(option);
@@ -200,49 +190,39 @@ const TrainingPage: React.FC = () => {
     if (showFeedback || verifying) return;
     setWritingValue(v);
   };
-
   const arraysEqual = (a: string[], b: string[]) =>
     a.length === b.length &&
     a.every((v, i) => v.trim() === (b[i] ?? "").trim());
 
-  // Speaking 완료 핸들러
   const handleSpeakingComplete = async (audioBlob: Blob) => {
     if (!currentQuestion) return;
-
     setVerifying(true);
     setShowFeedback(true);
-
     try {
       const result = await verifyAnswer({
         type: "speaking",
         userAnswer: audioBlob,
         correctAnswer: currentQuestion.correct ?? [],
       });
-
       setIsCorrect(result.isCorrect);
-
-      // [수정] 정답이든 오답이든 서버가 인식한 텍스트 저장
-      // 이를 Speaking 컴포넌트에 넘겨서 하이라이트 기준으로 사용
-      if (result.transcript) {
-        setFinalTranscript(result.transcript);
-      }
-
+      if (result.transcript) setFinalTranscript(result.transcript);
       if (result.isCorrect) {
         setCorrectCount((prev) => prev + 1);
         setSessionScore((prev) => prev + result.points);
         setAnswerToShow(null);
-
-        if (profile && (result.totalScore !== undefined || result.tier)) {
-          setProfileLocal({
-            ...profile,
-            score: result.totalScore ?? profile.score,
-            tier: result.tier ?? profile.tier,
-          });
-        }
       } else {
         setAnswerLabel("인식된 문장");
         setAnswerToShow(result.transcript ?? "인식 실패");
       }
+      const detail: TrainingSessionDetail = {
+        questionId: currentQuestion.id,
+        questionText: currentQuestion.question,
+        options: currentQuestion.options ?? [],
+        userAnswer: result.transcript ?? "(Audio/No Transcript)",
+        correctAnswer: String(currentQuestion.correct),
+        isCorrect: result.isCorrect,
+      };
+      setHistory((prev) => [...prev, detail]);
     } catch (err) {
       console.error(err);
       setAnswerLabel("오류 발생");
@@ -254,71 +234,51 @@ const TrainingPage: React.FC = () => {
 
   const handleCheckAnswer = async () => {
     if (!currentQuestion || verifying) return;
-
-    let localCorrect = false;
     setAnswerToShow(null);
     setAnswerLabel("정답");
 
     let userAnswerForBackend: string | string[] | Blob = "";
+    let localCorrect = false;
 
-    switch (currentQuestion.type) {
-      case "vocabulary":
-      case "blank": {
-        userAnswerForBackend = selectedAnswer ?? "";
-        const correctField = currentQuestion.correct;
-        localCorrect =
-          typeof correctField === "string"
-            ? correctField === selectedAnswer
-            : Array.isArray(correctField)
-            ? !!selectedAnswer && correctField.includes(selectedAnswer)
-            : false;
-        break;
+    if (
+      currentQuestion.type === "vocabulary" ||
+      currentQuestion.type === "blank"
+    ) {
+      userAnswerForBackend = selectedAnswer ?? "";
+      const correctField = currentQuestion.correct;
+      localCorrect =
+        typeof correctField === "string"
+          ? correctField === selectedAnswer
+          : Array.isArray(correctField)
+          ? !!selectedAnswer && correctField.includes(selectedAnswer)
+          : false;
+      setIsCorrect(localCorrect);
+      if (localCorrect) setCorrectCount((prev) => prev + 1);
+      setShowFeedback(true);
+      if (!localCorrect) {
+        const correct = currentQuestion.correct;
+        setAnswerToShow(Array.isArray(correct) ? correct[0] : correct ?? "");
       }
-      case "speaking": {
-        return;
+    } else if (currentQuestion.type === "sentence") {
+      userAnswerForBackend = selectedOrder;
+      if (Array.isArray(currentQuestion.correct)) {
+        localCorrect = arraysEqual(currentQuestion.correct, selectedOrder);
+      } else if (typeof currentQuestion.correct === "string") {
+        localCorrect = currentQuestion.correct === selectedOrder.join(" ");
       }
-      case "sentence": {
-        userAnswerForBackend = selectedOrder;
-        if (Array.isArray(currentQuestion.correct)) {
-          localCorrect = arraysEqual(currentQuestion.correct, selectedOrder);
-        } else if (typeof currentQuestion.correct === "string") {
-          localCorrect = currentQuestion.correct === selectedOrder.join(" ");
-        }
-        break;
-      }
-      case "writing": {
-        userAnswerForBackend = writingValue;
-        const userNorm = normalizeForCompare(writingValue);
-        const correctList = Array.isArray(currentQuestion.correct)
-          ? currentQuestion.correct
-          : [currentQuestion.correct as string];
-
-        const matchIndex = correctList.findIndex(
-          (ans) => normalizeForCompare(ans) === userNorm
+      setIsCorrect(localCorrect);
+      if (localCorrect) setCorrectCount((prev) => prev + 1);
+      setShowFeedback(true);
+      if (!localCorrect) {
+        const correct = currentQuestion.correct;
+        setAnswerToShow(
+          Array.isArray(correct) ? correct.join(" ") : correct ?? ""
         );
-
-        if (matchIndex !== -1) {
-          localCorrect = true;
-          if (matchIndex > 0) {
-            setAnswerLabel("이런 표현도 있어요");
-            setAnswerToShow(correctList[0] ?? "");
-          }
-        } else {
-          localCorrect = false;
-          setAnswerToShow(correctList[0] ?? "");
-          setAnswerLabel("정답");
-        }
-        break;
       }
-      default:
-        localCorrect = false;
-    }
-
-    setIsCorrect(Boolean(localCorrect));
-    setShowFeedback(true);
-
-    if (localCorrect) {
-      setCorrectCount((prev) => prev + 1);
+    } else if (currentQuestion.type === "writing") {
+      userAnswerForBackend = writingValue;
+      setVerifying(true);
+      setShowFeedback(true);
     }
 
     try {
@@ -326,20 +286,67 @@ const TrainingPage: React.FC = () => {
         type: currentQuestion.type,
         userAnswer: userAnswerForBackend,
         correctAnswer: currentQuestion.correct ?? [],
+        extra: { questionText: currentQuestion.question },
       });
 
-      if (result.isCorrect) {
-        setSessionScore((prev) => prev + result.points);
-        if (profile && (result.totalScore !== undefined || result.tier)) {
-          setProfileLocal({
-            ...profile,
-            score: result.totalScore ?? profile.score,
-            tier: result.tier ?? profile.tier,
-          });
+      if (currentQuestion.type === "writing") {
+        const serverCorrect = result.isCorrect;
+        setIsCorrect(serverCorrect);
+        if (serverCorrect) {
+          setCorrectCount((prev) => prev + 1);
+          setSessionScore((prev) => prev + result.points);
+          const intended = Array.isArray(currentQuestion.correct)
+            ? currentQuestion.correct[0]
+            : currentQuestion.correct;
+          const normUser = normalizeForCompare(writingValue);
+          const normIntended = normalizeForCompare(intended || "");
+          if (intended && normUser !== normIntended) {
+            setAnswerLabel("이런 표현도 있어요");
+            setAnswerToShow(intended);
+          } else {
+            setAnswerToShow(null);
+          }
+        } else {
+          setAnswerLabel("정답");
+          setAnswerToShow(
+            Array.isArray(currentQuestion.correct)
+              ? currentQuestion.correct[0]
+              : currentQuestion.correct ?? ""
+          );
+        }
+      } else {
+        if (result.isCorrect) {
+          setSessionScore((prev) => prev + result.points);
         }
       }
+      let storedUserAnswer = "";
+      if (Array.isArray(userAnswerForBackend)) {
+        storedUserAnswer = userAnswerForBackend.join(" ");
+      } else {
+        storedUserAnswer = String(userAnswerForBackend);
+      }
+      const storedCorrectAnswer = Array.isArray(currentQuestion.correct)
+        ? currentQuestion.correct.join(" ")
+        : String(currentQuestion.correct ?? "");
+      const detail: TrainingSessionDetail = {
+        questionId: currentQuestion.id,
+        questionText: currentQuestion.question,
+        options: currentQuestion.options ?? [],
+        userAnswer: storedUserAnswer,
+        correctAnswer: storedCorrectAnswer,
+        isCorrect:
+          currentQuestion.type === "writing" ? result.isCorrect : localCorrect,
+      };
+      setHistory((prev) => [...prev, detail]);
     } catch (err) {
-      console.error("[Frontend] Background verification failed", err);
+      console.error("[Frontend] Verification failed", err);
+      if (currentQuestion.type === "writing") {
+        setIsCorrect(false);
+        setAnswerLabel("오류");
+        setAnswerToShow("채점 중 문제가 발생했습니다.");
+      }
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -353,8 +360,31 @@ const TrainingPage: React.FC = () => {
     }
   };
 
-  const handleTrainingComplete = () => {
-    console.log("학습 종료. 결과 페이지로 이동");
+  const handleTrainingComplete = async () => {
+    if (!startType) return;
+    const endTime = Date.now();
+    const durationSec = Math.floor((endTime - startTimeRef.current) / 1000);
+    try {
+      const res = await completeTrainingSession({
+        type: startType,
+        score: sessionScore,
+        durationSeconds: durationSec,
+        sessionData: history,
+      });
+      if (profile && res.stats) {
+        const addedSeconds = res.stats.addedSeconds ?? durationSec;
+        setProfileLocal({
+          ...profile,
+          streak_count: res.stats.streak,
+          score: res.stats.totalScore,
+          tier: res.stats.tier,
+          total_study_time: (profile.total_study_time || 0) + addedSeconds,
+          completed_lessons: (profile.completed_lessons || 0) + 1,
+        });
+      }
+    } catch (err) {
+      console.error("학습 기록 저장 실패:", err);
+    }
     navigate("/training/result", {
       replace: true,
       state: {
@@ -367,26 +397,29 @@ const TrainingPage: React.FC = () => {
   };
 
   useLayoutEffect(() => {
-    if (showFeedback && feedbackContentRef.current) {
-      const currentContentHeight = feedbackContentRef.current.scrollHeight;
-      setFeedbackContentHeight(
-        Math.max(currentContentHeight, FEEDBACK_AREA_MIN_HEIGHT)
-      );
-    }
+    const updateHeight = () => {
+      if (showFeedback && feedbackContentRef.current) {
+        const currentContentHeight = feedbackContentRef.current.scrollHeight;
+        setFeedbackContentHeight(
+          Math.max(currentContentHeight, FEEDBACK_AREA_MIN_HEIGHT)
+        );
+      }
+    };
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    return () => window.removeEventListener("resize", updateHeight);
   }, [
     showFeedback,
     isCorrect,
-    currentQuestion?.correct,
+    currentQuestion,
     answerToShow,
     verifying,
+    answerLabel,
   ]);
 
   const footerVisualHeight = showFeedback
     ? FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight
     : FOOTER_BUTTON_AREA_HEIGHT;
-
-  const MAIN_CONTENT_PADDING_BOTTOM =
-    FOOTER_BUTTON_AREA_HEIGHT + feedbackContentHeight;
 
   const canCheck = useMemo(() => {
     if (!currentQuestion) return false;
@@ -413,9 +446,7 @@ const TrainingPage: React.FC = () => {
   if (!currentQuestion) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white p-4">
-        <div className="text-gray-500">
-          문제를 불러오는 중이거나, 문제가 없습니다.
-        </div>
+        <div className="text-gray-500">문제를 불러오는 중...</div>
         <button
           onClick={() => navigate("/home")}
           className="mt-4 text-rose-500 font-bold"
@@ -435,6 +466,10 @@ const TrainingPage: React.FC = () => {
             options={stableOptions}
             selected={selectedAnswer}
             onSelect={handleSelect}
+            correctAnswer={
+              Array.isArray(item.correct) ? item.correct[0] : item.correct ?? ""
+            }
+            showFeedback={showFeedback}
           />
         );
       case "sentence":
@@ -446,6 +481,8 @@ const TrainingPage: React.FC = () => {
             onPick={handlePickPart}
             onRemove={handleRemovePart}
             onReorder={handleReorder}
+            showFeedback={showFeedback}
+            isCorrect={isCorrect}
           />
         );
       case "blank":
@@ -455,6 +492,10 @@ const TrainingPage: React.FC = () => {
             options={stableOptions}
             selected={selectedAnswer}
             onSelect={handleSelect}
+            correctAnswer={
+              Array.isArray(item.correct) ? item.correct[0] : item.correct ?? ""
+            }
+            showFeedback={showFeedback}
           />
         );
       case "writing":
@@ -472,7 +513,6 @@ const TrainingPage: React.FC = () => {
             key={item.id}
             prompt={item.question}
             onRecord={handleSpeakingComplete}
-            // [수정] isSuccess는 제거하고, serverTranscript를 전달
             serverTranscript={finalTranscript}
           />
         );
@@ -487,7 +527,6 @@ const TrainingPage: React.FC = () => {
 
   return (
     <div className="h-screen bg-white flex flex-col overflow-hidden">
-      {/* Header */}
       <header className="flex-none border-b border-gray-200 bg-white">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex-1 px-3">
@@ -500,28 +539,28 @@ const TrainingPage: React.FC = () => {
               </div>
             </div>
           </div>
-
           <button
             onClick={handleClose}
             className="w-8 h-8 flex items-center justify-center text-gray-600 rounded-md hover:bg-gray-100 transition"
-            aria-label="닫기"
             type="button"
           >
-            <X className="w-4 h-4" aria-hidden="true" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       </header>
 
-      {/* Main */}
+      {/* 중요 수정: main 영역의 높이를 계산하여 푸터 위까지만 차지하도록 설정.
+          이렇게 하면 내부 스크롤이 푸터 뒤로 넘어가지 않고 푸터 위에서 끝남. */}
       <main
-        className="flex-1 max-w-4xl mx-auto w-full px-4 pt-4 overflow-y-auto relative"
-        style={{ paddingBottom: `${MAIN_CONTENT_PADDING_BOTTOM}px` }}
+        className="flex-1 max-w-4xl mx-auto w-full px-4 pt-4 relative overflow-hidden"
+        style={{
+          height: `calc(100% - ${footerVisualHeight}px)`, // 전체 높이에서 푸터 높이만큼 뺌
+        }}
       >
         {showFeedback && (
           <div
             className="absolute inset-0 bg-transparent"
             style={{ zIndex: 30, pointerEvents: "auto" }}
-            aria-hidden="true"
           />
         )}
 
@@ -530,11 +569,9 @@ const TrainingPage: React.FC = () => {
           className="w-full flex flex-col gap-4 h-full"
         >
           {renderQuestionComponent(currentQuestion)}
-          <div className="flex-1" />
         </fieldset>
       </main>
 
-      {/* Footer / Feedback */}
       <div
         className="fixed left-0 right-0 bottom-0 z-50 flex justify-center"
         style={{ pointerEvents: "none" }}
@@ -547,7 +584,6 @@ const TrainingPage: React.FC = () => {
             pointerEvents: "auto",
           }}
         >
-          {/* Feedback card */}
           <div
             className={`absolute bottom-0 left-0 right-0 transition-transform duration-300 ease-out ${
               showFeedback ? "translate-y-0" : "translate-y-full"
@@ -581,41 +617,16 @@ const TrainingPage: React.FC = () => {
                   ) : (
                     <>
                       <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
                           isCorrect ? "bg-green-500" : "bg-rose-500"
                         }`}
                       >
                         {isCorrect ? (
-                          <svg
-                            className="w-6 h-6 text-white"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={3}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
+                          <Check className="w-6 h-6 text-white" />
                         ) : (
-                          <svg
-                            className="w-6 h-6 text-white"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={3}
-                              d="M6 18L18 6M6 6l12 12"
-                            />
-                          </svg>
+                          <X className="w-6 h-6 text-white" />
                         )}
                       </div>
-
                       <div className="flex-1">
                         <div
                           className={`text-lg font-semibold ${
@@ -624,28 +635,17 @@ const TrainingPage: React.FC = () => {
                         >
                           {isCorrect ? "정답입니다!" : "아쉬워요!"}
                         </div>
-
-                        {((!isCorrect && currentQuestion.type !== "speaking") ||
+                        {((!isCorrect &&
+                          currentQuestion?.type !== "speaking") ||
                           (isCorrect && answerToShow) ||
                           (!isCorrect &&
-                            currentQuestion.type === "speaking")) && (
+                            currentQuestion?.type === "speaking")) && (
                           <div className="mt-1">
                             <div className="text-sm text-gray-600">
                               {answerLabel}
                             </div>
                             <div className="text-base font-bold text-gray-900 mt-1 break-keep">
-                              {currentQuestion.type === "writing" ||
-                              currentQuestion.type === "speaking"
-                                ? String(
-                                    answerToShow ??
-                                      (Array.isArray(currentQuestion.correct)
-                                        ? currentQuestion.correct[0]
-                                        : currentQuestion.correct) ??
-                                      ""
-                                  )
-                                : Array.isArray(currentQuestion.correct)
-                                ? currentQuestion.correct.join(" ")
-                                : String(currentQuestion.correct ?? "")}
+                              {answerToShow}
                             </div>
                           </div>
                         )}
@@ -657,7 +657,6 @@ const TrainingPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Buttons */}
           <div
             className="absolute bottom-0 left-0 right-0 w-full"
             style={{
@@ -669,16 +668,13 @@ const TrainingPage: React.FC = () => {
           >
             <div
               className="flex items-center max-w-4xl mx-auto w-full px-4"
-              style={{
-                height: `${FOOTER_BASE_HEIGHT}px`,
-              }}
+              style={{ height: `${FOOTER_BASE_HEIGHT}px` }}
             >
               <div className="w-full px-0">
                 {verifying ? (
                   <button
                     disabled
                     className="w-full h-12 rounded-xl font-semibold text-base bg-gray-200 text-gray-400 cursor-wait flex items-center justify-center gap-2"
-                    style={{ pointerEvents: "auto" }}
                   >
                     채점 중...
                   </button>
@@ -687,19 +683,18 @@ const TrainingPage: React.FC = () => {
                     onClick={handleCheckAnswer}
                     disabled={
                       !canCheck ||
-                      currentQuestion.type === "speaking" ||
+                      currentQuestion?.type === "speaking" ||
                       verifying
                     }
                     className={`w-full h-12 rounded-xl font-semibold text-base transition duration-200 ${
                       canCheck &&
-                      currentQuestion.type !== "speaking" &&
+                      currentQuestion?.type !== "speaking" &&
                       !verifying
                         ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20 active:scale-[.98]"
                         : "bg-gray-200 text-gray-400 cursor-not-allowed"
                     }`}
-                    style={{ pointerEvents: "auto" }}
                   >
-                    {currentQuestion.type === "speaking"
+                    {currentQuestion?.type === "speaking"
                       ? "말하기를 완료하세요"
                       : "정답 확인"}
                   </button>
@@ -711,7 +706,6 @@ const TrainingPage: React.FC = () => {
                         ? "bg-green-600 shadow-green-500/20"
                         : "bg-rose-600 shadow-rose-500/20"
                     }`}
-                    style={{ pointerEvents: "auto" }}
                   >
                     학습 종료
                   </button>
@@ -723,7 +717,6 @@ const TrainingPage: React.FC = () => {
                         ? "bg-green-600 shadow-green-500/20"
                         : "bg-rose-600 shadow-rose-500/20"
                     }`}
-                    style={{ pointerEvents: "auto" }}
                   >
                     다음 문제
                   </button>

@@ -1,6 +1,13 @@
+// src/pages/AITalkCustomScenario.tsx
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { X } from "lucide-react";
+import {
+  ChevronLeft,
+  Pencil,
+  FileText,
+  MessageSquare,
+  Info,
+} from "lucide-react";
 // 외부 서비스 임포트
 import { aiTalkService } from "../services/aiTalkService";
 import type { AIScenario } from "../services/aiTalkService";
@@ -136,7 +143,7 @@ const AITalkCustomScenario: React.FC = () => {
     };
 
     try {
-      // editId가 존재하지만 숫자가 아닌 경우(로컬 전용 id: 예 UUID) -> 로컬만 업데이트
+      // editId가 존재하지만 숫자가 아닌 경우(로컬 전용 id) -> 로컬만 업데이트
       if (editId && Number.isNaN(Number(editId))) {
         let scenarios: CustomScenario[] = [];
         try {
@@ -177,6 +184,7 @@ const AITalkCustomScenario: React.FC = () => {
 
       const savedId = String(savedScenario.scenario_id);
 
+      // [Logic Restored]: scenarios와 persistLocal 사용
       let scenarios: CustomScenario[] = [];
       try {
         const saved = localStorage.getItem("customScenarios");
@@ -194,6 +202,7 @@ const AITalkCustomScenario: React.FC = () => {
       };
       if (idx !== -1) scenarios[idx] = newEntry;
       else scenarios.push(newEntry);
+
       persistLocal(scenarios);
 
       navigate("/ai-talk");
@@ -210,138 +219,157 @@ const AITalkCustomScenario: React.FC = () => {
   };
 
   return (
-    <div className="h-[100dvh] bg-white flex flex-col">
-      <header className="bg-rose-500 text-white flex-shrink-0 shadow-md">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold mb-1">
-              {editId ? "시나리오 수정" : "나만의 시나리오 만들기"}
+    <div className="min-h-screen bg-slate-50 text-gray-900">
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 flex items-center">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleCancel}
+              className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-600"
+              aria-label="뒤로 가기"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <h1 className="text-lg font-bold text-gray-900">
+              {editId ? "시나리오 수정" : "시나리오 만들기"}
             </h1>
-            <p className="text-white/90 text-sm sm:text-base">
-              원하는 대화 상황을 직접 설정하세요
-            </p>
           </div>
-
-          <button
-            type="button"
-            onClick={() => navigate("/ai-talk")}
-            className="inline-flex items-center text-white hover:bg-white/20 p-2 rounded-full transition duration-150"
-            aria-label="닫기"
-          >
-            <X className="w-6 h-6" aria-hidden="true" />
-          </button>
         </div>
       </header>
 
-      <main className="w-full flex-1 overflow-y-auto">
-        <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-20">
-          <header className="mb-6 sm:mb-8">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
-              시나리오 정보 입력
-            </h2>
-            <p className="text-sm sm:text-base text-gray-600 text-pretty">
-              AI와 대화할 상황을 자세히 설명해주세요 (모든 필드 필수)
-            </p>
-          </header>
+      {/* Main Content */}
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        {error && (
+          <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-2xl text-sm font-medium animate-fade-in">
+            {error}
+          </div>
+        )}
 
-          {error && (
-            <div
-              className="mb-4 p-3 bg-red-100 border border-red-300 text-sm text-red-700 rounded-lg"
-              role="alert"
-            >
-              {error}
+        <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+          {/* Card: Basic Info */}
+          <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden p-6 sm:p-8">
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-rose-500" />
+                기본 정보
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                AI와 대화할 주제를 설정해주세요.
+              </p>
             </div>
-          )}
 
-          <div className="mb-6">
-            <label
-              htmlFor="title"
-              className="block text-base font-semibold text-gray-700 mb-2"
-            >
-              시나리오 제목 *
-            </label>
-            <input
-              id="title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="예: 병원에서 진료 받기"
-              className="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white focus:outline-none focus:ring-4 focus:ring-rose-200 transition duration-150"
-              disabled={loading}
-            />
-          </div>
+            <div className="space-y-5">
+              <div>
+                <label
+                  htmlFor="title"
+                  className="block text-sm font-bold text-gray-700 mb-1.5 ml-1"
+                >
+                  시나리오 제목 <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  id="title"
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="예: 병원에서 진료 받기"
+                  className="w-full rounded-2xl bg-gray-50 border border-gray-200 px-4 py-3.5 text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                  disabled={loading}
+                />
+              </div>
 
-          <div className="mb-6">
-            <label
-              htmlFor="description"
-              className="block text-base font-semibold text-gray-700 mb-2"
-            >
-              간단한 설명 *
-            </label>
-            <input
-              id="description"
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="예: 병원에서 증상을 설명하고 진료를 받는 상황"
-              className="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white focus:outline-none focus:ring-4 focus:ring-rose-200 transition duration-150"
-              disabled={loading}
-            />
-          </div>
+              <div>
+                <label
+                  htmlFor="description"
+                  className="block text-sm font-bold text-gray-700 mb-1.5 ml-1"
+                >
+                  간단한 설명 <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <FileText className="absolute left-4 top-4 w-5 h-5 text-gray-400" />
+                  <input
+                    id="description"
+                    type="text"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="예: 증상을 설명하고 진료를 받는 상황"
+                    className="w-full rounded-2xl bg-gray-50 border border-gray-200 pl-11 pr-4 py-3.5 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
 
-          <div className="mb-6">
-            <label
-              htmlFor="context"
-              className="block text-base font-semibold text-gray-700 mb-2"
-            >
-              상황 설명 *
-            </label>
-            <textarea
-              id="context"
-              ref={textareaRef}
-              value={context}
-              onChange={(e) => handleContextChange(e.target.value)}
-              placeholder={
-                "AI가 어떤 역할을 하고, 어떤 상황인지 자세히 설명해주세요.\n\n예시:\n당신은 병원 접수처 직원입니다. 환자가 처음 방문했고, 증상을 듣고 적절한 진료과를 안내해주세요. 친절하고 전문적인 태도로 대화하며, 필요한 서류나 절차에 대해서도 안내해주세요."
-              }
-              rows={4}
-              className="mt-1 block w-full rounded-xl border border-gray-300 px-4 py-3 text-base bg-white resize-none focus:outline-none focus:ring-4 focus:ring-rose-200 overflow-auto transition duration-150"
-              onInput={adjustTextareaHeight}
-              disabled={loading}
-            />
-            <p className="text-sm text-gray-500 mt-2">
-              AI의 역할, 상황, 대화 스타일 등을 구체적으로 작성하면 더 좋은
-              대화를 할 수 있어요
-            </p>
-          </div>
-        </section>
-      </main>
+          {/* Card: Context */}
+          <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden p-6 sm:p-8">
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-indigo-500" />
+                상황 설정
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                AI에게 부여할 역할과 상황을 구체적으로 알려주세요.
+              </p>
+            </div>
 
-      <footer className="w-full bg-white border-t border-gray-200 flex-shrink-0 shadow-lg">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
-          <div className="flex flex-row gap-3">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="flex-1 rounded-xl border border-gray-300 px-4 py-3 bg-white text-base font-semibold text-gray-700 hover:bg-gray-100 transition duration-150"
-              disabled={loading}
-            >
-              취소
-            </button>
+            <div className="space-y-4">
+              <div>
+                <label
+                  htmlFor="context"
+                  className="block text-sm font-bold text-gray-700 mb-1.5 ml-1"
+                >
+                  상황 설명 <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  id="context"
+                  ref={textareaRef}
+                  value={context}
+                  onChange={(e) => handleContextChange(e.target.value)}
+                  placeholder={
+                    "AI가 어떤 역할을 하고, 어떤 상황인지 자세히 설명해주세요.\n\n예시:\n당신은 병원 접수처 직원입니다. 환자가 처음 방문했고, 증상을 듣고 적절한 진료과를 안내해주세요. 친절하고 전문적인 태도로 대화하며, 필요한 서류나 절차에 대해서도 안내해주세요."
+                  }
+                  rows={6}
+                  className="w-full rounded-2xl bg-gray-50 border border-gray-200 p-4 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all resize-none leading-relaxed"
+                  onInput={adjustTextareaHeight}
+                  disabled={loading}
+                />
+              </div>
+
+              {/* Tip Box */}
+              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-start gap-3 text-sm text-blue-700">
+                <Info className="w-5 h-5 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  <strong>Tip:</strong> AI의 역할, 말투, 대화의 목적, 사용자의
+                  레벨 등을 구체적으로 작성할수록 더 자연스럽고 유용한 대화
+                  연습이 가능합니다.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Submit Button */}
+          <div className="pt-2">
             <button
               type="button"
               onClick={handleSave}
-              className="flex-1 rounded-xl bg-rose-500 text-white px-4 py-3 inline-flex items-center justify-center gap-2 hover:bg-rose-600 active:bg-rose-700 disabled:bg-rose-300 text-base font-semibold transition duration-150"
               disabled={loading}
-              aria-busy={loading}
+              className="w-full rounded-2xl bg-rose-500 text-white px-6 py-4 text-base font-bold shadow-md shadow-rose-200 hover:bg-rose-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              <span>
-                {loading ? "저장 중..." : editId ? "수정하기" : "저장하기"}
-              </span>
+              {loading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  저장 중...
+                </>
+              ) : editId ? (
+                "수정 완료"
+              ) : (
+                "시나리오 저장"
+              )}
             </button>
           </div>
-        </div>
-      </footer>
+        </form>
+      </main>
     </div>
   );
 };

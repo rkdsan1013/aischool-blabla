@@ -2,7 +2,7 @@
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
 
-dotenv.config(); // ✅ .env 파일 로딩
+dotenv.config();
 
 export const pool = mysql.createPool({
   host: process.env.DB_HOST ?? "localhost",
@@ -13,4 +13,4 @@ export const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-} satisfies mysql.PoolOptions); // ✅ 타입 보장
+} satisfies mysql.PoolOptions);

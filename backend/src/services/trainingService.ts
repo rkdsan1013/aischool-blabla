@@ -1,10 +1,13 @@
 // backend/src/services/trainingService.ts
 import { nanoid } from "nanoid";
-import { generateVocabularyQuestionsRaw } from "../llm/models/vocabularyModel";
-import { generateSentenceQuestionsRaw } from "../llm/models/sentenceModel";
-import { generateBlankQuestionsRaw } from "../llm/models/blankModel";
-import { generateWritingQuestionsRaw } from "../llm/models/writingModel";
-import { generateSpeakingQuestionsRaw } from "../llm/models/speakingModel";
+import { generateVocabularyQuestionsRaw } from "../ai/generators/vocabulary";
+import { generateSentenceQuestionsRaw } from "../ai/generators/sentence";
+import { generateBlankQuestionsRaw } from "../ai/generators/blank";
+import {
+  generateWritingQuestionsRaw,
+  verifyWritingWithLLM,
+} from "../ai/generators/writing"; // [수정] AI 폴더에서 import
+import { generateSpeakingQuestionsRaw } from "../ai/generators/speaking";
 
 export type TrainingType =
   | "vocabulary"
@@ -92,8 +95,8 @@ function normalizeOptionsAndCorrect(item: unknown): {
 }
 
 /**
- * 정답 검증 로직
- * (백엔드에서 정답 여부를 판단할 때 사용)
+ * 정답 검증 로직 (기존 규칙 기반)
+ * Writing은 별도 LLM 함수를 사용하므로 여기서는 Fallback 역할만 하거나 제외됨.
  */
 export function verifyUserAnswer(
   type: TrainingType,
@@ -113,12 +116,13 @@ export function verifyUserAnswer(
     if (Array.isArray(userAnswer) && Array.isArray(correctAnswer)) {
       if (userAnswer.length !== correctAnswer.length) return false;
       return userAnswer.every(
-        // [수정됨] correctAnswer[idx]가 undefined일 경우 빈 문자열로 처리하여 타입 오류 해결
         (word, idx) => normalize(word) === normalize(correctAnswer[idx] ?? "")
       );
     }
     return normalize(String(userAnswer)) === normalize(String(correctAnswer));
   } else if (type === "writing") {
+    // [수정] Writing은 기본적으로 LLM 검증을 권장하므로,
+    // 이 함수가 호출된다면 정확히 일치하는지(혹은 배열에 포함되는지)만 확인
     const user = normalize(String(userAnswer));
     const correctCandidates = Array.isArray(correctAnswer)
       ? correctAnswer
@@ -129,6 +133,19 @@ export function verifyUserAnswer(
   }
   return false;
 }
+
+/**
+ * Writing 전용 검증 서비스 래퍼
+ * 컨트롤러에서 사용하기 위해 export
+ */
+export async function verifyWritingAnswerService(
+  question: string,
+  intendedAnswer: string,
+  userAnswer: string
+) {
+  return await verifyWritingWithLLM(question, intendedAnswer, userAnswer);
+}
+
 // --- [헬퍼 함수 완료] ---
 
 /**
@@ -139,9 +156,7 @@ export async function getQuestionsByType(
   type: TrainingType,
   opts?: { level?: string | undefined; level_progress?: number | undefined }
 ): Promise<QuestionItem[]> {
-  // [수정됨] undefined가 될 수 없도록 기본값("C2")을 여기서 강제 할당 (TS2345 해결)
   const level: string = typeof opts?.level === "string" ? opts.level : "C2";
-
   const level_progress: number =
     typeof opts?.level_progress === "number" ? opts.level_progress : 50;
 
@@ -257,13 +272,15 @@ export async function getQuestionsByType(
           ? String(item.question).trim()
           : "(unknown question)";
 
+        // [수정] 이제 correct는 문자열로 옴. 프론트 통일성을 위해 배열로 래핑
         let correctArr: string[] = [];
-        if (Array.isArray(item?.correct)) {
-          correctArr = item.correct
-            .map(String)
-            .filter((s: string) => s.trim() !== "");
-        } else if (typeof item?.correct === "string") {
-          correctArr = [item.correct];
+        if (typeof item?.correct === "string") {
+          correctArr = [String(item.correct).trim()];
+        } else if (Array.isArray(item?.correct)) {
+          // 혹시 모델이 배열로 줄 경우 대비
+          correctArr = item.correct.map(String);
+        } else {
+          correctArr = [""];
         }
 
         return {
@@ -271,7 +288,7 @@ export async function getQuestionsByType(
           type: "writing",
           question: question,
           options: [],
-          correct: correctArr,
+          correct: correctArr, // [의도한 정답 1개]
         };
       });
     } else if (type === "speaking") {

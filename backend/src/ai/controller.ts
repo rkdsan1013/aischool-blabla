@@ -1,14 +1,14 @@
-// backend/src/llm/controller.ts
+// backend/src/ai/controller.ts
 import { Request, Response } from "express";
 import { nanoid } from "nanoid";
-import { generateVocabularyQuestionsRaw } from "./models/vocabularyModel";
-import { generateSentenceQuestionsRaw } from "./models/sentenceModel";
-import { generateBlankQuestionsRaw } from "./models/blankModel";
-import { generateWritingQuestionsRaw } from "./models/writingModel";
-import { generateSpeakingQuestionsRaw } from "./models/speakingModel"; // [신규]
+import { generateVocabularyQuestionsRaw } from "./generators/vocabulary";
+import { generateSentenceQuestionsRaw } from "./generators/sentence";
+import { generateBlankQuestionsRaw } from "./generators/blank";
+import { generateWritingQuestionsRaw } from "./generators/writing";
+import { generateSpeakingQuestionsRaw } from "./generators/speaking";
 
 /**
- * 유틸리티: 배열 셔플
+ * 유틸리티: 배열 셔플 (Fisher-Yates Shuffle)
  */
 function shuffleArray<T>(arr: T[]): void {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -20,39 +20,47 @@ function shuffleArray<T>(arr: T[]): void {
 }
 
 /**
- * options 보정: 항상 길이 4의 string[]와 correct:string 리턴
- * (Vocabulary, Blank 유형 전용)
+ * [변경] options 보정 로직
+ * Vocabulary, Blank 유형 전용:
+ * 1. LLM은 options[0]에 정답을 담아서 반환함 (토큰 절약).
+ * 2. 이를 분리(pop)하여 correct 필드에 할당.
+ * 3. options 배열을 섞음.
+ * 4. 최종적으로 { options, correct } 구조 반환.
  */
-function normalizeOptionsAndCorrect(item: unknown): {
+function normalizeOptionsAndCorrect(item: any): {
   options: string[];
   correct: string;
 } {
-  const rawOptions: string[] = Array.isArray((item as any)?.options)
-    ? (item as any).options
+  // 1. rawOptions 추출
+  const rawOptions: string[] = Array.isArray(item?.options)
+    ? item.options
         .map((o: any) => String(o ?? "").trim())
         .filter((s: string) => s !== "")
     : [];
 
-  let correctCandidate: string =
-    typeof (item as any)?.correct === "string"
-      ? String((item as any).correct).trim()
-      : "";
+  // 2. 정답 후보 추출 (규칙: 0번 인덱스가 정답)
+  // [수정] rawOptions[0]이 undefined일 경우를 대비해 ?? 연산자로 string 타입 보장
+  let correctCandidate: string = rawOptions[0] ?? "(unknown)";
 
-  const deduped: string[] = Array.from(new Set(rawOptions));
-  if (correctCandidate !== "" && !deduped.includes(correctCandidate)) {
-    deduped.unshift(correctCandidate);
+  // 중복 제거 (혹시 모를 LLM 오류 대비)
+  let deduped = Array.from(new Set(rawOptions));
+
+  // 3. 4개가 안 되면 채워넣기 (fallback)
+  while (deduped.length < 4) {
+    deduped.push(`(option ${deduped.length + 1})`);
   }
-  let options = deduped.slice(0, 4);
-  while (options.length < 4) options.push("(unknown)");
-  if (correctCandidate === "") correctCandidate = options[0]!;
+  // 4개로 자르기 (혹시 4개 초과 시)
+  deduped = deduped.slice(0, 4);
 
-  shuffleArray(options);
-
-  if (!options.includes(correctCandidate)) {
-    options[0] = correctCandidate;
+  // 잘린 배열 안에 정답(원래 0번)이 있는지 확인하고, 없으면 강제 주입
+  if (!deduped.includes(correctCandidate)) {
+    deduped[0] = correctCandidate;
   }
 
-  return { options, correct: correctCandidate };
+  // 4. 셔플 (여기서 정답의 위치가 섞임)
+  shuffleArray(deduped);
+
+  return { options: deduped, correct: correctCandidate };
 }
 
 /**
@@ -136,21 +144,16 @@ export async function vocabularyHandler(req: Request, res: Response) {
           ? item.question.trim()
           : "(unknown question)";
 
+      // 0번 인덱스 정답 추출 및 셔플
       const { options, correct } = normalizeOptionsAndCorrect(item);
 
-      const out = {
+      return {
         id,
         type: "vocabulary" as const,
         question,
         options,
         correct,
       };
-
-      if (!out.options.includes(out.correct)) {
-        out.correct = out.options[0]!;
-      }
-
-      return out;
     });
 
     if (normalized.length < 10) {
@@ -176,6 +179,7 @@ export async function vocabularyHandler(req: Request, res: Response) {
 
 /**
  * POST /api/llm/sentence
+ * (주의: Sentence 유형은 options가 오답 모음, correct가 정답 배열이므로 위 로직을 적용하지 않음)
  */
 export async function sentenceHandler(req: Request, res: Response) {
   try {
@@ -211,6 +215,7 @@ export async function sentenceHandler(req: Request, res: Response) {
         ? item.correct.map(String).filter((s: string) => s !== "")
         : [];
 
+      // "distractor"는 교육학 전문 용어이므로 스펠링 체크 경고는 무시해도 됩니다.
       const distractorWords: string[] = Array.isArray(item?.options)
         ? item.options.map(String).filter((s: string) => s !== "")
         : [];
@@ -282,21 +287,16 @@ export async function blankHandler(req: Request, res: Response) {
           ? item.question.trim()
           : "(unknown question)";
 
+      // 0번 인덱스 정답 추출 및 셔플
       const { options, correct } = normalizeOptionsAndCorrect(item);
 
-      const out = {
+      return {
         id,
         type: "blank" as const,
         question,
         options,
         correct,
       };
-
-      if (!out.options.includes(out.correct)) {
-        out.correct = out.options[0]!;
-      }
-
-      return out;
     });
 
     if (normalized.length < 10) {
@@ -322,8 +322,6 @@ export async function blankHandler(req: Request, res: Response) {
 
 /**
  * POST /api/llm/writing
- * 작문 학습 문제:
- * LLM 반환: { question: "한국어", correct: ["정답1", "정답2"...] }
  */
 export async function writingHandler(req: Request, res: Response) {
   try {
@@ -357,7 +355,7 @@ export async function writingHandler(req: Request, res: Response) {
           ? item.question.trim()
           : "(unknown question)";
 
-      // correct: 정답 영어 문장 배열 (여러 표현 가능)
+      // correct: 정답 영어 문장 배열
       let correctArr: string[] = [];
       if (Array.isArray(item?.correct)) {
         correctArr = item.correct
@@ -375,7 +373,7 @@ export async function writingHandler(req: Request, res: Response) {
         id,
         type: "writing" as const,
         question,
-        options: [], // 작문은 보기가 없음
+        options: [],
         correct: correctArr,
       };
     });
@@ -403,7 +401,6 @@ export async function writingHandler(req: Request, res: Response) {
 
 /**
  * POST /api/llm/speaking
- * 말하기/쉐도잉 문제: LLM은 { question: "English Sentence" } 형태 반환
  */
 export async function speakingHandler(req: Request, res: Response) {
   try {
@@ -440,7 +437,7 @@ export async function speakingHandler(req: Request, res: Response) {
         id,
         type: "speaking" as const,
         question, // 따라 읽을 영어 문장
-        options: [], // 보기 없음
+        options: [],
         correct: question, // 정답(원문)
       };
     });

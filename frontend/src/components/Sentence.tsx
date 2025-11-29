@@ -1,3 +1,4 @@
+// frontend/src/components/Sentence.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
@@ -12,7 +13,6 @@ import {
   type UniqueIdentifier,
   type DragOverEvent,
   type CollisionDetection,
-  // 💡 사용하지 않는 DragEndEvent, DroppableContainer 제거
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -29,6 +29,8 @@ interface Props {
   onPick?: (part: string) => void;
   onRemove?: (part: string) => void;
   onReorder?: (order: string[]) => void;
+  showFeedback?: boolean;
+  isCorrect?: boolean;
 }
 
 const CARD_TEXT_CLASS =
@@ -38,10 +40,12 @@ function SortablePlacedItem({
   id,
   value,
   onRemove,
+  disabled = false,
 }: {
   id: UniqueIdentifier;
   value: string;
   onRemove?: (id: string) => void;
+  disabled?: boolean;
 }) {
   const {
     attributes,
@@ -50,7 +54,7 @@ function SortablePlacedItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id, disabled });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -62,7 +66,7 @@ function SortablePlacedItem({
   };
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDragging && e.detail > 0 && onRemove) {
+    if (!disabled && !isDragging && e.detail > 0 && onRemove) {
       onRemove(String(id));
     }
   };
@@ -75,14 +79,11 @@ function SortablePlacedItem({
       {...listeners}
       onClick={handleClick}
       role="listitem"
-      aria-label={`선택된 단어 ${value}`}
-      className={`flex-none rounded-2xl bg-rose-100 border border-rose-300 text-rose-800 shadow-sm flex items-center select-none cursor-grab active:cursor-grabbing ${
-        isDragging ? "z-50" : ""
-      }`}
+      className={`flex-none rounded-xl bg-rose-100 border border-rose-300 text-rose-800 shadow-sm flex items-center select-none m-1 ${
+        disabled ? "cursor-default" : "cursor-grab active:cursor-grabbing"
+      } ${isDragging ? "z-50 opacity-50" : ""}`}
     >
-      <div
-        className={`inline-flex items-center px-4 py-2 sm:px-5 sm:py-3 ${CARD_TEXT_CLASS}`}
-      >
+      <div className={`inline-flex items-center px-3 py-2 ${CARD_TEXT_CLASS}`}>
         {value}
       </div>
     </div>
@@ -103,18 +104,13 @@ function PoolItem({
       type="button"
       onClick={() => !disabled && onAdd()}
       disabled={disabled}
-      aria-pressed={disabled}
-      className={`flex-none text-left rounded-2xl transition-all duration-200 inline-flex items-center ${
-        disabled ? "cursor-not-allowed" : "hover:shadow-md active:scale-95"
-      } ${
+      className={`flex-none text-left rounded-xl transition-all duration-200 inline-flex items-center m-1 ${
         disabled
-          ? "bg-gray-100 text-gray-400 border border-gray-200"
-          : "bg-white border border-gray-200 text-foreground"
+          ? "cursor-not-allowed bg-gray-50 text-gray-400 border border-gray-200"
+          : "hover:shadow-md active:scale-95 bg-white border border-gray-200 text-foreground"
       }`}
     >
-      <div
-        className={`inline-flex items-center px-4 py-2 sm:px-5 sm:py-3 ${CARD_TEXT_CLASS}`}
-      >
+      <div className={`inline-flex items-center px-3 py-2 ${CARD_TEXT_CLASS}`}>
         {value}
       </div>
     </button>
@@ -125,12 +121,9 @@ function mapWordsToIds(
   words: string[],
   uniqueOptions: { id: string; word: string }[]
 ): string[] {
-  if (!words || words.length === 0) {
-    return [];
-  }
+  if (!words || words.length === 0) return [];
   const idPool = [...uniqueOptions];
   const resultIds: string[] = [];
-
   for (const word of words) {
     const poolIndex = idPool.findIndex((item) => item.word === word);
     if (poolIndex !== -1) {
@@ -148,6 +141,7 @@ const Sentence: React.FC<Props> = ({
   onPick,
   onRemove,
   onReorder,
+  showFeedback = false,
 }) => {
   const { uniqueOptions, wordMap } = useMemo(() => {
     const map = new Map<string, string>();
@@ -179,39 +173,26 @@ const Sentence: React.FC<Props> = ({
     if (placedIds.includes(id)) return;
     const nextIds = [...placedIds, id];
     setPlacedIds(nextIds);
-
     const word = wordMap.get(id);
-    if (word) {
-      onPick?.(word);
-    }
+    if (word) onPick?.(word);
     onReorder?.(nextIds.map((pid) => wordMap.get(pid)!));
   };
 
   const handleRemove = (id: string) => {
     const nextIds = placedIds.filter((p) => p !== id);
     setPlacedIds(nextIds);
-
     const word = wordMap.get(id);
-    if (word) {
-      onRemove?.(word);
-    }
+    if (word) onRemove?.(word);
     onReorder?.(nextIds.map((pid) => wordMap.get(pid)!));
   };
 
-  // --- 맞춤형 충돌 감지 전략 ---
   const customCollisionStrategy: CollisionDetection = (args) => {
-    // 1. 커서가 아이템 위에 있는지 확인
     const pointerCollisions = pointerWithin(args);
-    if (pointerCollisions.length > 0) {
-      return pointerCollisions;
-    }
-
-    // 2. 커서가 빈 공간에 있을 경우, 가장 가까운 아이템을 찾음 (Fallback)
+    if (pointerCollisions.length > 0) return pointerCollisions;
     const droppableContainers = args.droppableContainers.filter(
       (container) =>
         container.id !== "pool" && placedIds.includes(String(container.id))
     );
-
     return closestCenter({
       ...args,
       droppableContainers: droppableContainers,
@@ -219,23 +200,19 @@ const Sentence: React.FC<Props> = ({
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (showFeedback) return;
     setActiveId(event.active.id);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
+    if (showFeedback) return;
     const { active, over } = event;
-
     if (!over || active.id === over.id) return;
-
     const overIdStr = String(over.id);
-    if (!placedIds.includes(overIdStr)) {
-      return;
-    }
-
+    if (!placedIds.includes(overIdStr)) return;
     const activeIdStr = String(active.id);
     const oldIndex = placedIds.indexOf(activeIdStr);
     const newIndex = placedIds.indexOf(overIdStr);
-
     if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
       setPlacedIds((items) => {
         const currentOldIndex = items.indexOf(activeIdStr);
@@ -256,55 +233,35 @@ const Sentence: React.FC<Props> = ({
   };
 
   return (
-    <div className="space-y-4 sm:space-y-5">
-      <div className="text-left">
-        <h1 className="text-xl sm:text-2xl font-bold text-foreground">
-          문장 배열하기
-        </h1>
-        <p className="text-base text-muted-foreground mt-1">
-          단어들을 올바른 순서로 배열하여 문장을 완성하세요.
-        </p>
-      </div>
-
-      <div className="w-full">
-        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 sm:p-6">
-          <span className="text-lg sm:text-xl font-medium text-foreground">
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* 1. 질문 영역 (상단 고정) */}
+      <div className="shrink-0 space-y-2 pb-2">
+        <h1 className="text-xl font-bold text-foreground">문장 배열하기</h1>
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <span className="text-lg font-medium text-foreground break-keep">
             {question}
           </span>
         </div>
       </div>
 
-      {/* 배열된 단어 영역 */}
-      <div
-        className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5"
-        style={{ touchAction: "none" }}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={customCollisionStrategy}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
       >
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-semibold text-muted-foreground">
-            배열된 문장
-          </span>
-        </div>
-
-        <DndContext
-          sensors={sensors}
-          collisionDetection={customCollisionStrategy}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          <div
-            className="min-h-[88px] sm:min-h-[88px] flex gap-2 py-2"
-            role="list"
-            style={{ alignItems: "flex-start", overflow: "visible" }}
-          >
+        {/* 2. 정답 영역 (중간) */}
+        {/* 중요 변경: max-h 제한을 60vh 등으로 매우 크게 잡아주고 shrink-0 적용.
+            단어가 많아지면 이 영역이 커지고, 하단 Pool 영역이 줄어듦.
+            Pool 영역이 너무 작아지면 그때서야 Pool 영역에 스크롤이 생김. */}
+        <div className="shrink-0 max-h-[60vh] flex flex-col min-h-[100px] mb-2">
+          <div className="flex-1 bg-white border-2 border-dashed border-gray-200 rounded-xl p-2 overflow-y-auto transition-colors hover:border-rose-200">
             <SortableContext items={placedIds} strategy={rectSortingStrategy}>
-              <div
-                className="flex items-center gap-2"
-                style={{ flexWrap: "wrap", alignItems: "center" }}
-              >
+              <div className="flex flex-wrap items-start content-start min-h-full">
                 {placedIds.length === 0 ? (
-                  <div className="flex items-center h-[56px] sm:h-[56px] text-muted-foreground text-sm px-2">
-                    아래의 단어를 선택하거나 드래그하여 문장을 만드세요.
+                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm py-6">
+                    단어를 선택하여 문장을 완성하세요
                   </div>
                 ) : (
                   placedIds.map((id) => (
@@ -313,40 +270,46 @@ const Sentence: React.FC<Props> = ({
                       id={id}
                       value={wordMap.get(id)!}
                       onRemove={handleRemove}
+                      disabled={showFeedback}
                     />
                   ))
                 )}
-                <div aria-hidden style={{ width: 12 }} />
               </div>
             </SortableContext>
           </div>
-
-          <DragOverlay dropAnimation={{ duration: 160 }}>
-            {activeId ? (
-              <div className="rounded-2xl bg-white border-2 border-rose-400 shadow-lg flex items-center select-none scale-[1.03]">
-                <div
-                  className={`inline-flex items-center px-4 py-2 sm:px-5 sm:py-3 ${CARD_TEXT_CLASS}`}
-                >
-                  {wordMap.get(String(activeId)) ?? ""}
-                </div>
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
-      </div>
-
-      {/* 단어 풀 영역 */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5">
-        <div className="flex flex-wrap gap-2 sm:gap-3">
-          {uniqueOptions
-            .filter(({ id }) => !placedIds.includes(id))
-            .map(({ id, word }) => {
-              return (
-                <PoolItem key={id} value={word} onAdd={() => handleAdd(id)} />
-              );
-            })}
         </div>
-      </div>
+
+        {/* 3. 보기(Pool) 영역 (하단 채움) */}
+        {/* flex-1, min-h-0을 사용하여 남은 공간을 차지. 공간이 부족하면 스크롤 발생. */}
+        <div className="flex-1 min-h-0 bg-white -mx-4 px-4 pt-4 flex flex-col">
+          <div className="flex-1 overflow-y-auto pb-4">
+            <div className="flex flex-wrap content-start">
+              {uniqueOptions
+                .filter(({ id }) => !placedIds.includes(id))
+                .map(({ id, word }) => (
+                  <PoolItem
+                    key={id}
+                    value={word}
+                    onAdd={() => handleAdd(id)}
+                    disabled={showFeedback}
+                  />
+                ))}
+            </div>
+          </div>
+        </div>
+
+        <DragOverlay dropAnimation={{ duration: 160 }}>
+          {activeId ? (
+            <div className="rounded-xl bg-white border-2 border-rose-400 shadow-xl flex items-center select-none scale-[1.05] z-50">
+              <div
+                className={`inline-flex items-center px-3 py-2 ${CARD_TEXT_CLASS}`}
+              >
+                {wordMap.get(String(activeId)) ?? ""}
+              </div>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   );
 };

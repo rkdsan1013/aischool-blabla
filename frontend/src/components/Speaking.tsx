@@ -1,305 +1,171 @@
+/* cspell:disable */
 // frontend/src/components/Speaking.tsx
-import React, {
-  useState,
-  useRef,
-  useEffect,
-  useMemo,
-  useCallback,
-} from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Mic, Square, Volume2, Loader2 } from "lucide-react";
+import { useVoiceRoomRecorder } from "../hooks/useVoiceRoomRecorder"; // ✅ 커스텀 훅 Import
 
-// --- [Web Speech API 타입 정의] ---
-interface ISpeechRecognitionAlternative {
-  transcript: string;
-  confidence: number;
-}
-
-interface ISpeechRecognitionResult {
-  isFinal: boolean;
-  [index: number]: ISpeechRecognitionAlternative;
-  length: number;
-}
-
-interface ISpeechRecognitionResultList {
-  length: number;
-  item(index: number): ISpeechRecognitionResult;
-  [index: number]: ISpeechRecognitionResult;
-}
-
-interface ISpeechRecognitionEvent extends Event {
-  resultIndex: number;
-  results: ISpeechRecognitionResultList;
-}
-
-interface ISpeechRecognitionErrorEvent extends Event {
-  error: string;
-  message?: string;
-}
-
-interface ISpeechRecognition extends EventTarget {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start: () => void;
-  stop: () => void;
-  onresult: (event: ISpeechRecognitionEvent) => void;
-  onerror: (event: ISpeechRecognitionErrorEvent) => void;
-  onspeechend: () => void;
-}
-
-interface IWindow extends Window {
-  webkitSpeechRecognition?: {
-    new (): ISpeechRecognition;
-  };
-  SpeechRecognition?: {
-    new (): ISpeechRecognition;
-  };
-}
-// -------------------------------
-
-// 침묵 감지 시간: 1.0초
-const SILENCE_TIMEOUT_MS = 1000;
-
+// --- [유틸리티] ---
 function normalizeText(text: string): string {
   if (!text) return "";
-  return (
-    text
-      .toLowerCase()
-      .replace(/[.,!?'"]/g, "")
-      // cSpell:disable-next-line
-      .replace(/\b(i|you|he|she|it|we|they)m\b/g, "$1 am")
-      // cSpell:disable-next-line
-      .replace(/\b(i|you|he|she|it|we|they)re\b/g, "$1 are")
-      // cSpell:disable-next-line
-      .replace(/\b(i|you|he|she|it|we|they)ve\b/g, "$1 have")
-      // cSpell:disable-next-line
-      .replace(/\b(i|you|he|she|it|we|they)ll\b/g, "$1 will")
-      // cSpell:disable-next-line
-      .replace(/\b(i|you|he|she|it|we|they)d\b/g, "$1 would")
-      .replace(/\bcant\b/g, "cannot")
-      .replace(/\bdont\b/g, "do not")
-      .replace(/\bdoesnt\b/g, "does not")
-      .replace(/\bdidnt\b/g, "did not")
-      .replace(/\bwont\b/g, "will not")
-      .replace(/\bisnt\b/g, "is not")
-      .replace(/\barent\b/g, "are not")
-      .replace(/\bwasnt\b/g, "was not")
-      .replace(/\bwerent\b/g, "were not")
-      .replace(/\blets\b/g, "let us")
-      .replace(/\s+/g, " ")
-      .trim()
-  );
+  return text
+    .toLowerCase()
+    .replace(/[.,!?'"]/g, "")
+    .replace(/\b(i|you|he|she|it|we|they)m\b/g, "$1 am")
+    .replace(/\b(i|you|he|she|it|we|they)re\b/g, "$1 are")
+    .replace(/\b(i|you|he|she|it|we|they)ve\b/g, "$1 have")
+    .replace(/\b(i|you|he|she|it|we|they)ll\b/g, "$1 will")
+    .replace(/\b(i|you|he|she|it|we|they)d\b/g, "$1 would")
+    .replace(/\bcant\b/g, "cannot")
+    .replace(/\bdont\b/g, "do not")
+    .replace(/\bdoesnt\b/g, "does not")
+    .replace(/\bdidnt\b/g, "did not")
+    .replace(/\bwont\b/g, "will not")
+    .replace(/\bisnt\b/g, "is not")
+    .replace(/\barent\b/g, "are not")
+    .replace(/\bwasnt\b/g, "was not")
+    .replace(/\bwerent\b/g, "were not")
+    .replace(/\blets\b/g, "let us")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 interface Props {
   prompt: string;
   onRecord: (audioBlob: Blob) => void;
-  serverTranscript?: string | null; // [수정] 서버 인식 텍스트 (우선순위 높음)
+  serverTranscript?: string | null;
 }
 
 const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
-  const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const recognitionRef = useRef<ISpeechRecognition | null>(null);
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasSpokenRef = useRef(false);
+  // ---------------------------------------------------------------------------
+  // [1] 핸들러 정의 (useVoiceRoomRecorder에 전달)
+  // ---------------------------------------------------------------------------
 
-  // Prompt 변경 시 상태 초기화
+  // 말하는 도중 (회색 텍스트)
+  const onInterimResult = useCallback((text: string) => {
+    setTranscript(text);
+  }, []);
+
+  // 문장 확정 시
+  const onFinalResult = useCallback((text: string) => {
+    // 기존 텍스트에 이어서 붙일지, 교체할지 결정.
+    // Speaking 컴포넌트는 보통 한 문장 단위 연습이므로 교체하거나 누적.
+    // 여기서는 자연스러운 인식을 위해 누적보다는 최신 인식 결과를 보여주는게 보통 유리하나,
+    // 끊어서 말하는 경우를 위해 누적 업데이트 방식을 사용.
+    setTranscript((prev) => {
+      // 너무 길어지면 리셋하는 로직이 필요할 수도 있지만, 연습용 문장이므로 덧붙임
+      return prev ? `${prev} ${text}` : text;
+    });
+  }, []);
+
+  // 오디오 캡처 완료 (VAD 침묵 감지 or 수동 종료 시 호출됨)
+  const onAudioCaptured = useCallback(
+    (blob: Blob) => {
+      onRecord(blob);
+    },
+    [onRecord]
+  );
+
+  // ---------------------------------------------------------------------------
+  // [2] 커스텀 훅 사용 (녹음, STT, VAD, 잡음 제거 통합)
+  // ---------------------------------------------------------------------------
+  const {
+    start: startRecording,
+    stop: stopRecording,
+    isMicrophoneOn: isRecording, // 훅의 상태를 isRecording으로 매핑
+  } = useVoiceRoomRecorder({
+    onInterimResult,
+    onFinalResult,
+    onAudioCaptured,
+  });
+
+  // ---------------------------------------------------------------------------
+  // [3] 로직 및 UI 상태 관리
+  // ---------------------------------------------------------------------------
+
+  // Prompt 변경 시 초기화
   useEffect(() => {
     setTranscript("");
-    setIsRecording(false);
-    hasSpokenRef.current = false;
+    stopRecording(); // 프롬프트 바뀌면 녹음 중지
+    window.speechSynthesis.cancel();
+  }, [prompt, stopRecording]);
 
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !== "inactive"
-    ) {
-      mediaRecorderRef.current.stop();
-    }
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {
-        // ignore error
-      }
-    }
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-  }, [prompt]);
+  // 컴포넌트 언마운트 시 정리
+  useEffect(() => {
+    return () => {
+      stopRecording();
+      window.speechSynthesis.cancel();
+    };
+  }, [stopRecording]);
 
+  // 단어 매칭 로직 (UI 표시용)
   const promptWords = useMemo(() => prompt.split(" "), [prompt]);
-
-  // [핵심] serverTranscript가 있으면 그것을 정규화해서 비교 기준으로 사용
   const spokenWords = useMemo(() => {
     const sourceText = serverTranscript || transcript;
     const normalized = normalizeText(sourceText);
     return normalized.split(" ").filter((s) => s !== "");
   }, [transcript, serverTranscript]);
 
-  const stopRecordingProcess = useCallback(() => {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
+  const matchStatuses = useMemo(() => {
+    let currentSpokenIndex = 0;
+    return promptWords.map((word) => {
+      const normTargetParts = normalizeText(word).split(" ");
+      let tempIndex = currentSpokenIndex;
+      let allPartsFound = true;
 
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !== "inactive"
-    ) {
-      mediaRecorderRef.current.stop();
-    }
-
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {
-        // ignore error
-      }
-    }
-  }, []);
-
-  const stopAndSubmit = useCallback(() => {
-    stopRecordingProcess();
-    setIsRecording(false);
-  }, [stopRecordingProcess]);
-
-  const resetSilenceTimer = useCallback(() => {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-    }
-
-    if (hasSpokenRef.current) {
-      silenceTimerRef.current = setTimeout(() => {
-        console.log("침묵 감지(1초): 녹음 자동 종료");
-        stopAndSubmit();
-      }, SILENCE_TIMEOUT_MS);
-    }
-  }, [stopAndSubmit]);
-
-  useEffect(() => {
-    return () => stopRecordingProcess();
-  }, [stopRecordingProcess]);
-
-  const startRecording = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      let mimeType = "audio/webm";
-      if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
-        mimeType = "audio/webm;codecs=opus";
-      } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
-        mimeType = "audio/mp4";
-      }
-
-      const options = { mimeType };
-      const recorder = new MediaRecorder(stream, options);
-
-      mediaRecorderRef.current = recorder;
-      chunksRef.current = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data);
+      for (const part of normTargetParts) {
+        const foundIndex = spokenWords.indexOf(part, tempIndex);
+        if (foundIndex !== -1) {
+          tempIndex = foundIndex + 1;
+        } else {
+          allPartsFound = false;
+          break;
         }
-      };
-
-      recorder.onstop = () => {
-        const fullBlob = new Blob(chunksRef.current, { type: mimeType });
-        onRecord(fullBlob);
-        stream.getTracks().forEach((track) => track.stop());
-      };
-
-      recorder.start();
-
-      const currentWindow = window as unknown as IWindow;
-      const SpeechRecognitionAPI =
-        currentWindow.SpeechRecognition ||
-        currentWindow.webkitSpeechRecognition;
-
-      if (SpeechRecognitionAPI) {
-        const recognition = new SpeechRecognitionAPI();
-        recognition.lang = "en-US";
-        recognition.continuous = true;
-        recognition.interimResults = true;
-
-        recognition.onresult = (event: ISpeechRecognitionEvent) => {
-          hasSpokenRef.current = true;
-          resetSilenceTimer();
-
-          const resultsArray = Array.from(
-            event.results
-          ) as ISpeechRecognitionResult[];
-          const currentTranscript = resultsArray
-            .map((result) => result[0].transcript)
-            .join("");
-          setTranscript(currentTranscript);
-        };
-
-        recognition.onspeechend = () => {
-          // 종료 감지
-        };
-
-        recognition.onerror = (event: ISpeechRecognitionErrorEvent) => {
-          if (event.error === "no-speech") {
-            return;
-          }
-          console.warn("Speech Recognition Error:", event.error);
-        };
-
-        recognitionRef.current = recognition;
-        recognition.start();
-      } else {
-        console.warn("Web Speech API not supported in this browser.");
       }
 
-      setIsRecording(true);
-      setTranscript("");
-      hasSpokenRef.current = false;
-    } catch (err) {
-      console.error("Mic Error:", err);
-      alert("마이크 권한이 필요하거나 지원하지 않는 브라우저입니다.");
-    }
-  }, [onRecord, resetSilenceTimer]);
+      if (allPartsFound) {
+        currentSpokenIndex = tempIndex;
+        return true;
+      }
+      return false;
+    });
+  }, [promptWords, spokenWords]);
 
-  const toggleRecording = useCallback(() => {
-    if (isRecording) {
-      stopAndSubmit();
-    } else {
-      startRecording();
-    }
-  }, [isRecording, startRecording, stopAndSubmit]);
-
-  // 자동 완료 로직 (서버 결과가 없을 때만 작동)
+  // 자동 완료 로직: 문장의 80% 이상이 일치하면 1초 뒤 자동 종료
   useEffect(() => {
     if (!isRecording || serverTranscript) return;
 
-    let matchedCount = 0;
-    for (const targetWord of promptWords) {
-      const normTargetParts = normalizeText(targetWord).split(" ");
-      const isMatched = normTargetParts.every((part) =>
-        spokenWords.includes(part)
-      );
-      if (isMatched) matchedCount++;
-    }
+    const matchedCount = matchStatuses.filter((s) => s).length;
 
-    if (matchedCount >= promptWords.length && promptWords.length > 0) {
+    if (matchedCount >= promptWords.length * 0.8 && promptWords.length > 0) {
       const timer = setTimeout(() => {
-        if (isRecording) stopAndSubmit();
+        if (isRecording) {
+          console.log("✅ 문장 완성 감지 -> 녹음 종료");
+          stopRecording(); // 훅의 stop 호출 -> onAudioCaptured 트리거됨
+        }
       }, 1000);
       return () => clearTimeout(timer);
     }
   }, [
-    transcript,
     isRecording,
     promptWords,
-    spokenWords,
-    stopAndSubmit,
+    matchStatuses,
+    stopRecording,
     serverTranscript,
   ]);
 
+  const toggleRecording = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      setTranscript(""); // 재시작 시 텍스트 초기화
+      startRecording();
+    }
+  }, [isRecording, startRecording, stopRecording]);
+
   const playTTS = () => {
+    window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(prompt);
     u.lang = "en-US";
     window.speechSynthesis.speak(u);
@@ -318,22 +184,20 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
       <div className="bg-gray-50 border border-gray-200 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[200px] relative">
         <button
           onClick={playTTS}
-          className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white border hover:text-rose-500 flex items-center justify-center"
+          disabled={isRecording}
+          className={`absolute top-3 right-3 p-2 rounded-full transition-colors z-10 ${
+            isRecording
+              ? "text-gray-300 cursor-not-allowed"
+              : "text-gray-400 hover:text-rose-500 hover:bg-gray-100"
+          }`}
+          title="듣기"
         >
-          <Volume2 className="w-5 h-5" />
+          <Volume2 className="w-6 h-6" />
         </button>
 
-        <div className="text-center text-2xl sm:text-3xl font-semibold text-gray-800 leading-relaxed flex flex-wrap justify-center gap-x-2">
+        <div className="w-full text-left text-2xl sm:text-3xl font-semibold text-gray-800 leading-relaxed flex flex-wrap justify-start gap-x-2 pt-6">
           {promptWords.map((word, i) => {
-            const normTarget = normalizeText(word);
-            const targetParts = normTarget.split(" ");
-
-            // [수정] isSuccess 강제 처리를 제거하고,
-            // serverTranscript 기반의 spokenWords와 정규화 매칭을 수행하여
-            // '진짜' 인식된 단어만 하이라이트 처리
-            const isMatched = targetParts.every((part) =>
-              spokenWords.includes(part)
-            );
+            const isMatched = matchStatuses[i];
 
             return (
               <span
@@ -348,12 +212,9 @@ const Speaking: React.FC<Props> = ({ prompt, onRecord, serverTranscript }) => {
           })}
         </div>
 
-        <div className="mt-6 text-sm font-medium text-gray-500 h-6 flex items-center gap-2 justify-center">
+        <div className="w-full mt-6 text-sm font-medium text-gray-500 h-6 flex items-center gap-2 justify-center">
           {isRecording && <Loader2 className="w-3 h-3 animate-spin" />}
-          {/* serverTranscript가 있으면(채점 완료) 그것을 보여주고, 아니면 실시간 transcript */}
-          {serverTranscript ||
-            transcript ||
-            (isRecording ? "듣고 있습니다..." : "대기 중")}
+          {isRecording ? "듣고 있습니다..." : "대기 중"}
         </div>
       </div>
 

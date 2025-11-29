@@ -208,7 +208,6 @@ export default function VoiceRoomPage() {
           <div className="flex items-center justify-between mb-6 px-1">
             <div className="flex items-center gap-3">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <Mic className="w-6 h-6 text-rose-500" />
                 활성 대화방
               </h2>
               <span className="bg-rose-100 text-rose-600 text-xs font-bold px-2 py-0.5 rounded-full">

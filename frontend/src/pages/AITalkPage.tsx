@@ -417,16 +417,16 @@ const AITalkPage: React.FC = () => {
     );
   };
 
-  // [수정됨]: lg 기준으로 하단 패딩 제거 (lg:pb-0), 모바일은 pb-16
+  // [수정됨] pb-16 / md:pb-0
   return (
-    <div className="min-h-screen bg-slate-50 pb-16 lg:pb-0 text-gray-900">
+    <div className="min-h-screen bg-slate-50 pb-16 md:pb-0 text-gray-900">
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-10">
         <section>
           <div
             onClick={handleLevelTestNavigate}
             className="w-full bg-linear-to-br from-violet-600 to-indigo-600 rounded-3xl p-6 sm:p-8 text-white shadow-lg cursor-pointer hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex items-center justify-between relative overflow-hidden group"
           >
-            <div className="relative z-10 flex-1 text-left">
+            <div className="relative z-10 flex-1">
               <div className="flex items-center gap-2 mb-3">
                 <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold border border-white/10">
                   AI LEVEL TEST
@@ -448,7 +448,7 @@ const AITalkPage: React.FC = () => {
         <section>
           <div className="mb-6">
             <h2 className="text-xl sm:text-2xl font-bold mb-2 text-gray-900 flex items-center gap-2">
-              <MessageCircle className="w-6 h-6 text-rose-500" /> 대화 시나리오
+              대화 시나리오
             </h2>
             <p className="text-sm sm:text-base text-gray-500">
               상황에 맞는 시나리오를 선택하여 AI와 대화를 시작하세요
@@ -462,6 +462,7 @@ const AITalkPage: React.FC = () => {
                 className="group relative bg-white rounded-2xl p-4 sm:p-5 text-left cursor-pointer shadow-sm border border-gray-200 hover:shadow-md hover:border-rose-100 transition-all duration-300 hover:-translate-y-1 active:scale-[0.99]"
               >
                 <div className="flex items-center gap-4">
+                  {/* [Modified]: Added shadow-sm for consistency */}
                   <div
                     className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 shadow-sm ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
                   >
@@ -486,7 +487,7 @@ const AITalkPage: React.FC = () => {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-xl sm:text-2xl font-bold mb-2 text-gray-900 flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-amber-500" /> 나만의 시나리오
+                나만의 시나리오
               </h2>
               <p className="text-sm sm:text-base text-gray-500">
                 원하는 상황을 직접 만들어 연습하세요
@@ -527,6 +528,7 @@ const AITalkPage: React.FC = () => {
                   className="group relative bg-white rounded-2xl p-4 sm:p-5 cursor-pointer shadow-sm border border-gray-200 hover:shadow-md hover:border-rose-100 transition-all duration-300 hover:-translate-y-1 active:scale-[0.99]"
                 >
                   <div className="flex items-center gap-4">
+                    {/* [Modified]: Added shadow-sm for consistency */}
                     <div
                       className={`w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center bg-gray-50 border border-gray-100 shadow-sm ${s.textClass} transition-transform duration-300 group-hover:scale-110`}
                     >

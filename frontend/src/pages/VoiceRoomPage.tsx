@@ -158,7 +158,7 @@ export default function VoiceRoomPage() {
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-10">
         {/* Hero / Banner Section */}
         <section>
-          <div className="w-full bg-linear-to-br from-rose-500 to-pink-600 rounded-3xl p-6 sm:p-10 text-white shadow-lg relative overflow-hidden flex flex-col sm:flex-row items-center justify-between gap-6 cursor-pointer hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+          <div className="w-full bg-linear-to-br from-rose-500 to-pink-600 rounded-3xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden flex flex-col sm:flex-row items-center justify-between gap-6 cursor-pointer hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
             {/* 배경 데코 */}
             <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 bg-rose-300 opacity-20 rounded-full blur-3xl pointer-events-none"></div>

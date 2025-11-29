@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 
-// ⚠️ API 서비스 import (실제 환경에 맞게 경로 조정 필요)
+// API 서비스 import
 import {
   getConversationDetail,
   type ConversationDetailResponse,
@@ -771,10 +771,7 @@ export default function HistoryAI() {
         </div>
       </header>
 
-      <main
-        className="flex-1 max-w-2xl mx-auto w-full px-4 sm:px-6 py-6"
-        style={{ paddingBottom: `calc(${FOOTER_HEIGHT} + 3rem)` }}
-      >
+      <main className="flex-1 max-w-2xl mx-auto w-full px-4 sm:px-6 pt-6 pb-20 mb-2.0">
         {/* 요약 정보 카드 */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-200 mb-8 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none opacity-60" />

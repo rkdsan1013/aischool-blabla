@@ -1,5 +1,4 @@
 // frontend/src/pages/MyPageHistory.tsx
-// cspell:ignore conv
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -15,8 +14,6 @@ import {
   Search,
 } from "lucide-react";
 import { getMyHistory, type HistoryRecord } from "../services/userService";
-
-// --- Components ---
 
 const CustomDropdown: React.FC<{
   value: string;
@@ -34,7 +31,6 @@ const CustomDropdown: React.FC<{
 
   useEffect(() => {
     if (!open) return;
-
     function onDocClick(e: Event) {
       if (!btnRef.current || !panelRef.current) return;
       const target = e.target as Node | null;
@@ -46,10 +42,8 @@ const CustomDropdown: React.FC<{
       }
       setOpen(false);
     }
-
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("touchstart", onDocClick);
-
     return () => {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("touchstart", onDocClick);
@@ -57,7 +51,6 @@ const CustomDropdown: React.FC<{
   }, [open]);
 
   const toggleOpen = () => setOpen((s) => !s);
-
   const onOptionClick = (index: number) => {
     onChange(options[index].value);
     setOpen(false);
@@ -130,7 +123,6 @@ const CustomDropdown: React.FC<{
   );
 };
 
-// ... (Helpers)
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr);
   return date.toLocaleDateString("ko-KR", {
@@ -239,12 +231,16 @@ const MyPageHistory: React.FC = () => {
     setSubCategoryFilter("all");
   }, [typeFilter]);
 
+  // [수정됨] 상세 페이지 이동 핸들러
+  // ID가 이미 순수 숫자이므로 그대로 사용합니다.
   const handleItemClick = (item: HistoryRecord) => {
     if (item.type === "CONVERSATION") {
-      const sessionId = item.id.replace("conv-", "");
-      navigate(`/ai-talk/chat/${sessionId}`);
+      navigate(`/history/ai/${item.id}`);
+    } else if (item.type === "TRAINING") {
+      // 숫자 ID 그대로 URL로 전달 (예: /history/training/20)
+      navigate(`/history/training/${item.id}`);
     } else {
-      alert(`학습 상세 보기: ${item.title} (준비 중)`);
+      console.warn("Unknown history type:", item.type);
     }
   };
 
@@ -266,17 +262,13 @@ const MyPageHistory: React.FC = () => {
     );
   }
 
-  // [Modified]: Removed pb-16 md:pb-0 since this page does not have a bottom nav.
-  // Relying on py-8 in <main>.
   return (
     <div className="min-h-screen bg-slate-50 text-gray-900">
-      {/* --- Header --- */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        {/* [Unified Layout]: max-w-2xl to match Profile page */}
         <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => navigate("/my")}
               className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-600"
               aria-label="뒤로 가기"
             >
@@ -300,9 +292,8 @@ const MyPageHistory: React.FC = () => {
         </div>
       </header>
 
-      {/* [Unified Layout]: max-w-2xl (was 5xl) */}
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-        {/* --- Filters --- */}
+        {/* Filters */}
         <div
           className={`bg-white rounded-3xl border border-gray-200 p-5 shadow-sm transition-all duration-300 ${
             isFilterOpen ? "block" : "hidden sm:block"
@@ -373,7 +364,7 @@ const MyPageHistory: React.FC = () => {
           </div>
         </div>
 
-        {/* --- Results --- */}
+        {/* Results */}
         <div className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <h3 className="font-bold text-gray-900 text-lg">최근 활동</h3>
@@ -401,12 +392,12 @@ const MyPageHistory: React.FC = () => {
 
                 return (
                   <div
-                    key={item.id}
+                    // [중요] ID 중복 방지를 위해 key는 type+id 조합 사용
+                    key={`${item.type}-${item.id}`}
                     onClick={() => handleItemClick(item)}
                     className="group relative bg-white rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md hover:border-rose-100 transition-all duration-300 cursor-pointer hover:-translate-y-1 active:scale-[0.99]"
                   >
                     <div className="flex items-start gap-4">
-                      {/* Icon */}
                       <div
                         className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border transition-transform duration-300 group-hover:scale-110 ${
                           isTraining
@@ -422,7 +413,6 @@ const MyPageHistory: React.FC = () => {
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        {/* Title & Badge */}
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <h4 className="text-base sm:text-lg font-bold text-gray-900 truncate group-hover:text-rose-600 transition-colors">
                             {item.title}
@@ -438,7 +428,6 @@ const MyPageHistory: React.FC = () => {
                           </span>
                         </div>
 
-                        {/* Date */}
                         <div className="flex items-center gap-2 text-xs text-gray-500 mb-3 font-medium">
                           <Calendar className="w-3.5 h-3.5" />
                           <span>{formatDate(item.date)}</span>
@@ -446,7 +435,6 @@ const MyPageHistory: React.FC = () => {
                           <span>{formatTime(item.date)}</span>
                         </div>
 
-                        {/* Content Preview / Stats */}
                         {isTraining ? (
                           <div className="flex items-center gap-4 bg-gray-50 rounded-xl p-3 border border-gray-100">
                             <div className="flex items-center gap-1.5">

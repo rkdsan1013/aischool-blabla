@@ -20,7 +20,9 @@ import MyPageHistory from "../pages/MyPageHistory";
 import MyPageProfile from "../pages/MyPageProfile";
 import HomeLeaderBoard from "../pages/HomeLeaderBoard";
 import LevelTestPage from "../pages/LevelTestPage";
-import LevelTestResultPage from "../pages/LevelTestResultPage"; // ✅ 결과 페이지 임포트 추가
+import LevelTestResultPage from "../pages/LevelTestResultPage";
+import HistoryAI from "../pages/HistoryAI";
+// import HistoryTraining from "../pages/HistoryTraining";
 
 import PublicOnlyRoute from "./PublicOnlyRoute";
 import ProtectedRoute from "./ProtectedRoute";
@@ -51,13 +53,10 @@ export const routes: RouteObject[] = [
       },
 
       // [Open Access] 게스트/로그인 유저 모두 접근 가능
-      // - 게스트: 테스트 후 결과 세션 저장 -> 회원가입 유도
-      // - 회원: 테스트 후 결과 즉시 업데이트
       {
         path: "/ai-talk/level-test",
         element: <LevelTestPage />,
       },
-      // ✅ [Open Access] 레벨 테스트 결과 페이지 추가
       {
         path: "/ai-talk/level-test/result",
         element: <LevelTestResultPage />,
@@ -120,6 +119,24 @@ export const routes: RouteObject[] = [
           </ProtectedRoute>
         ),
       },
+      // [추가됨] AI 회화 상세 기록
+      {
+        path: "/history/ai/:sessionId",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <HistoryAI />
+          </ProtectedRoute>
+        ),
+      },
+      // [추가됨] 일반 트레이닝 상세 기록
+      // {
+      //   path: "/history/training/:sessionId",
+      //   element: (
+      //     <ProtectedRoute redirectTo="/auth">
+      //       <HistoryTraining />
+      //     </ProtectedRoute>
+      //   ),
+      // },
       {
         path: "/my/profile",
         element: (

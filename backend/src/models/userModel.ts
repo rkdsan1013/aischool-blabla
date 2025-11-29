@@ -41,6 +41,40 @@ export interface UserHistoryItem {
   preview?: string;
 }
 
+// 회화 세션 상세 정보 타입
+export interface ConversationSessionRow extends RowDataPacket {
+  session_id: number;
+  topic: string;
+  description: string;
+  started_at: string;
+  ended_at: string | null;
+}
+
+// 회화 메시지 + 피드백 타입
+export interface ConversationMessageRow extends RowDataPacket {
+  message_id: number;
+  sender_role: "user" | "ai";
+  content: string;
+  created_at: string;
+  feedback_data: any; // JSON
+}
+
+// Training 세션 Row 타입 (training_sessions 테이블)
+// session_data 컬럼은 MySQL JSON 타입으로 저장되어 있으며, mysql2 설정에 따라
+// JS 객체로 바로 반환되거나 문자열로 반환될 수 있으므로 서비스/모델에서 안전하게 파싱합니다.
+export interface TrainingSessionRow extends RowDataPacket {
+  session_id: number;
+  user_id: number;
+  type: "vocabulary" | "sentence" | "blank" | "writing" | "speaking";
+  score: number;
+  duration_seconds: number;
+  session_data: any; // JSON
+  created_at: string;
+}
+
+/**
+ * users 테이블에서 이메일로 사용자 조회
+ */
 export async function findUserByEmail(email: string): Promise<User | null> {
   const [rows] = await pool.execute<User[] & RowDataPacket[]>(
     "SELECT * FROM users WHERE email = ?",
@@ -49,6 +83,9 @@ export async function findUserByEmail(email: string): Promise<User | null> {
   return rows[0] ?? null;
 }
 
+/**
+ * user + profile JOIN 조회
+ */
 export async function findUserWithProfileById(
   userId: number
 ): Promise<UserWithProfile | null> {
@@ -67,19 +104,20 @@ export async function findUserWithProfileById(
   return rows[0] ?? null;
 }
 
-// ✅ [수정됨] score 제거, level만 받음
+/**
+ * 회원가입 트랜잭션 (users + user_profiles)
+ */
 export async function createUserAndProfileTransaction(user: {
   name: string;
   email: string;
   password: string;
-  level?: string; // 레벨 테스트 결과 적용
+  level?: string;
 }): Promise<{ user_id: number; email: string }> {
   const connection = await pool.getConnection();
 
   try {
     await connection.beginTransaction();
 
-    // 1. users 테이블 Insert
     const [userInsertResult] = await connection.execute<ResultSetHeader>(
       "INSERT INTO users (email, password) VALUES (?, ?)",
       [user.email, user.password]
@@ -90,8 +128,6 @@ export async function createUserAndProfileTransaction(user: {
       throw new Error("유저 생성에 실패했습니다.");
     }
 
-    // 2. user_profiles 테이블 Insert
-    // score는 DB Default 값('0')을 사용하므로 INSERT 문에서 제외
     const initialLevel = user.level || "A1";
 
     await connection.execute(
@@ -112,6 +148,9 @@ export async function createUserAndProfileTransaction(user: {
   }
 }
 
+/**
+ * user_profiles 업데이트
+ */
 export async function updateUserProfileInDB(
   userId: number,
   payload: Partial<{
@@ -179,6 +218,9 @@ export async function updateUserProfileInDB(
   await pool.execute(sql, values);
 }
 
+/**
+ * users 비밀번호 업데이트
+ */
 export async function updateUserPasswordInDB(
   userId: number,
   hashedPassword: string
@@ -189,6 +231,9 @@ export async function updateUserPasswordInDB(
   ]);
 }
 
+/**
+ * 사용자 삭제 트랜잭션
+ */
 export async function deleteUserTransaction(userId: number): Promise<void> {
   const connection = await pool.getConnection();
   try {
@@ -206,7 +251,9 @@ export async function deleteUserTransaction(userId: number): Promise<void> {
   }
 }
 
-// 사용자의 최근 1년간 일별 학습 횟수 조회
+/**
+ * 사용자의 최근 1년간 일별 학습 횟수 조회
+ */
 export async function getUserAttendanceStats(
   userId: number
 ): Promise<{ date: string; count: number }[]> {
@@ -225,7 +272,9 @@ export async function getUserAttendanceStats(
   return rows as { date: string; count: number }[];
 }
 
-// 사용자의 모든 학습/회화 이력을 통합 조회
+/**
+ * 사용자의 모든 학습/회화 이력을 통합 조회
+ */
 export async function getUserHistoryStats(
   userId: number
 ): Promise<UserHistoryItem[]> {
@@ -278,7 +327,6 @@ export async function getUserHistoryStats(
     [userId]
   );
 
-  // 3. 병합 및 정렬
   const combined = [
     ...(trainRows as UserHistoryItem[]),
     ...(convRows as UserHistoryItem[]),
@@ -288,4 +336,48 @@ export async function getUserHistoryStats(
   );
 
   return combined;
+}
+
+/**
+ * 회화 세션 기본 정보 조회 (권한 확인 포함)
+ */
+export async function getConversationSessionById(
+  userId: number,
+  sessionId: number
+): Promise<ConversationSessionRow | null> {
+  const [rows] = await pool.execute<ConversationSessionRow[]>(
+    `SELECT 
+       s.session_id, 
+       sc.title as topic, 
+       sc.description, 
+       s.started_at, 
+       s.ended_at
+     FROM ai_sessions s
+     JOIN ai_scenarios sc ON s.scenario_id = sc.scenario_id
+     WHERE s.session_id = ? AND s.user_id = ?`,
+    [sessionId, userId]
+  );
+  return rows[0] ?? null;
+}
+
+/**
+ * 회화 메시지 및 피드백 목록 조회
+ */
+export async function getConversationMessagesBySessionId(
+  sessionId: number
+): Promise<ConversationMessageRow[]> {
+  const [rows] = await pool.execute<ConversationMessageRow[]>(
+    `SELECT 
+       m.message_id, 
+       m.sender_role, 
+       m.content, 
+       m.created_at,
+       f.feedback_data
+     FROM ai_messages m
+     LEFT JOIN ai_feedbacks f ON m.message_id = f.message_id
+     WHERE m.session_id = ?
+     ORDER BY m.created_at ASC`,
+    [sessionId]
+  );
+  return rows;
 }

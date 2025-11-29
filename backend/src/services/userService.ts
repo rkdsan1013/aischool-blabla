@@ -7,6 +7,8 @@ import {
   deleteUserTransaction,
   updateUserPasswordInDB,
   getUserAttendanceStats as getUserAttendanceStatsModel,
+  getConversationSessionById,
+  getConversationMessagesBySessionId,
 } from "../models/userModel";
 import bcrypt from "bcrypt";
 
@@ -124,18 +126,16 @@ export async function updateUserProfile(
   await updateUserProfileInDB(userId, clean);
 }
 
-// ✅ [수정됨] 유저 레벨 및 진척도 업데이트 전용 함수
 export async function updateUserLevel(
   userId: number,
   level: string,
-  levelProgress: number // 추가됨
+  levelProgress: number
 ): Promise<void> {
   const validLevels = ["A1", "A2", "B1", "B2", "C1", "C2"];
   if (!validLevels.includes(level)) {
     throw new Error("Invalid CEFR level");
   }
 
-  // DB 업데이트: level과 level_progress 동시 반영
   await updateUserProfileInDB(userId, {
     level: level as any,
     level_progress: levelProgress,
@@ -169,9 +169,108 @@ export async function changeUserPassword(
   await updateUserPasswordInDB(userId, hashed);
 }
 
-// 출석 데이터 조회 서비스
 export async function getUserAttendanceStats(
   userId: number
 ): Promise<{ date: string; count: number }[]> {
   return await getUserAttendanceStatsModel(userId);
 }
+
+/**
+ * 회화 상세 응답 타입
+ */
+export type ConversationDetailResult = {
+  sessionId: number;
+  topic: string;
+  scenarioDescription: string;
+  startedAt: string;
+  completedAt: string | null;
+  totalMessages: number;
+  overallScore?: number | undefined;
+  generalFeedback?: string | undefined;
+  messages: Array<{
+    messageId: number;
+    role: "user" | "ai";
+    content: string;
+    createdAt: string;
+    feedback?: any;
+  }>;
+};
+
+export async function getConversationDetail(
+  userId: number,
+  sessionId: number
+): Promise<ConversationDetailResult | null> {
+  const session = await getConversationSessionById(userId, sessionId);
+  if (!session) {
+    return null;
+  }
+
+  const rawMessages = await getConversationMessagesBySessionId(sessionId);
+
+  let totalScore = 0;
+  let scoreCount = 0;
+
+  const messages = rawMessages.map((msg) => {
+    let feedback = null;
+    if (msg.feedback_data) {
+      try {
+        feedback =
+          typeof msg.feedback_data === "string"
+            ? JSON.parse(msg.feedback_data)
+            : msg.feedback_data;
+      } catch {
+        feedback = msg.feedback_data;
+      }
+    }
+
+    if (feedback && typeof feedback.score === "number") {
+      totalScore += feedback.score;
+      scoreCount += 1;
+    }
+
+    return {
+      messageId: msg.message_id,
+      role: msg.sender_role,
+      content: msg.content,
+      createdAt: msg.created_at,
+      feedback,
+    };
+  });
+
+  const overallScore = scoreCount > 0 ? totalScore / scoreCount : undefined;
+
+  return {
+    sessionId: session.session_id,
+    topic: session.topic,
+    scenarioDescription: session.description,
+    startedAt: session.started_at,
+    completedAt: session.ended_at,
+    totalMessages: messages.length,
+    overallScore,
+    generalFeedback: undefined,
+    messages,
+  };
+}
+
+/**
+ * Training 관련 타입 (프론트가 기대하는 형태로 정규화)
+ */
+export type TrainingHistoryDetail = {
+  questionId: string | number;
+  questionText: string;
+  questionType: "vocabulary" | "blank" | "sentence" | "speaking" | "writing";
+  options?: string[];
+  userAnswer: string;
+  correctAnswer: string;
+  isCorrect: boolean;
+};
+
+export type TrainingHistoryData = {
+  sessionId: string;
+  trainingType: "vocabulary" | "blank" | "sentence" | "speaking" | "writing";
+  completedAt: string;
+  correctCount: number;
+  totalCount: number;
+  score: number;
+  details: TrainingHistoryDetail[];
+};

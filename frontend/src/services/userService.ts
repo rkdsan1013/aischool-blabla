@@ -2,6 +2,9 @@
 import { apiClient, handleApiError } from "../api";
 import type { AxiosError } from "axios";
 
+// ==========================================
+// 사용자 관련 타입 (프론트에서 사용하는 응답 타입)
+// ==========================================
 export type UserProfileResponse = {
   user_id: number;
   email: string;
@@ -33,6 +36,37 @@ export interface HistoryRecord {
   preview?: string;
 }
 
+// ==========================================
+// Conversation 관련 타입 (간단 매핑)
+// ==========================================
+export interface ConversationMessageDetail {
+  messageId: number;
+  role: "user" | "ai";
+  content: string;
+  createdAt: string;
+  feedback?: {
+    correction?: string;
+    explanation?: string;
+    score?: number;
+  } | null;
+}
+
+export interface ConversationDetailResponse {
+  sessionId: number;
+  topic: string;
+  scenarioDescription?: string;
+  startedAt: string;
+  completedAt: string | null;
+  totalMessages: number;
+  overallScore?: number;
+  generalFeedback?: string;
+  messages: ConversationMessageDetail[];
+}
+
+// ==========================================
+// API 함수들
+// ==========================================
+
 /**
  * 내 프로필 조회
  */
@@ -43,11 +77,7 @@ export async function getMyProfile(): Promise<UserProfileResponse | null> {
   } catch (error: unknown) {
     const axiosErr = error as AxiosError | undefined;
     const status = axiosErr?.response?.status;
-
-    if (status === 401) {
-      return null;
-    }
-
+    if (status === 401) return null;
     handleApiError(error, "프로필 조회");
     return null;
   }
@@ -69,8 +99,7 @@ export async function updateUserProfile(
 }
 
 /**
- * [수정됨] 사용자 레벨 및 진척도 업데이트
- * levelProgress 추가
+ * 사용자 레벨 및 진척도 업데이트
  */
 export async function updateUserLevel(
   level: string,
@@ -138,5 +167,23 @@ export async function getMyHistory(): Promise<HistoryRecord[]> {
   } catch (error) {
     handleApiError(error, "히스토리 조회");
     return [];
+  }
+}
+
+/**
+ * 회화 상세 기록 조회
+ */
+export async function getConversationDetail(
+  sessionId: string | number
+): Promise<ConversationDetailResponse | null> {
+  try {
+    const cleanId = String(sessionId).replace(/[^0-9]/g, "");
+    const res = await apiClient.get<ConversationDetailResponse>(
+      `/user/me/history/conversation/${cleanId}`
+    );
+    return res.data;
+  } catch (error) {
+    handleApiError(error, "회화 상세 기록 조회");
+    return null;
   }
 }

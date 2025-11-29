@@ -5,7 +5,8 @@ import {
   updateUserProfile,
   deleteUserById,
   changeUserPassword,
-  updateUserLevel, // [추가]
+  updateUserLevel,
+  getConversationDetail,
 } from "../services/userService";
 import {
   getUserAttendanceStats,
@@ -14,7 +15,6 @@ import {
 
 /**
  * GET /api/user/me
- * 현재 로그인한 사용자의 프로필 조회
  */
 export async function getMyProfileHandler(req: Request, res: Response) {
   try {
@@ -49,7 +49,6 @@ export async function getMyProfileHandler(req: Request, res: Response) {
 
 /**
  * PUT /api/user/me
- * 현재 로그인한 사용자의 프로필 수정
  */
 export async function updateMyProfileHandler(req: Request, res: Response) {
   try {
@@ -97,8 +96,7 @@ export async function updateMyProfileHandler(req: Request, res: Response) {
 }
 
 /**
- * [수정됨] PUT /api/user/me/level
- * 사용자 레벨 및 진척도 업데이트
+ * PUT /api/user/me/level
  */
 export async function updateLevelHandler(req: Request, res: Response) {
   try {
@@ -107,17 +105,14 @@ export async function updateLevelHandler(req: Request, res: Response) {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // level과 levelProgress 추출
     const { level, levelProgress } = req.body;
 
     if (!level) {
       return res.status(400).json({ message: "Level is required" });
     }
 
-    // levelProgress 기본값 처리 (없으면 0)
     const progress = typeof levelProgress === "number" ? levelProgress : 0;
 
-    // 서비스 호출 시 progress도 전달
     await updateUserLevel(userId, level, progress);
 
     return res.json({
@@ -135,7 +130,6 @@ export async function updateLevelHandler(req: Request, res: Response) {
 
 /**
  * PUT /api/user/me/password
- * 현재 로그인한 사용자의 비밀번호 변경
  */
 export async function changePasswordHandler(req: Request, res: Response) {
   try {
@@ -177,7 +171,6 @@ export async function changePasswordHandler(req: Request, res: Response) {
 
 /**
  * DELETE /api/user/me
- * 현재 로그인한 사용자의 계정 삭제
  */
 export async function deleteMyAccountHandler(req: Request, res: Response) {
   try {
@@ -196,7 +189,6 @@ export async function deleteMyAccountHandler(req: Request, res: Response) {
 
 /**
  * GET /api/user/me/attendance
- * 내 출석(학습) 통계 조회
  */
 export async function getMyAttendanceHandler(req: Request, res: Response) {
   try {
@@ -215,7 +207,6 @@ export async function getMyAttendanceHandler(req: Request, res: Response) {
 
 /**
  * GET /api/user/me/history
- * 통합 히스토리 조회 핸들러
  */
 export async function getMyHistoryHandler(req: Request, res: Response) {
   try {
@@ -229,5 +220,45 @@ export async function getMyHistoryHandler(req: Request, res: Response) {
   } catch (err) {
     console.error("[User Controller] History fetch error:", err);
     return res.status(500).json({ error: "Failed to fetch history" });
+  }
+}
+
+/**
+ * GET /api/user/me/history/conversation/:sessionId
+ * 회화 상세 내역 조회
+ */
+export async function getConversationDetailHandler(
+  req: Request,
+  res: Response
+) {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { sessionId } = req.params;
+    if (!sessionId) {
+      return res.status(400).json({ message: "Session ID is required" });
+    }
+
+    const numericId = parseInt(sessionId, 10);
+    if (isNaN(numericId)) {
+      return res.status(400).json({ message: "Invalid session ID format" });
+    }
+
+    const detail = await getConversationDetail(userId, numericId);
+    if (!detail) {
+      return res
+        .status(404)
+        .json({ message: "Conversation not found or access denied" });
+    }
+
+    return res.json(detail);
+  } catch (err) {
+    console.error("[User Controller] Conversation Detail fetch error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch conversation detail" });
   }
 }

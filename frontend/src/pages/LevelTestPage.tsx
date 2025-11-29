@@ -40,7 +40,14 @@ const LevelTestPage: React.FC = () => {
   const isUnmountedRef = useRef(false);
 
   const [testStep, setTestStep] = useState<"selection" | "test">("selection");
+
+  // 사용자가 선택한 예상 레벨 (선택 UI용)
   const [selectedCefr, setSelectedCefr] = useState<string | null>(null);
+
+  // 현재(프로필) 레벨 / 진척도: 로그인 사용자의 실제 데이터
+  const [currentLevel, setCurrentLevel] = useState<string | null>(null);
+  const [currentProgress, setCurrentProgress] = useState<number>(0);
+
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
@@ -56,6 +63,26 @@ const LevelTestPage: React.FC = () => {
       setTestStep("selection");
     }
   }, [isProfileLoading, isLoggedIn]);
+
+  // --- 변경: 로그인 사용자의 프로필에서 현재 레벨/진척도 불러와 초기화 ---
+  useEffect(() => {
+    if (isProfileLoading) return;
+
+    if (profile) {
+      // profile.level, profile.level_progress는 null일 수 있으므로 안전하게 처리
+      setCurrentLevel(profile.level ?? null);
+      setCurrentProgress(profile.level_progress ?? 0);
+
+      // 선택값은 사용자가 덮어쓸 수 있도록 기본으로 프로필 레벨을 설정
+      if (profile.level) {
+        setSelectedCefr(profile.level);
+      }
+    } else {
+      // 비로그인(게스트)일 경우 초기화
+      setCurrentLevel(null);
+      setCurrentProgress(0);
+    }
+  }, [isProfileLoading, profile]);
 
   const simulateAISpeaking = useCallback(() => {
     isAISpeakingRef.current = true;
@@ -97,14 +124,22 @@ const LevelTestPage: React.FC = () => {
         setIsConversationEnded(true);
         setStatusText("대화 종료. 분석 중...");
         setTimeout(() => {
-          const dummyResult = {
-            level: selectedCefr || "A1",
-            prevProgress: 0,
-            currentProgress: 10,
+          // 요구사항: 결과는 항상 더미(B2, 50%)
+          // 단, 현재 레벨/진척도는 실제 프로필 데이터(currentLevel/currentProgress)를 사용
+          const result = {
+            // 결과 레벨은 더미
+            level: "B2",
+            // prevProgress는 실제 현재 진척도(프로필)
+            prevProgress: currentProgress,
+            // 결과 진척도는 더미 50
+            currentProgress: 50,
+            // 로그인 여부 반영
             isGuest: isGuestMode,
-            selectedBaseLevel: selectedCefr,
+            // 사용자가 선택한 예상 레벨(또는 프로필 레벨)을 기록
+            selectedBaseLevel: selectedCefr ?? currentLevel,
           };
-          navigate("/ai-talk/level-test/result", { state: dummyResult });
+
+          navigate("/ai-talk/level-test/result", { state: result });
         }, 2000);
       } else {
         setTimeout(() => simulateAISpeaking(), 500);
@@ -117,6 +152,8 @@ const LevelTestPage: React.FC = () => {
     isGuestMode,
     testStep,
     selectedCefr,
+    currentLevel,
+    currentProgress,
   ]);
 
   const {

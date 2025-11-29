@@ -26,6 +26,10 @@ interface ResultState {
   selectedBaseLevel?: string;
 }
 
+const LEVEL_ORDER: Level[] = ["A1", "A2", "B1", "B2", "C1", "C2"];
+
+const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
+
 const LevelTestResultPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -78,8 +82,62 @@ const LevelTestResultPage: React.FC = () => {
     }
   };
 
-  const isLevelUp = result.currentProgress >= result.prevProgress;
-  const progressDiff = result.currentProgress - result.prevProgress;
+  // 이전 레벨 인덱스: selectedBaseLevel이 없으면 결과 레벨로 간주 (변화 없음)
+  const prevLevelIndex =
+    result.selectedBaseLevel &&
+    LEVEL_ORDER.includes(result.selectedBaseLevel as Level)
+      ? LEVEL_ORDER.indexOf(result.selectedBaseLevel as Level)
+      : LEVEL_ORDER.indexOf(result.level);
+  const resultLevelIndex = LEVEL_ORDER.indexOf(result.level);
+
+  // 레벨 변화: 양수 = 상승, 음수 = 하락, 0 = 동일
+  const levelChange = resultLevelIndex - prevLevelIndex;
+
+  /**
+   * effectiveDiff 계산 규칙 (여러 단계 이동을 정확히 반영)
+   * - 동일 레벨: current - prev
+   * - 상승 (예: A1 50 -> B2 50, steps = 3):
+   *     (100 - prev) + (steps - 1) * 100 + current
+   * - 하락 (예: B2 50 -> A1 50, steps = -3):
+   *     - (prev + (stepsAbs - 1) * 100 + (100 - current))
+   */
+  const computeEffectiveDiff = (
+    prevProg: number,
+    currProg: number,
+    levelChangeValue: number
+  ) => {
+    const prev = clamp(prevProg);
+    const curr = clamp(currProg);
+
+    if (levelChangeValue > 0) {
+      const steps = levelChangeValue;
+      const middleFulls = Math.max(0, steps - 1);
+      return 100 - prev + middleFulls * 100 + curr;
+    }
+    if (levelChangeValue < 0) {
+      const steps = Math.abs(levelChangeValue);
+      const middleFulls = Math.max(0, steps - 1);
+      return -1 * (prev + middleFulls * 100 + (100 - curr));
+    }
+    // 동일 레벨
+    return curr - prev;
+  };
+
+  const effectiveDiff = computeEffectiveDiff(
+    result.prevProgress,
+    result.currentProgress,
+    levelChange
+  );
+
+  const isLevelUp =
+    levelChange > 0 ||
+    (levelChange === 0 && result.currentProgress > result.prevProgress);
+  const isLevelDown =
+    levelChange < 0 ||
+    (levelChange === 0 && result.currentProgress < result.prevProgress);
+
+  const progressDiffDisplay =
+    effectiveDiff >= 0 ? `+${effectiveDiff}` : `${effectiveDiff}`;
 
   const handleExit = () => {
     navigate("/");
@@ -89,16 +147,21 @@ const LevelTestResultPage: React.FC = () => {
     alert("결과 이미지 저장/공유 기능이 실행됩니다.");
   };
 
+  // 레벨 변경 여부
+  const prevLevelLabel = result.selectedBaseLevel ?? null;
+  const levelChanged = prevLevelLabel && prevLevelLabel !== result.level;
+
+  // 시각용 클램프된 값 (메인 카드 바에 표시할 값은 0..100)
+  const prevBar = clamp(result.prevProgress);
+  const currBar = clamp(result.currentProgress);
+
   return (
-    // [수정]: min-h-screen으로 변경하여 내용이 길면 브라우저 스크롤 발생
     <div className="min-h-screen w-full bg-slate-50 text-gray-900 flex flex-col relative">
-      {/* --- [배경 레이어] Fixed로 고정 --- */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-rose-200/40 rounded-full blur-3xl opacity-60" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-200/40 rounded-full blur-3xl opacity-60" />
       </div>
 
-      {/* --- [헤더] Sticky로 변경하여 스크롤 시 상단 고정 (블러/배경 제거) --- */}
       <header className="sticky top-0 left-0 w-full z-50">
         <div className="max-w-5xl mx-auto h-14 sm:h-16 px-4 sm:px-6 flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -115,11 +178,8 @@ const LevelTestResultPage: React.FC = () => {
         </div>
       </header>
 
-      {/* --- [메인 컨텐츠] --- */}
-      {/* [수정]: h-full 제거, py-12 추가하여 상하 여백 확보 및 자연스러운 흐름 유도 */}
       <main className="relative z-10 w-full flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-12">
         <div className="w-full max-w-md flex flex-col items-center gap-6 sm:gap-8 animate-fade-in">
-          {/* 1. 상단 텍스트 */}
           <div className="text-center space-y-2">
             <div className="inline-flex items-center gap-1.5 bg-green-100/90 text-green-700 px-3 py-1 rounded-full text-xs font-bold mb-2 shadow-sm border border-green-200">
               <CheckCircle2 size={14} />
@@ -134,7 +194,7 @@ const LevelTestResultPage: React.FC = () => {
             </p>
           </div>
 
-          {/* 2. 결과 메인 카드 (Clean White Card) */}
+          {/* 메인 카드: 상단에 상태 표시를 통합 */}
           <div className="w-full bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-gray-100 relative overflow-hidden">
             {/* 공유 버튼 */}
             {!result.isGuest && (
@@ -146,6 +206,57 @@ const LevelTestResultPage: React.FC = () => {
                 <Share2 size={20} />
               </button>
             )}
+
+            {/* 통합 상태 바 (메인 카드 상단에 자연스럽게 배치) */}
+            <div className="mb-5 flex items-center justify-center">
+              <div
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ${
+                  isLevelUp
+                    ? "bg-green-50 text-green-700 border border-green-100"
+                    : isLevelDown
+                    ? "bg-rose-50 text-rose-700 border border-rose-100"
+                    : "bg-gray-50 text-gray-700 border border-gray-100"
+                }`}
+              >
+                {levelChanged ? (
+                  <>
+                    {levelChange > 0 ? (
+                      <Sparkles size={16} />
+                    ) : (
+                      <TrendingDown size={16} />
+                    )}
+                    <span>
+                      {result.selectedBaseLevel} → {result.level}
+                    </span>
+                    <span className="ml-2 text-xs font-medium">
+                      {progressDiffDisplay}%
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    {isLevelUp ? (
+                      <TrendingUp size={16} />
+                    ) : isLevelDown ? (
+                      <TrendingDown size={16} />
+                    ) : (
+                      <CheckCircle2 size={16} />
+                    )}
+                    <span className="ml-1">
+                      {isLevelUp
+                        ? "진척도"
+                        : isLevelDown
+                        ? "진척도"
+                        : "변화 없음"}
+                    </span>
+                    {effectiveDiff !== 0 && (
+                      <span className="ml-2 text-xs font-medium">
+                        {progressDiffDisplay}%
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
 
             <div className="flex flex-col items-center text-center">
               {/* 레벨 뱃지 */}
@@ -186,33 +297,32 @@ const LevelTestResultPage: React.FC = () => {
                     ) : (
                       <TrendingDown size={14} />
                     )}
-                    <span>
-                      {progressDiff > 0 ? "+" : ""}
-                      {progressDiff}%
-                    </span>
+                    <span>{progressDiffDisplay}%</span>
                   </div>
                 </div>
+
+                {/* 시각적 바: 이전(회색) 위에 결과(그라데이션) */}
                 <div className="relative h-3 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className="absolute top-0 left-0 h-full bg-gray-300"
-                    style={{ width: `${result.prevProgress}%` }}
+                    style={{ width: `${prevBar}%` }}
                   />
                   <div
                     className="absolute top-0 left-0 h-full bg-linear-to-r from-rose-400 to-rose-500 transition-all duration-1000 mix-blend-multiply"
-                    style={{ width: `${result.currentProgress}%` }}
+                    style={{ width: `${currBar}%` }}
                   />
                 </div>
+
                 <div className="flex justify-between mt-1.5 text-[10px] text-gray-400 font-medium">
-                  <span>이전: {result.prevProgress}%</span>
+                  <span>이전: {clamp(result.prevProgress)}%</span>
                   <span className="text-rose-500">
-                    현재: {result.currentProgress}%
+                    현재: {clamp(result.currentProgress)}%
                   </span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* 3. 하단 액션 버튼 */}
           <div className="w-full flex flex-col gap-3 mb-6">
             {result.isGuest ? (
               <>

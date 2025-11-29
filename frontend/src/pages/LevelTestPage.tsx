@@ -14,6 +14,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useAITalkRecorder } from "../hooks/useAITalkRecorder";
 import { useProfile } from "../hooks/useProfile";
+import { aiTalkService } from "../services/aiTalkService";
 
 // --- 상수: CEFR 레벨 정보 ---
 const CEFR_LEVELS = [
@@ -25,16 +26,12 @@ const CEFR_LEVELS = [
   { level: "C2", label: "최상급", desc: "원어민 수준 유창성" },
 ];
 
-const DUMMY_AI_AUDIO_DURATION = 3000;
-const MAX_TURNS = 1;
-
 const LevelTestPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile, isProfileLoading } = useProfile();
   const isLoggedIn = !!profile;
   const isGuestMode = !isLoggedIn;
 
-  const turnCountRef = useRef(0);
   const isProcessingRef = useRef(false);
   const isAISpeakingRef = useRef(false);
   const isUnmountedRef = useRef(false);
@@ -55,6 +52,12 @@ const LevelTestPage: React.FC = () => {
   const [statusText, setStatusText] = useState("테스트 준비 중...");
   const [showExitModal, setShowExitModal] = useState(false);
 
+  // 세션 ID (백엔드와의 대화 세션)
+  const [sessionId, setSessionId] = useState<number | null>(null);
+
+  // 재생용 오디오 객체 참조
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   useEffect(() => {
     if (isProfileLoading) return;
     if (isLoggedIn) {
@@ -69,92 +72,181 @@ const LevelTestPage: React.FC = () => {
     if (isProfileLoading) return;
 
     if (profile) {
-      // profile.level, profile.level_progress는 null일 수 있으므로 안전하게 처리
       setCurrentLevel(profile.level ?? null);
       setCurrentProgress(profile.level_progress ?? 0);
 
-      // 선택값은 사용자가 덮어쓸 수 있도록 기본으로 프로필 레벨을 설정
       if (profile.level) {
         setSelectedCefr(profile.level);
       }
     } else {
-      // 비로그인(게스트)일 경우 초기화
       setCurrentLevel(null);
       setCurrentProgress(0);
     }
   }, [isProfileLoading, profile]);
 
-  const simulateAISpeaking = useCallback(() => {
-    isAISpeakingRef.current = true;
-    setStatusText("AI가 질문하고 있습니다...");
-    setIsAISpeaking(true);
-
-    setTimeout(() => {
-      if (isUnmountedRef.current) return;
-      isAISpeakingRef.current = false;
-      setIsAISpeaking(false);
-      setStatusText("답변을 말씀해주세요");
-    }, DUMMY_AI_AUDIO_DURATION);
-  }, []);
-
-  const handleSendAudio = useCallback(async () => {
-    if (
-      isUnmountedRef.current ||
-      isProcessingRef.current ||
-      isAISpeakingRef.current ||
-      isConversationEnded ||
-      testStep === "selection"
-    ) {
-      return;
-    }
-
-    isProcessingRef.current = true;
-    setIsProcessing(true);
-    setStatusText("답변을 분석 중입니다...");
-
-    setTimeout(() => {
-      if (isUnmountedRef.current) return;
-      isProcessingRef.current = false;
-      setIsProcessing(false);
-
-      turnCountRef.current += 1;
-      const currentTurn = turnCountRef.current;
-
-      if (currentTurn >= MAX_TURNS) {
-        setIsConversationEnded(true);
-        setStatusText("대화 종료. 분석 중...");
-        setTimeout(() => {
-          // 요구사항: 결과는 항상 더미(B2, 50%)
-          // 단, 현재 레벨/진척도는 실제 프로필 데이터(currentLevel/currentProgress)를 사용
-          const result = {
-            // 결과 레벨은 더미
-            level: "B2",
-            // prevProgress는 실제 현재 진척도(프로필)
-            prevProgress: currentProgress,
-            // 결과 진척도는 더미 50
-            currentProgress: 50,
-            // 로그인 여부 반영
-            isGuest: isGuestMode,
-            // 사용자가 선택한 예상 레벨(또는 프로필 레벨)을 기록
-            selectedBaseLevel: selectedCefr ?? currentLevel,
-          };
-
-          navigate("/ai-talk/level-test/result", { state: result });
-        }, 2000);
-      } else {
-        setTimeout(() => simulateAISpeaking(), 500);
+  // 유틸: Base64 -> ObjectURL
+  const base64ToObjectUrl = (base64: string, mime = "audio/mpeg") => {
+    try {
+      const binary = atob(base64);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
       }
-    }, 2000);
-  }, [
-    navigate,
-    simulateAISpeaking,
-    isConversationEnded,
-    isGuestMode,
-    testStep,
-    selectedCefr,
-    currentLevel,
-    currentProgress,
-  ]);
+      const blob = new Blob([bytes], { type: mime });
+      return URL.createObjectURL(blob);
+    } catch (error) {
+      console.error("base64ToObjectUrl error:", error);
+      throw error;
+    }
+  };
+
+  // AI 오디오 재생
+  const playAudioFromBase64 = useCallback(
+    async (base64: string | null, fallbackText?: string) => {
+      if (isUnmountedRef.current) return;
+      if (!base64 && !fallbackText) {
+        setStatusText("질문을 들려드립니다");
+        return;
+      }
+
+      try {
+        isAISpeakingRef.current = true;
+        setIsAISpeaking(true);
+        setStatusText("AI가 질문하고 있습니다...");
+
+        if (base64) {
+          const url = base64ToObjectUrl(base64, "audio/mpeg");
+          if (audioRef.current) {
+            try {
+              audioRef.current.pause();
+              URL.revokeObjectURL(audioRef.current.src);
+            } catch (error) {
+              console.error("Error while revoking previous audio URL:", error);
+            }
+          }
+          const audio = new Audio(url);
+          audioRef.current = audio;
+          audio.onended = () => {
+            if (isUnmountedRef.current) return;
+            isAISpeakingRef.current = false;
+            setIsAISpeaking(false);
+            setStatusText("답변을 말씀해주세요");
+            setTimeout(() => {
+              try {
+                if (audioRef.current) {
+                  URL.revokeObjectURL(audioRef.current.src);
+                }
+              } catch (error) {
+                console.error(
+                  "Error while revoking audio URL after end:",
+                  error
+                );
+              }
+            }, 1000);
+          };
+          await audio.play();
+        } else {
+          // 텍스트만 있는 경우 짧은 딜레이 후 질문 표시
+          setTimeout(() => {
+            if (isUnmountedRef.current) return;
+            isAISpeakingRef.current = false;
+            setIsAISpeaking(false);
+            setStatusText(fallbackText ?? "답변을 말씀해주세요");
+          }, 1200);
+        }
+      } catch (error) {
+        isAISpeakingRef.current = false;
+        setIsAISpeaking(false);
+        console.error("playAudioFromBase64 error:", error);
+        setStatusText("질문 재생에 실패했습니다. 다시 시도해주세요");
+      }
+    },
+    []
+  );
+
+  // 실제 오디오 업로드 및 서버 응답 처리 (레벨 테스트 전용)
+  const handleSendAudio = useCallback(
+    async (audioBlob?: Blob) => {
+      if (
+        isUnmountedRef.current ||
+        isProcessingRef.current ||
+        isAISpeakingRef.current ||
+        isConversationEnded ||
+        testStep === "selection"
+      ) {
+        return;
+      }
+
+      if (!sessionId) {
+        setStatusText("세션이 준비되지 않았습니다. 잠시 후 다시 시도해주세요");
+        return;
+      }
+
+      isProcessingRef.current = true;
+      setIsProcessing(true);
+      setStatusText("답변을 분석 중입니다...");
+
+      try {
+        if (!audioBlob) {
+          throw new Error("녹음된 오디오가 없습니다");
+        }
+
+        const resp = await aiTalkService.sendLevelTestAudio(
+          sessionId,
+          audioBlob,
+          selectedCefr ?? currentLevel ?? "A1"
+        );
+
+        const audioBase64 = resp.audioData ?? null;
+        const ended = !!resp.ended;
+
+        if (audioBase64) {
+          await playAudioFromBase64(audioBase64);
+        } else {
+          setStatusText(resp.aiMessage?.content ?? "질문을 들려드립니다");
+        }
+
+        if (ended) {
+          setIsConversationEnded(true);
+          setStatusText("대화 종료. 결과를 불러오는 중...");
+
+          const resultLevel = resp.resultLevel ?? "B2";
+          const resultProgress =
+            typeof resp.resultProgress === "number" ? resp.resultProgress : 50;
+
+          navigate("/ai-talk/level-test/result", {
+            state: {
+              level: resultLevel,
+              prevProgress: currentProgress,
+              currentProgress: resultProgress,
+              isGuest: isGuestMode,
+              selectedBaseLevel: selectedCefr ?? currentLevel,
+            },
+          });
+        } else {
+          // 다음 질문을 기다리며 녹음은 useEffect에서 자동 재개
+        }
+      } catch (error) {
+        console.error("handleSendAudio error:", error);
+        setStatusText("오디오 전송에 실패했습니다. 네트워크를 확인해주세요");
+      } finally {
+        isProcessingRef.current = false;
+        setIsProcessing(false);
+      }
+    },
+    [
+      sessionId,
+      playAudioFromBase64,
+      currentProgress,
+      isGuestMode,
+      selectedCefr,
+      currentLevel,
+      testStep,
+      isConversationEnded,
+      navigate,
+    ]
+  );
 
   const {
     start: startRecording,
@@ -162,6 +254,7 @@ const LevelTestPage: React.FC = () => {
     isTalking,
   } = useAITalkRecorder(handleSendAudio);
 
+  // 녹음 자동 제어: 조건에 따라 녹음 시작/중지
   useEffect(() => {
     if (
       testStep === "test" &&
@@ -184,23 +277,59 @@ const LevelTestPage: React.FC = () => {
     stopRecording,
   ]);
 
+  // 테스트 시작 시: 레벨 테스트 전용 세션 생성 및 AI 첫 질문 재생
+  const startTestSession = useCallback(
+    async (selectedLevel: string) => {
+      try {
+        setIsLoading(true);
+        setStatusText("AI와 연결 중입니다...");
+        const resp = await aiTalkService.startLevelTest(selectedLevel);
+        const sid = resp.session?.session_id ?? null;
+        setSessionId(sid);
+        const audioBase64 = resp.audioData ?? null;
+        if (audioBase64) {
+          await playAudioFromBase64(audioBase64);
+        } else if (resp.initialMessages && resp.initialMessages.length > 0) {
+          setStatusText(
+            resp.initialMessages[0].content ?? "질문을 들려드립니다"
+          );
+        } else {
+          setStatusText("질문을 들려드립니다");
+        }
+      } catch (error) {
+        console.error("startTestSession error:", error);
+        setStatusText("세션 시작에 실패했습니다. 다시 시도해주세요");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [playAudioFromBase64]
+  );
+
   useEffect(() => {
     if (testStep !== "test") return;
     isUnmountedRef.current = false;
-    const startTestSequence = () => {
+    const startTestSequence = async () => {
       setIsLoading(true);
       setStatusText("AI와 연결 중입니다...");
-      setTimeout(() => {
-        setIsLoading(false);
-        simulateAISpeaking();
-      }, 1500);
+      const baseLevel = selectedCefr ?? currentLevel ?? "A1";
+      await startTestSession(baseLevel);
+      setIsLoading(false);
     };
     startTestSequence();
     return () => {
       isUnmountedRef.current = true;
       stopRecording();
+      if (audioRef.current) {
+        try {
+          audioRef.current.pause();
+          URL.revokeObjectURL(audioRef.current.src);
+        } catch (error) {
+          console.error("Error while cleaning up audioRef on unmount:", error);
+        }
+      }
     };
-  }, [testStep, simulateAISpeaking, stopRecording]);
+  }, [testStep, startTestSession, stopRecording, selectedCefr, currentLevel]);
 
   const handleLevelSelect = (level: string) => {
     setSelectedCefr(level);

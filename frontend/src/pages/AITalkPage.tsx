@@ -255,6 +255,7 @@ const AITalkPage: React.FC = () => {
       <>
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-sm"
+          // backdrop-blur-[1.1px]"
           onClick={onClose}
           style={{ zIndex: 9999 }}
         />

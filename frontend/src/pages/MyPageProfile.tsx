@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   ShieldAlert,
   ChevronLeft,
-  Save,
   Lock,
   User,
   Trash2,
@@ -19,7 +18,6 @@ import {
   changePassword,
 } from "../services/userService";
 
-// ... (Type Definitions 유지)
 type ProfileState = {
   name: string;
   email: string;
@@ -30,9 +28,9 @@ type PasswordErrors = { current?: string; new?: string; confirm?: string };
 
 const MyPageProfile: React.FC = () => {
   const navigate = useNavigate();
-  // ... (Hooks & State 로직 유지)
   const { profile: globalProfile, refreshProfile } = useProfile();
   const { logout } = useAuth();
+
   const [profile, setProfile] = useState<ProfileState>({
     name: "",
     email: "",
@@ -50,6 +48,10 @@ const MyPageProfile: React.FC = () => {
   const [loadingPwd, setLoadingPwd] = useState(false);
   const [loadingDelete, setLoadingDelete] = useState(false);
   const fileUrlRef = useRef<string | null>(null);
+
+  // 성공 표시용 상태 (페이지 새로고침 없이 버튼 비활성화로 성공 표시)
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [passwordChanged, setPasswordChanged] = useState(false);
 
   useEffect(() => {
     if (globalProfile) {
@@ -95,11 +97,15 @@ const MyPageProfile: React.FC = () => {
         profile_img: profile.profileImage,
       });
       if (!updated) throw new Error("Update failed");
+
+      // 새로고침 없이 성공 상태만 반영: 프로필 리프레시 시도 (앱 전역 상태 동기화)
       await refreshProfile();
-      alert("프로필이 저장되었습니다.");
+
+      // 버튼 비활성화로 성공 표시
+      setProfileSaved(true);
     } catch (err) {
       console.error("Failed to update profile:", err);
-      alert("프로필 저장에 실패했습니다.");
+      // 실패 시에는 상태를 유지하고 사용자가 다시 시도할 수 있도록 함
     } finally {
       setLoadingSave(false);
     }
@@ -135,8 +141,10 @@ const MyPageProfile: React.FC = () => {
         setPwdErrors({ current: "현재 비밀번호가 올바르지 않습니다." });
         return;
       }
+
+      // 성공 시 페이지 새로고침 없이 버튼 비활성화로 성공 표시
+      setPasswordChanged(true);
       setPasswords({ current: "", new: "", confirm: "" });
-      alert("비밀번호가 변경되었습니다.");
     } catch (err) {
       console.error("Failed to change password:", err);
       setPwdErrors({ current: "현재 비밀번호가 올바르지 않습니다." });
@@ -178,7 +186,6 @@ const MyPageProfile: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 text-gray-900">
       {/* Header */}
-      {/* [수정됨]: h-14 (고정 높이)로 통일 */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -270,12 +277,15 @@ const MyPageProfile: React.FC = () => {
               <div className="pt-2">
                 <button
                   onClick={handleSaveProfile}
-                  disabled={!isProfileSavable || loadingSave}
+                  disabled={!isProfileSavable || loadingSave || profileSaved}
                   className="w-full flex items-center justify-center gap-2 rounded-2xl bg-rose-500 text-white px-4 py-3.5 text-sm font-bold shadow-md shadow-rose-200 hover:bg-rose-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                   type="button"
                 >
-                  <Save className="w-4 h-4" />
-                  {loadingSave ? "저장 중..." : "변경사항 저장"}
+                  {loadingSave
+                    ? "저장 중..."
+                    : profileSaved
+                    ? "저장됨"
+                    : "저장하기"}
                 </button>
               </div>
             </div>
@@ -367,11 +377,15 @@ const MyPageProfile: React.FC = () => {
               <div className="pt-2">
                 <button
                   onClick={handleChangePassword}
-                  disabled={!isPwdFormFilled || loadingPwd}
+                  disabled={!isPwdFormFilled || loadingPwd || passwordChanged}
                   className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gray-900 text-white px-4 py-3.5 text-sm font-bold shadow-md hover:bg-gray-800 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                   type="button"
                 >
-                  {loadingPwd ? "변경 중..." : "비밀번호 변경"}
+                  {loadingPwd
+                    ? "변경 중..."
+                    : passwordChanged
+                    ? "변경됨"
+                    : "비밀번호 변경"}
                 </button>
               </div>
             </div>
@@ -389,7 +403,7 @@ const MyPageProfile: React.FC = () => {
               </h2>
               <p className="text-sm text-gray-600 mb-4 leading-relaxed">
                 탈퇴 시 모든 학습 데이터와 기록이 영구적으로 삭제되며, 복구할 수
-                없습니다. 신중하게 결정해주세요.
+                없습니다.
               </p>
               <button
                 onClick={openDeleteModal}

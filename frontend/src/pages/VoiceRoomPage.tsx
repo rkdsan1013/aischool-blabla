@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Lock, Plus, Radio, Search, Loader2, Mic } from "lucide-react";
+import { Users, Lock, Plus, Radio, Search, Loader2 } from "lucide-react";
 import VoiceRoomService from "../services/voiceroomService";
 import type { VoiceRoom } from "../services/voiceroomService";
 import { useProfile } from "../hooks/useProfile";

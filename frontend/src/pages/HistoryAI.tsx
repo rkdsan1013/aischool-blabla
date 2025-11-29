@@ -9,7 +9,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft,
   Loader2,
-  Calendar,
   Trophy,
   MessageCircle,
   AlertCircle,
@@ -76,28 +75,18 @@ function FloatingFeedbackCard({
 
       // 1. 상단 침범 시 -> 헤더 아래로 강제 이동 (주로 isAbove가 false일 때)
       if (rect.top < headerHeight) {
-        // 이 로직은 주로 툴팁이 위쪽(isAbove=true)인데도 상단을 침범하거나,
-        // 아래쪽(isAbove=false)인데 Rect가 너무 위에 있을 때 발생.
-        // 강제 보정보다는 팝업 위치 결정 로직이 완벽해야 하지만, 보조적으로 사용
-        // if (isAbove) {
-        //   cardRef.current.style.top = `${headerHeight + rect.height}px`;
-        // } else {
-        //   cardRef.current.style.top = `${headerHeight}px`;
-        // }
+        // 보조 로직 (주석 처리된 상태로 유지)
       }
 
       // 2. 하단 침범 시 -> 뷰포트 위로 올림 (주로 isAbove가 false일 때)
       if (rect.bottom > viewportH - 20) {
-        // if (!isAbove) {
-        //   cardRef.current.style.top = `${viewportH - 20 - rect.height}px`;
-        // }
+        // 보조 로직 (주석 처리된 상태로 유지)
       }
     }
   }, [show, top, mobile, isAbove]);
 
   function onCardClick(e: React.MouseEvent) {
     e.stopPropagation();
-    // e.preventDefault(); // 스크롤 등 기본 동작을 막을 필요는 없음
   }
 
   const cardStyle: React.CSSProperties = mobile
@@ -335,6 +324,20 @@ function tokenizeWithIndices(text: string): Token[] {
   return tokens;
 }
 
+/* -----------------------------
+   날짜 포맷 유틸 (HistoryTraining과 동일한 스타일)
+   ----------------------------- */
+const formatDateKorean = (iso: string | Date | undefined) =>
+  iso
+    ? new Date(iso).toLocaleDateString("ko-KR", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
+
 /**
  * AI 컴포넌트의 렌더링 로직을 HistoryAI 페이지 내부 함수로 통합 (AIRenderer)
  */
@@ -454,7 +457,7 @@ function AIRenderer({
                         if (err) {
                           cls += !isMobile
                             ? "cursor-pointer "
-                            : "cursor-pointer "; // 웹/모바일 모두 커서 표시
+                            : "cursor-pointer ";
                           if (err.type === "word")
                             cls +=
                               "bg-red-400/40 underline decoration-red-200 decoration-2";
@@ -600,11 +603,14 @@ export default function HistoryAI() {
     if (!data) return [];
 
     // DB 데이터를 UI 포맷의 메시지 배열로 변환
+    // NOTE: ConversationMessageDetail 타입에 'timestamp' 프로퍼티가 없다는 TS 오류를 피하기 위해
+    // 직접 존재하는 필드(createdAt 등)만 사용하거나 timestamp를 포함하지 않습니다.
     const baseMessages: ConversationMessage[] = data.messages.map((msg) => ({
       id: String(msg.messageId),
       role: msg.role === "ai" ? "ai" : "user",
       content: msg.content,
       feedback: msg.feedback ? JSON.stringify(msg.feedback) : undefined,
+      // timestamp 필드를 직접 매핑하지 않음 (타입 정의에 존재하지 않음)
     }));
 
     // AI 컴포넌트의 useMemo 로직을 여기에 통합하여 최종 처리된 메시지 목록 생성
@@ -710,6 +716,15 @@ export default function HistoryAI() {
     [isMobile, updateCardPosition]
   );
 
+  // 뒤로가기 핸들러 (HistoryTraining과 동일한 동작)
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/my/history");
+    }
+  };
+
   // 로딩 상태 처리
   if (isLoading) {
     return (
@@ -744,18 +759,25 @@ export default function HistoryAI() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* Header: HistoryTraining과 동일한 레이아웃/스타일 적용 */}
       <header className="w-full bg-white/80 backdrop-blur-md shrink-0 border-b border-gray-200 sticky top-0 z-30">
         <div className="max-w-2xl mx-auto flex items-center justify-between px-4 sm:px-6 h-14 sm:h-16">
           <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={() => navigate("/my/history")}
+              onClick={handleBack}
               className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-600"
+              aria-label="뒤로가기"
             >
               <ChevronLeft className="w-6 h-6" />
             </button>
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
-              회화 기록 상세
-            </h1>
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
+                회화 기록 상세
+              </h1>
+              <p className="text-xs text-gray-500">
+                {formatDateKorean(displayDate)}
+              </p>
+            </div>
           </div>
         </div>
       </header>
@@ -794,15 +816,7 @@ export default function HistoryAI() {
                 <span>총 {data.totalMessages}마디</span>
               </div>
 
-              <div className="flex items-center gap-2 text-gray-500 text-sm">
-                <Calendar className="w-4 h-4" />
-                <span>
-                  {new Date(displayDate).toLocaleDateString("ko-KR", {
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </span>
-              </div>
+              {/* 날짜 정보 제거: TOPIC 카드에서 날짜 표시를 제거했습니다 */}
             </div>
           </div>
         </div>

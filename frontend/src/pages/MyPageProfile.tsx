@@ -19,41 +19,30 @@ import {
   changePassword,
 } from "../services/userService";
 
+// ... (Type Definitions 유지)
 type ProfileState = {
   name: string;
   email: string;
   profileImage: string | null;
 };
-
-type PasswordState = {
-  current: string;
-  new: string;
-  confirm: string;
-};
-
-type PasswordErrors = {
-  current?: string;
-  new?: string;
-  confirm?: string;
-};
+type PasswordState = { current: string; new: string; confirm: string };
+type PasswordErrors = { current?: string; new?: string; confirm?: string };
 
 const MyPageProfile: React.FC = () => {
   const navigate = useNavigate();
+  // ... (Hooks & State 로직 유지)
   const { profile: globalProfile, refreshProfile } = useProfile();
   const { logout } = useAuth();
-
   const [profile, setProfile] = useState<ProfileState>({
     name: "",
     email: "",
     profileImage: null,
   });
-
   const [passwords, setPasswords] = useState<PasswordState>({
     current: "",
     new: "",
     confirm: "",
   });
-
   const [pwdErrors, setPwdErrors] = useState<PasswordErrors>({});
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
@@ -86,9 +75,7 @@ const MyPageProfile: React.FC = () => {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (fileUrlRef.current) {
-      URL.revokeObjectURL(fileUrlRef.current);
-    }
+    if (fileUrlRef.current) URL.revokeObjectURL(fileUrlRef.current);
     const objUrl = URL.createObjectURL(file);
     fileUrlRef.current = objUrl;
     setProfile((p) => ({ ...p, profileImage: objUrl }));
@@ -188,13 +175,12 @@ const MyPageProfile: React.FC = () => {
     }
   };
 
-  // [Modified]: Removed pb-16 md:pb-0 since this page does not have a bottom nav.
-  // Relying on py-8 in <main>.
   return (
     <div className="min-h-screen bg-slate-50 text-gray-900">
+      {/* Header */}
+      {/* [수정됨]: h-14 (고정 높이)로 통일 */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        {/* [Unified Layout]: max-w-2xl */}
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate(-1)}
@@ -203,20 +189,18 @@ const MyPageProfile: React.FC = () => {
             >
               <ChevronLeft className="w-6 h-6" />
             </button>
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900">
-              프로필 수정
-            </h1>
+            <h1 className="text-lg font-bold text-gray-900">프로필 수정</h1>
           </div>
         </div>
       </header>
 
-      {/* [Unified Layout]: max-w-2xl */}
+      {/* Main Content */}
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-6 sm:p-8">
             <div className="flex flex-col items-center mb-8">
               <div className="relative group">
-                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-rose-100 flex items-center justify-center text-4xl font-bold text-rose-500 overflow-hidden shadow-inner border-4 border-white ring-1 ring-gray-100">
+                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gray-100 flex items-center justify-center text-4xl font-bold text-gray-500 overflow-hidden shadow-inner border-4 border-white ring-1 ring-gray-100">
                   {profile.profileImage ? (
                     <img
                       src={profile.profileImage}
@@ -287,7 +271,7 @@ const MyPageProfile: React.FC = () => {
                 <button
                   onClick={handleSaveProfile}
                   disabled={!isProfileSavable || loadingSave}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-500 text-white px-4 py-3.5 text-sm font-bold shadow-md shadow-rose-200 hover:bg-rose-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl bg-rose-500 text-white px-4 py-3.5 text-sm font-bold shadow-md shadow-rose-200 hover:bg-rose-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                   type="button"
                 >
                   <Save className="w-4 h-4" />
@@ -384,7 +368,7 @@ const MyPageProfile: React.FC = () => {
                 <button
                   onClick={handleChangePassword}
                   disabled={!isPwdFormFilled || loadingPwd}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-gray-900 text-white px-4 py-3.5 text-sm font-bold shadow-md hover:bg-gray-800 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gray-900 text-white px-4 py-3.5 text-sm font-bold shadow-md hover:bg-gray-800 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                   type="button"
                 >
                   {loadingPwd ? "변경 중..." : "비밀번호 변경"}
@@ -409,7 +393,7 @@ const MyPageProfile: React.FC = () => {
               </p>
               <button
                 onClick={openDeleteModal}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 bg-white text-red-600 text-sm font-bold hover:bg-red-50 hover:border-red-300 transition-all active:scale-[0.98]"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-red-200 bg-white text-red-600 text-sm font-bold hover:bg-red-50 hover:border-red-300 transition-all active:scale-[0.98]"
                 type="button"
               >
                 <Trash2 className="w-4 h-4" />
@@ -420,6 +404,7 @@ const MyPageProfile: React.FC = () => {
         </section>
       </main>
 
+      {/* Delete Modal */}
       {showDeleteModal && (
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -443,14 +428,14 @@ const MyPageProfile: React.FC = () => {
                 <div className="flex gap-3">
                   <button
                     onClick={cancelDeleteFlow}
-                    className="flex-1 rounded-xl border border-gray-200 px-4 py-3.5 bg-white text-sm font-bold text-gray-700 hover:bg-gray-50 transition active:scale-[0.98]"
+                    className="flex-1 rounded-2xl border border-gray-200 px-4 py-3.5 bg-white text-sm font-bold text-gray-700 hover:bg-gray-50 transition active:scale-[0.98]"
                     type="button"
                   >
                     취소
                   </button>
                   <button
                     onClick={proceedDeleteStep}
-                    className="flex-1 rounded-xl bg-red-500 text-white px-4 py-3.5 text-sm font-bold hover:bg-red-600 transition active:scale-[0.98] shadow-md shadow-red-100"
+                    className="flex-1 rounded-2xl bg-red-500 text-white px-4 py-3.5 text-sm font-bold hover:bg-red-600 transition active:scale-[0.98] shadow-md shadow-red-100"
                     type="button"
                   >
                     계속 진행
@@ -474,7 +459,7 @@ const MyPageProfile: React.FC = () => {
                 <div className="flex gap-3">
                   <button
                     onClick={cancelDeleteFlow}
-                    className="flex-1 rounded-xl border border-gray-200 px-4 py-3.5 bg-white text-sm font-bold text-gray-700 hover:bg-gray-50 transition active:scale-[0.98]"
+                    className="flex-1 rounded-2xl border border-gray-200 px-4 py-3.5 bg-white text-sm font-bold text-gray-700 hover:bg-gray-50 transition active:scale-[0.98]"
                     type="button"
                   >
                     취소
@@ -482,7 +467,7 @@ const MyPageProfile: React.FC = () => {
                   <button
                     onClick={handleDeleteAccount}
                     disabled={loadingDelete}
-                    className="flex-1 rounded-xl bg-gray-900 text-white px-4 py-3.5 text-sm font-bold hover:bg-black transition active:scale-[0.98] shadow-lg disabled:opacity-50"
+                    className="flex-1 rounded-2xl bg-gray-900 text-white px-4 py-3.5 text-sm font-bold hover:bg-black transition active:scale-[0.98] shadow-lg disabled:opacity-50"
                     type="button"
                   >
                     {loadingDelete ? "처리 중..." : "확인 (탈퇴)"}

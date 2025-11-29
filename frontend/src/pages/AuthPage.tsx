@@ -26,18 +26,19 @@ function Label({
   return (
     <label
       htmlFor={htmlFor}
-      className="block text-xs font-bold text-gray-500 mb-1 ml-1"
+      className="block text-xs font-bold text-gray-600 mb-1.5 ml-1"
     >
       {children}
     </label>
   );
 }
 
+// [수정] hover:border-gray-300 추가 (웹 호버 효과 강화)
 function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className="w-full rounded-xl bg-gray-50 border border-gray-200 px-4 py-3.5 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all duration-200"
+      className="w-full rounded-2xl bg-white border border-gray-200 px-5 py-4 text-sm placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 hover:border-gray-300 transition-all duration-200 shadow-sm"
     />
   );
 }
@@ -52,7 +53,7 @@ function Button({
   return (
     <button
       {...props}
-      className={`w-full rounded-xl px-4 py-4 text-base font-bold shadow-md active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed bg-rose-500 text-white hover:bg-rose-600 shadow-rose-200 ${className}`}
+      className={`w-full rounded-2xl px-6 py-4 text-base font-bold shadow-md active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed bg-rose-500 text-white hover:bg-rose-600 shadow-rose-200 ${className}`}
     >
       {children}
     </button>
@@ -60,7 +61,7 @@ function Button({
 }
 
 /**
- * 탭 스위처 (로그인/회원가입)
+ * 탭 스위처
  */
 function SegmentedControl({
   value,
@@ -70,7 +71,7 @@ function SegmentedControl({
   onChange: (val: AuthMode) => void;
 }) {
   return (
-    <div className="bg-gray-100 p-1 rounded-xl flex relative mb-6">
+    <div className="bg-gray-100 p-1.5 rounded-2xl flex relative mb-8">
       {[
         { label: "로그인", value: "login" as const },
         { label: "회원가입", value: "signup" as const },
@@ -81,10 +82,11 @@ function SegmentedControl({
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
-            className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 z-10 ${
+            // [수정] hover 및 active 상태 스타일 통일 및 강화
+            className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all duration-200 z-10 ${
               isActive
                 ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                : "text-gray-500 hover:text-gray-900 hover:bg-gray-200/50 active:bg-gray-200"
             }`}
           >
             {opt.label}
@@ -103,7 +105,6 @@ export default function AuthPage() {
   const resultState = location.state as { level?: string } | null;
   const initialLevel = resultState?.level;
 
-  // 결과가 있으면 무조건 signup 탭으로 시작
   const [tab, setTab] = useState<AuthMode>(() => {
     if (initialLevel) return "signup";
     const params = new URLSearchParams(location.search);
@@ -121,6 +122,9 @@ export default function AuthPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  // [추가] 회원가입 성공 모달 상태
+  const [showSignupSuccessModal, setShowSignupSuccessModal] = useState(false);
+
   const { isAuthLoading } = useAuth();
   const { profile, isProfileLoading, refreshProfile } = useProfile();
 
@@ -128,14 +132,12 @@ export default function AuthPage() {
   const signupFormRef = useRef<HTMLFormElement | null>(null);
 
   // --- Effects ---
-  // 이미 로그인 된 경우 리디렉션
   useEffect(() => {
     if (!isAuthLoading && !isProfileLoading && profile) {
       navigate("/home", { replace: true });
     }
   }, [profile, isAuthLoading, isProfileLoading, navigate]);
 
-  // URL 파라미터 변경 감지 (결과 모드가 아닐 때만)
   useEffect(() => {
     if (initialLevel) return;
     const params = new URLSearchParams(location.search);
@@ -165,20 +167,32 @@ export default function AuthPage() {
         signupPassword,
         initialLevel
       );
-      setTab("login");
+      // [수정] alert 제거 및 모달 표시 로직으로 변경
+      // 다음 로그인을 위해 이메일만 세팅해둠
       setLoginEmail(signupEmail);
       setLoginPassword("");
+
+      // 입력 필드 초기화
       setSignupName("");
       setSignupEmail("");
       setSignupPassword("");
       setSignupConfirmPassword("");
-      alert("회원가입 완료! 로그인해주세요.");
+
+      // 성공 모달 띄우기
+      setShowSignupSuccessModal(true);
     } catch (err: unknown) {
       if (err instanceof ServiceError) setError(err.message);
       else setError("회원가입 중 오류가 발생했습니다.");
     } finally {
+      // [수정] 성공/실패 여부와 상관없이 로딩 상태 해제
       setIsSubmitting(false);
     }
+  };
+
+  const handleCloseSignupSuccess = () => {
+    setShowSignupSuccessModal(false);
+    setTab("login"); // 로그인 탭으로 이동
+    setError(""); // 에러 메시지 초기화
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -227,22 +241,24 @@ export default function AuthPage() {
 
   // --- Render ---
   return (
-    <div className="h-dvh w-full bg-white flex flex-col lg:flex-row overflow-hidden">
-      {/* [Desktop Left Panel] - Rose Color */}
-      <div className="hidden lg:flex lg:w-5/12 bg-rose-500 relative overflow-hidden text-white flex-col p-12">
-        {/* 배경 데코 */}
+    // [Root Layout]
+    <div className="min-h-dvh lg:h-dvh w-full bg-slate-50 flex flex-col lg:flex-row lg:overflow-hidden text-gray-900">
+      {/* [Desktop Left Panel] */}
+      <div className="hidden lg:flex lg:w-5/12 bg-rose-500 relative overflow-hidden text-white flex-col p-12 h-full">
+        {/* Background Decor */}
         <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-white/10 rounded-full blur-3xl" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-orange-400/20 rounded-full blur-3xl" />
 
-        {/* 상단: 로고 */}
-        <div className="relative z-10 mt-2">
+        <div
+          className="relative z-10 mt-2 cursor-pointer"
+          onClick={() => navigate("/")}
+        >
           <h1 className="text-4xl font-extrabold tracking-tight">Blabla</h1>
-          <p className="text-rose-100 font-medium text-lg mt-1">
+          <p className="text-rose-100 font-medium text-lg mt-1 opacity-90">
             AI Language Partner
           </p>
         </div>
 
-        {/* 중앙: 컨텐츠 (Slogan or Result) */}
         <div className="flex-1 flex flex-col justify-center relative z-10 pb-20">
           {initialLevel ? (
             <div className="space-y-6 animate-fade-in">
@@ -256,7 +272,7 @@ export default function AuthPage() {
                   <br />
                   달성을 축하해요!
                 </h2>
-                <p className="text-lg text-rose-100 leading-relaxed max-w-md">
+                <p className="text-lg text-rose-100 leading-relaxed max-w-md opacity-90">
                   지금 가입하면 분석된 레벨 정보가
                   <br />
                   프로필에 자동으로 저장됩니다.
@@ -270,7 +286,7 @@ export default function AuthPage() {
                 <br />
                 Start talking.
               </h2>
-              <p className="text-lg text-rose-100">
+              <p className="text-lg text-rose-100 opacity-90">
                 가장 자연스러운 AI 영어 회화 파트너와
                 <br />
                 지금 바로 대화를 시작하세요.
@@ -281,79 +297,91 @@ export default function AuthPage() {
       </div>
 
       {/* [Right Panel / Mobile Main] */}
-      <div className="flex-1 flex flex-col h-full relative">
-        {/* 모바일 헤더 (닫기 버튼) */}
-        <div className="flex-none flex items-center justify-between px-4 py-3 lg:hidden bg-white z-30">
-          <h1 className="text-xl font-extrabold text-rose-500">Blabla</h1>
+      <div className="flex-1 flex flex-col relative bg-slate-50 lg:overflow-y-auto">
+        {/* [Desktop Close Button] */}
+        <div className="hidden lg:block absolute top-6 right-6 z-50">
           <button
             onClick={() => navigate("/")}
-            className="p-2 text-gray-400 hover:text-gray-600"
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-all rounded-full"
+            aria-label="닫기"
           >
-            <X size={24} />
+            <X size={28} />
           </button>
         </div>
 
-        {/* 메인 컨텐츠 영역 */}
-        <div className="flex-1 w-full max-w-md mx-auto px-6 flex flex-col justify-start pt-6 lg:pt-32 overflow-y-auto lg:overflow-y-visible scrollbar-hide pb-32 lg:pb-0">
-          {/* 1. 모드에 따른 상단 영역 */}
+        {/* [Mobile Header] */}
+        <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200 lg:hidden">
+          <div className="w-full max-w-md mx-auto px-4 h-14 flex items-center justify-between">
+            <h1 className="text-xl font-extrabold text-rose-500">Blabla</h1>
+            <button
+              onClick={() => navigate("/")}
+              className="p-2 -mr-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-all rounded-full"
+            >
+              <X size={24} />
+            </button>
+          </div>
+        </div>
+
+        {/* [Main Content Container] */}
+        <div className="flex-1 w-full max-w-md mx-auto px-4 sm:px-6 py-8 flex flex-col justify-start lg:pt-32 gap-6">
+          {/* 1. Top Content */}
           {initialLevel ? (
-            // [결과 저장 모드]
-            <div className="mb-6 animate-slide-down flex-none">
-              <div className="bg-linear-to-br from-slate-900 to-slate-800 rounded-2xl p-5 text-white shadow-lg shadow-slate-200 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/20 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
+            <div className="animate-slide-down flex-none">
+              <div className="bg-linear-to-br from-slate-900 to-slate-800 rounded-3xl p-6 text-white shadow-xl shadow-slate-200/50 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/20 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none" />
                 <div className="relative z-10 flex items-center justify-between">
                   <div>
-                    <div className="flex items-center gap-1.5 text-rose-300 text-xs font-bold mb-1">
+                    <div className="flex items-center gap-1.5 text-rose-300 text-xs font-bold mb-2">
                       <Trophy size={14} />
                       <span>분석 완료</span>
                     </div>
                     <div className="text-xl font-bold">
                       Level{" "}
-                      <span className="text-rose-400 text-2xl ml-1">
+                      <span className="text-rose-400 text-3xl ml-1">
                         {initialLevel}
                       </span>{" "}
                       달성!
                     </div>
-                    <div className="text-xs text-slate-400 mt-1.5">
+                    <div className="text-sm text-slate-400 mt-2">
                       회원가입하고 학습을 바로 이어가세요.
                     </div>
                   </div>
-                  <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-2xl animate-bounce">
+                  <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center text-3xl animate-bounce shadow-inner">
                     🎉
                   </div>
                 </div>
               </div>
             </div>
           ) : (
-            // [일반 모드]
             <>
-              {/* 텍스트 영역 높이 확보로 점핑 방지 (min-h-[...]) */}
-              <div className="mb-6 text-center lg:text-left flex-none min-h-20 flex flex-col justify-end">
-                <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-1 transition-all">
+              {/* Text Area */}
+              <div className="text-center lg:text-left flex-none min-h-20 flex flex-col justify-end">
+                <h2 className="text-2xl lg:text-3xl font-black text-gray-900 mb-2 transition-all">
                   {tab === "signup" ? "계정 만들기" : "다시 오셨군요!"}
                 </h2>
-                <p className="text-sm text-gray-500 transition-all">
+                <p className="text-sm lg:text-base text-gray-500 transition-all font-medium">
                   {tab === "signup"
                     ? "나만의 AI 튜터와 대화를 시작해보세요."
                     : "이메일로 간편하게 로그인하세요."}
                 </p>
               </div>
-              {/* 탭 스위처 (일반 모드에서만 보임) */}
               <div className="flex-none">
                 <SegmentedControl value={tab} onChange={setTab} />
               </div>
             </>
           )}
 
-          {/* 2. 폼 영역 */}
+          {/* 2. Form Area */}
           <div className="w-full flex-none">
-            {/* --- 로그인 폼 --- */}
             {tab === "login" && (
               <form
                 ref={loginFormRef}
                 onSubmit={handleSubmit}
-                className="space-y-4 animate-fade-in"
+                className="space-y-5 animate-fade-in"
               >
+                {/* [추가] 엔터키 입력을 위한 숨김 버튼 */}
+                <button type="submit" className="hidden" />
+
                 <div>
                   <Label htmlFor="loginEmail">이메일</Label>
                   <Input
@@ -377,21 +405,23 @@ export default function AuthPage() {
                   />
                 </div>
                 {error && (
-                  <div className="text-xs text-red-500 bg-red-50 px-3 py-2.5 rounded-lg flex items-center gap-2">
-                    <CheckCircle2 size={14} className="rotate-180" />
+                  <div className="text-sm text-red-500 bg-red-50 px-4 py-3 rounded-xl flex items-center gap-2 font-medium">
+                    <CheckCircle2 size={16} className="rotate-180 shrink-0" />
                     <span>{error}</span>
                   </div>
                 )}
               </form>
             )}
 
-            {/* --- 회원가입 폼 --- */}
             {tab === "signup" && (
               <form
                 ref={signupFormRef}
                 onSubmit={handleSubmit}
-                className="space-y-3 animate-fade-in"
+                className="space-y-4 animate-fade-in"
               >
+                {/* [추가] 엔터키 입력을 위한 숨김 버튼 */}
+                <button type="submit" className="hidden" />
+
                 <div>
                   <Label htmlFor="signupName">이름</Label>
                   <Input
@@ -413,8 +443,7 @@ export default function AuthPage() {
                     disabled={isSubmitting}
                   />
                 </div>
-
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
                     <Label htmlFor="signupPassword">비밀번호</Label>
                     <Input
@@ -438,46 +467,72 @@ export default function AuthPage() {
                     />
                   </div>
                 </div>
-
                 {error && (
-                  <div className="text-xs text-red-500 bg-red-50 px-3 py-2.5 rounded-lg flex items-center gap-2">
-                    <CheckCircle2 size={14} className="rotate-180" />
+                  <div className="text-sm text-red-500 bg-red-50 px-4 py-3 rounded-xl flex items-center gap-2 font-medium">
+                    <CheckCircle2 size={16} className="rotate-180 shrink-0" />
                     <span>{error}</span>
                   </div>
                 )}
               </form>
             )}
           </div>
-        </div>
 
-        {/* 하단 고정 버튼 */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-sm border-t border-gray-100 lg:static lg:border-0 lg:bg-transparent lg:px-6 lg:pb-8 lg:pt-0 lg:max-w-md lg:mx-auto lg:w-full z-20">
-          <Button
-            onClick={submitActiveForm}
-            disabled={isSubmitting || isAuthLoading}
-            className="flex items-center justify-center gap-2"
-          >
-            {isSubmitting ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>
-                {/* ✅ [수정됨] 버튼 텍스트 간소화 및 아이콘 조건부 표시 */}
-                <span>
-                  {tab === "login"
-                    ? "로그인"
-                    : initialLevel
-                    ? "가입하고 학습 시작하기"
-                    : "회원가입"}
-                </span>
-                {/* 결과 저장 모드(initialLevel 있음)이면서 회원가입 탭일 때만 화살표 아이콘 표시 */}
-                {tab !== "login" && initialLevel && (
-                  <ArrowRight size={18} className="opacity-80" />
-                )}
-              </>
-            )}
-          </Button>
+          {/* 3. Footer Button */}
+          <div className="mt-auto w-full lg:mt-6">
+            <Button
+              onClick={submitActiveForm}
+              disabled={isSubmitting || isAuthLoading}
+              className="flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  <span>
+                    {tab === "login"
+                      ? "로그인"
+                      : initialLevel
+                      ? "가입하고 학습 시작하기"
+                      : "회원가입"}
+                  </span>
+                  {tab !== "login" && initialLevel && (
+                    <ArrowRight size={18} className="opacity-80" />
+                  )}
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
+
+      {/* [회원가입 성공 모달] */}
+      {showSignupSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-fade-in">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={handleCloseSignupSuccess}
+          />
+          <div className="relative bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl animate-scale-in text-center">
+            <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-5">
+              <CheckCircle2 size={32} strokeWidth={2.5} />
+            </div>
+            <h3 className="text-2xl font-extrabold text-gray-900 mb-2">
+              회원가입 완료!
+            </h3>
+            <p className="text-gray-500 mb-8 leading-relaxed text-sm sm:text-base">
+              성공적으로 계정이 생성되었습니다.
+              <br />
+              이제 로그인하여 학습을 시작하세요.
+            </p>
+            <button
+              onClick={handleCloseSignupSuccess}
+              className="w-full py-4 bg-rose-500 text-white rounded-2xl font-bold text-lg shadow-md hover:bg-rose-600 active:scale-95 transition-all shadow-rose-200"
+            >
+              로그인하러 가기
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

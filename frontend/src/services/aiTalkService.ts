@@ -1,5 +1,4 @@
 // frontend/src/services/aiTalkService.ts
-
 import { apiClient, handleApiError } from "../api";
 
 // --- 1. 타입 정의 ---
@@ -33,15 +32,17 @@ export interface AISession {
   ended_at: string | null;
 }
 
+export interface AIFeedbackError {
+  index?: number | null;
+  word?: string;
+  type: "grammar" | "spelling" | "word" | "style";
+  message: string;
+}
+
 export interface AIFeedback {
   explanation: string;
   suggestion: string;
-  errors: Array<{
-    index?: number;
-    word?: string;
-    type: "grammar" | "spelling" | "word" | "style";
-    message: string;
-  }>;
+  errors: AIFeedbackError[];
 }
 
 export interface AIMessage {
@@ -53,12 +54,14 @@ export interface AIMessage {
   feedback?: AIFeedback | null;
 }
 
-// ✅ 응답 타입 수정: ended 필드 추가
+// 응답 타입: userMessage / aiMessage는 가능한 한 non-null로 정의
 export interface SendMessageResponse {
   userMessage: AIMessage;
   aiMessage: AIMessage;
   audioData?: string | null; // Base64 audio string
-  ended?: boolean; // ✅ 대화 종료 여부 (Backend에서 is_finished가 true면 true)
+  ended?: boolean; // 대화 종료 여부
+  resultLevel?: string | null;
+  resultProgress?: number | null;
 }
 
 // --- 2. 개별 함수 Export ---
@@ -140,13 +143,13 @@ export const aiTalkService = {
   // === 대화 세션 관련 ===
 
   /**
-   * 대화 세션 시작
+   * 대화 세션 시작 (기존 시나리오 기반)
    * - AI의 첫 음성 메시지도 함께 반환될 수 있음
    */
   async startSession(scenarioId: number): Promise<{
     session: AISession;
     initialMessages: AIMessage[];
-    audioData?: string | null; // 첫 인사 오디오
+    audioData?: string | null;
   }> {
     try {
       const { data } = await apiClient.post<{
@@ -172,6 +175,7 @@ export const aiTalkService = {
         `/ai-talk/sessions/${sessionId}/messages`,
         { content }
       );
+      // 타입 보장: 서버가 userMessage/aiMessage를 항상 반환한다고 가정
       return data;
     } catch (error) {
       return handleApiError(error, "메시지 전송");
@@ -179,7 +183,7 @@ export const aiTalkService = {
   },
 
   /**
-   * ✅ 음성 메시지 전송 (Blob 업로드)
+   * ✅ 음성 메시지 전송 (Blob 업로드) - 기존 세션용
    */
   async sendAudioMessage(
     sessionId: number,
@@ -211,6 +215,68 @@ export const aiTalkService = {
       await apiClient.patch(`/ai-talk/sessions/${sessionId}/end`);
     } catch (error) {
       return handleApiError(error, "대화 종료");
+    }
+  },
+
+  // === 레벨 테스트 전용 API (인증 없이 호출 가능) ===
+
+  /**
+   * 레벨 테스트 세션 시작
+   * - selectedLevel: 사용자가 선택한 예상 레벨 (예: "A1")
+   * - 반환 형식은 기존 startSession과 동일한 형태를 따름
+   */
+  async startLevelTest(selectedLevel: string): Promise<{
+    session: { session_id: number };
+    initialMessages: AIMessage[];
+    audioData?: string | null;
+  }> {
+    try {
+      const { data } = await apiClient.post<{
+        session: { session_id: number };
+        initialMessages: AIMessage[];
+        audioData?: string | null;
+      }>("/ai-talk/level-test/start", { selectedLevel });
+      return data;
+    } catch (error) {
+      return handleApiError(error, "레벨 테스트 시작");
+    }
+  },
+
+  /**
+   * 레벨 테스트용 오디오 업로드
+   * - endpoint: /ai-talk/level-test/:sessionId/audio
+   */
+  async sendLevelTestAudio(
+    sessionId: number,
+    audioBlob: Blob,
+    level?: string
+  ): Promise<SendMessageResponse> {
+    try {
+      const formData = new FormData();
+      formData.append("audio", audioBlob, "recording.webm");
+      if (level) formData.append("level", level);
+
+      const { data } = await apiClient.post<SendMessageResponse>(
+        `/ai-talk/level-test/${sessionId}/audio`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
+      return data;
+    } catch (error) {
+      return handleApiError(error, "레벨 테스트 음성 전송");
+    }
+  },
+
+  /**
+   * 레벨 테스트 세션 종료 (선택적)
+   */
+  async endLevelTest(sessionId: number): Promise<void> {
+    try {
+      await apiClient.patch(`/ai-talk/level-test/${sessionId}/end`);
+    } catch (error) {
+      return handleApiError(error, "레벨 테스트 종료");
     }
   },
 

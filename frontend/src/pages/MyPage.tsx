@@ -166,7 +166,7 @@ const AttendanceGrid: React.FC<{
         ref={containerRef}
         className="flex gap-1 sm:gap-1.5 w-full overflow-hidden"
       >
-        <div className="flex flex-col gap-1 sm:gap-1.5 pt-0">
+        <div className="flex flex-col gap-1 sm:gap-1.5 py-1">
           {dayLabels.map((d) => (
             <div
               key={d}
@@ -178,7 +178,7 @@ const AttendanceGrid: React.FC<{
             </div>
           ))}
         </div>
-        <div className="flex gap-1 sm:gap-1.5 flex-1 justify-center">
+        <div className="flex gap-1 sm:gap-1.5 flex-1 justify-center py-1">
           {gridData.map((week, wi) => (
             <div key={wi} className="flex flex-col gap-1 sm:gap-1.5">
               {week.map((day, di) => (
@@ -251,7 +251,7 @@ const MyPage: React.FC = () => {
   }, [attendanceStats]);
 
   const handleOpenProfile = () => navigate("/my/profile");
-  const handleOpenHistory = () => navigate("/my/history");
+  const handleOpenHistory = () => navigate("/my/history"); // This function is now used
 
   if (isLoading || isAttendanceLoading) {
     return (
@@ -282,13 +282,14 @@ const MyPage: React.FC = () => {
     }
   };
 
-  // [수정됨] pb-16 / md:pb-0
+  // [수정됨]: lg 기준으로 하단 패딩 제거 (lg:pb-0), 모바일은 pb-16
   return (
-    <div className="min-h-screen bg-slate-50 pb-16 md:pb-0 text-gray-900">
+    <div className="min-h-screen bg-slate-50 pb-16 lg:pb-0 text-gray-900">
       <div className="bg-white p-6 sm:p-8 shadow-sm border-b border-gray-200">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-4 sm:gap-6 mb-6">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-3xl sm:text-4xl font-bold text-rose-500 shadow-sm">
+            {/* [Modified]: Unified default profile color to text-gray-500 */}
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-3xl sm:text-4xl font-bold text-gray-500 shadow-sm">
               {profile.name ? profile.name.charAt(0) : profile.email.charAt(0)}
             </div>
             <div className="flex-1 min-w-0">

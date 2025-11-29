@@ -184,6 +184,7 @@ const AITalkCustomScenario: React.FC = () => {
 
       const savedId = String(savedScenario.scenario_id);
 
+      // [Logic Restored]: scenarios와 persistLocal 사용
       let scenarios: CustomScenario[] = [];
       try {
         const saved = localStorage.getItem("customScenarios");
@@ -201,6 +202,7 @@ const AITalkCustomScenario: React.FC = () => {
       };
       if (idx !== -1) scenarios[idx] = newEntry;
       else scenarios.push(newEntry);
+
       persistLocal(scenarios);
 
       navigate("/ai-talk");
@@ -216,12 +218,11 @@ const AITalkCustomScenario: React.FC = () => {
     navigate("/ai-talk");
   };
 
-  // [Modified]: pb-16 삭제 (네비게이션 바가 없는 페이지)
   return (
     <div className="min-h-screen bg-slate-50 text-gray-900">
-      {/* --- Header --- */}
+      {/* Header */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 flex items-center">
           <div className="flex items-center gap-3">
             <button
               onClick={handleCancel}
@@ -230,16 +231,15 @@ const AITalkCustomScenario: React.FC = () => {
             >
               <ChevronLeft className="w-6 h-6" />
             </button>
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900">
+            <h1 className="text-lg font-bold text-gray-900">
               {editId ? "시나리오 수정" : "시나리오 만들기"}
             </h1>
           </div>
         </div>
       </header>
 
-      {/* --- Main Content --- */}
+      {/* Main Content */}
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-        {/* Error Message */}
         {error && (
           <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-2xl text-sm font-medium animate-fade-in">
             {error}
@@ -354,7 +354,7 @@ const AITalkCustomScenario: React.FC = () => {
               type="button"
               onClick={handleSave}
               disabled={loading}
-              className="w-full rounded-2xl bg-rose-500 text-white px-6 py-4 text-base font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full rounded-2xl bg-rose-500 text-white px-6 py-4 text-base font-bold shadow-md shadow-rose-200 hover:bg-rose-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>

@@ -122,7 +122,6 @@ const LevelTestPage: React.FC = () => {
   const {
     start: startRecording,
     stop: stopRecording,
-    isRecording,
     isTalking,
   } = useAITalkRecorder(handleSendAudio);
 
@@ -198,7 +197,7 @@ const LevelTestPage: React.FC = () => {
 
   return (
     <div className="min-h-screen w-full bg-slate-50 text-gray-900 flex flex-col relative">
-      {/* --- [배경 레이어] Fixed --- */}
+      {/* --- 배경 레이어 (파동 관련 스타일 및 요소 모두 제거됨) --- */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-rose-200/40 rounded-full blur-3xl opacity-60" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-200/40 rounded-full blur-3xl opacity-60" />
@@ -221,9 +220,9 @@ const LevelTestPage: React.FC = () => {
         </div>
       </header>
 
-      {/* --- 메인 컨텐츠 레이어 --- */}
+      {/* --- 메인 컨텐츠 --- */}
       <main className="relative z-10 w-full flex-1 flex flex-col max-w-5xl mx-auto px-4 sm:px-6">
-        {/* [Step 1] 레벨 선택 화면 */}
+        {/* Step 1: 레벨 선택 */}
         {testStep === "selection" && (
           <>
             <div className="flex-1 pt-8 pb-32">
@@ -242,13 +241,11 @@ const LevelTestPage: React.FC = () => {
                     <button
                       key={item.level}
                       onClick={() => handleLevelSelect(item.level)}
-                      className={`group relative flex flex-col items-start p-5 sm:p-6 rounded-3xl border-2 transition-all duration-300 text-left hover:shadow-xl active:scale-95
-                        ${
-                          selectedCefr === item.level
-                            ? "border-rose-500 bg-white/90 ring-2 ring-rose-200 scale-[1.02] shadow-lg z-10"
-                            : "border-transparent bg-white/60 hover:bg-white hover:border-rose-100"
-                        }
-                      `}
+                      className={`group relative flex flex-col items-start p-5 sm:p-6 rounded-3xl border-2 transition-all duration-300 text-left hover:shadow-xl active:scale-95 ${
+                        selectedCefr === item.level
+                          ? "border-rose-500 bg-white/90 ring-2 ring-rose-200 scale-[1.02] shadow-lg z-10"
+                          : "border-transparent bg-white/60 hover:bg-white hover:border-rose-100"
+                      }`}
                     >
                       <div className="flex justify-between items-start w-full mb-3">
                         <span
@@ -285,13 +282,11 @@ const LevelTestPage: React.FC = () => {
                   <button
                     onClick={handleStartTest}
                     disabled={!selectedCefr}
-                    className={`w-full sm:w-auto sm:px-16 py-4 rounded-2xl font-bold text-lg transition-all shadow-xl flex items-center justify-center gap-2 transform active:scale-[0.98] backdrop-blur-sm
-                      ${
-                        selectedCefr
-                          ? "bg-rose-500 text-white hover:bg-rose-600 shadow-rose-200"
-                          : "bg-white/50 text-gray-400 border border-white/20 cursor-not-allowed"
-                      }
-                    `}
+                    className={`w-full sm:w-auto sm:px-16 py-4 rounded-2xl font-bold text-lg transition-all shadow-xl flex items-center justify-center gap-2 transform active:scale-[0.98] backdrop-blur-sm ${
+                      selectedCefr
+                        ? "bg-rose-500 text-white hover:bg-rose-600 shadow-rose-200"
+                        : "bg-white/50 text-gray-400 border border-white/20 cursor-not-allowed"
+                    }`}
                   >
                     <span>테스트 시작하기</span>
                     <ChevronRight size={20} />
@@ -302,9 +297,8 @@ const LevelTestPage: React.FC = () => {
           </>
         )}
 
-        {/* [Step 2] 테스트 진행 화면 */}
+        {/* Step 2: 테스트 진행 */}
         {testStep === "test" && (
-          // [수정됨]: w-full overflow-hidden 추가 (파동 애니메이션에 의한 스크롤 방지)
           <div className="flex-1 flex flex-col justify-center items-center py-10 animate-fade-in relative w-full overflow-hidden">
             <div className="flex-none flex flex-col items-center justify-center mb-10 text-center">
               <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-gray-900 mb-3">
@@ -321,39 +315,21 @@ const LevelTestPage: React.FC = () => {
               </p>
             </div>
 
-            <div className="relative flex items-center justify-center">
-              {isAISpeaking && (
-                <>
-                  <div
-                    className="absolute w-[300px] h-[300px] sm:w-[500px] sm:h-[500px] bg-indigo-500/10 rounded-full animate-ping"
-                    style={{ animationDuration: "2s" }}
-                  />
-                  <div className="absolute w-[250px] h-[250px] sm:w-[400px] sm:h-[400px] bg-indigo-500/10 rounded-full animate-pulse" />
-                </>
-              )}
-              {isRecording && !isAISpeaking && !isProcessing && (
-                <>
-                  <div
-                    className={`absolute bg-rose-500/20 rounded-full transition-all duration-150 ease-out ${
-                      isTalking
-                        ? "w-[280px] h-[280px] sm:w-[450px] sm:h-[450px] opacity-100"
-                        : "w-40 h-40 sm:w-60 sm:h-60 opacity-0"
-                    }`}
-                  />
-                </>
-              )}
-
+            {/* 중앙 컨트롤 (파동 관련 요소 및 스타일 모두 제거) */}
+            <div
+              className={`relative flex items-center justify-center`}
+              style={{ minHeight: 380 }}
+            >
               <div
-                className={`relative w-40 h-40 sm:w-60 sm:h-60 rounded-full flex items-center justify-center shadow-2xl transition-all duration-500 border-[6px] sm:border-8
-                  ${
-                    isProcessing
-                      ? "bg-white/80 border-gray-200"
-                      : isAISpeaking
-                      ? "bg-indigo-500 border-indigo-300 shadow-indigo-500/40 scale-105"
-                      : isTalking
-                      ? "bg-rose-500 border-rose-300 scale-110 shadow-rose-500/50"
-                      : "bg-white/80 border-white/50"
-                  }`}
+                className={`control-center relative w-40 h-40 sm:w-60 sm:h-60 rounded-full flex items-center justify-center shadow-2xl transition-all duration-500 border-[6px] sm:border-8 ${
+                  isProcessing
+                    ? "bg-white/80 border-gray-200"
+                    : isAISpeaking
+                    ? "bg-indigo-500 border-indigo-300 shadow-indigo-500/40 scale-105"
+                    : isTalking
+                    ? "bg-rose-500 border-rose-300 scale-110 shadow-rose-500/50"
+                    : "bg-white/80 border-white/50"
+                }`}
               >
                 {isProcessing ? (
                   <Loader2 className="w-16 h-16 sm:w-24 sm:h-24 text-gray-400 animate-spin" />
@@ -383,7 +359,7 @@ const LevelTestPage: React.FC = () => {
         )}
       </main>
 
-      {/* [모달] 테스트 중단 확인 */}
+      {/* Exit modal */}
       {showExitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-fade-in">
           <div

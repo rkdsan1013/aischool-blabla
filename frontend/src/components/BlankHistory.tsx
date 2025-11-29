@@ -19,15 +19,6 @@ export default function BlankHistory({
 }: Props) {
   return (
     <div className="space-y-4 sm:space-y-5">
-      <div className="text-left">
-        <h1 className="text-xl sm:text-2xl font-bold text-foreground">
-          빈칸 채우기
-        </h1>
-        <p className="text-base text-muted-foreground mt-1">
-          문맥에 맞는 올바른 단어를 선택하세요.
-        </p>
-      </div>
-
       <div className="w-full">
         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 sm:p-6 min-h-[120px] flex items-center justify-center">
           <span className="text-lg sm:text-xl font-medium text-foreground text-center leading-relaxed">

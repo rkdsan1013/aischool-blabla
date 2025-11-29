@@ -1,6 +1,6 @@
 // src/components/VocabularyHistory.tsx
 import React from "react";
-import { Check, XCircle, Volume2 } from "lucide-react";
+import { Check, XCircle } from "lucide-react";
 
 interface Props {
   question: string;
@@ -17,37 +17,13 @@ export default function VocabularyHistory({
   correctAnswer,
   isCorrect,
 }: Props) {
-  const playTTS = (text: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "en-US";
-    window.speechSynthesis.speak(utterance);
-  };
-
   return (
     <div className="space-y-4 sm:space-y-5">
-      <div className="text-left">
-        <h1 className="text-xl sm:text-2xl font-bold text-foreground">
-          이 단어의 영어 뜻은?
-        </h1>
-        <p className="text-base text-muted-foreground mt-1">
-          제시된 단어와 의미가 일치하는 보기를 선택하세요.
-        </p>
-      </div>
-
       <div className="w-full">
         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 sm:p-6 min-h-[120px] flex items-center justify-center gap-3">
           <span className="text-3xl sm:text-4xl font-bold text-foreground text-center">
             {question}
           </span>
-          <button
-            onClick={() => playTTS(question)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            title="듣기"
-          >
-            <Volume2 className="w-5 h-5 text-gray-400" />
-          </button>
         </div>
       </div>
 

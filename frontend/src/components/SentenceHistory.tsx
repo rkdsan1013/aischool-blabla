@@ -21,7 +21,6 @@ export default function SentenceHistory({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="shrink-0 space-y-2 pb-4">
-        <h1 className="text-xl font-bold text-foreground">문장 배열하기</h1>
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
           <span className="text-lg font-medium text-foreground break-keep">
             {question}

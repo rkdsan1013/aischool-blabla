@@ -400,9 +400,6 @@ const HistoryTraining: React.FC = () => {
           )}
         </div>
       </main>
-
-      {/* 하단 여백 */}
-      <div className="h-20" />
     </div>
   );
 };

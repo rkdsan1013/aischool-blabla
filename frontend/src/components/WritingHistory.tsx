@@ -17,15 +17,6 @@ export default function WritingHistory({
 }: Props) {
   return (
     <div className="w-full flex flex-col space-y-4 sm:space-y-5">
-      <div className="text-left px-0">
-        <h1 className="text-xl sm:text-2xl font-bold text-foreground">
-          작문 연습
-        </h1>
-        <p className="text-base text-muted-foreground mt-1">
-          아래 한국어 문장을 보고 자연스럽게 영어로 번역하여 작성하세요.
-        </p>
-      </div>
-
       {/* 원문 카드 */}
       <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 sm:p-6">
         <div className="text-sm font-semibold text-muted-foreground mb-2">

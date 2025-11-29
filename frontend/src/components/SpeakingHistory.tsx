@@ -33,11 +33,6 @@ export default function SpeakingHistory({
 
   return (
     <div className="space-y-6 py-4">
-      <div className="text-left">
-        <h1 className="text-2xl font-bold text-gray-900">말하기 연습</h1>
-        <p className="text-gray-500 mt-1">마이크를 켜고 문장을 읽으세요.</p>
-      </div>
-
       <div className="bg-gray-50 border border-gray-200 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[200px] relative">
         <button
           onClick={() => playTTS(question)}

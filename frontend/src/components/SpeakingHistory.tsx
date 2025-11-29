@@ -1,6 +1,6 @@
 // src/components/SpeakingHistory.tsx
 // import React from "react";
-import { Check, XCircle, Volume2 } from "lucide-react";
+import { Check, X, Volume2 } from "lucide-react";
 
 interface Props {
   question: string;
@@ -66,7 +66,7 @@ export default function SpeakingHistory({
             </span>
           ) : (
             <span className="text-rose-600 flex items-center gap-2">
-              <XCircle className="w-4 h-4" />
+              <X className="w-4 h-4" />
               오답
             </span>
           )}

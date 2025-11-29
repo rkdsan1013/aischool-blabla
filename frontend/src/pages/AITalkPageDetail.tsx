@@ -497,8 +497,8 @@ const AITalkPageDetail: React.FC = () => {
                         className={`rounded-2xl px-4 py-3 text-[15px] sm:text-base leading-relaxed shadow-sm
                         ${
                           isUser
-                            ? "bg-rose-500 text-white rounded-tr-none"
-                            : "bg-white text-gray-800 border border-gray-200 rounded-tl-none"
+                            ? "bg-rose-500 text-white"
+                            : "bg-white text-gray-800 border border-gray-200"
                         } 
                         ${
                           styleError && isUser
@@ -581,19 +581,6 @@ const AITalkPageDetail: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* AI Message Controls */}
-                      {m.role === "ai" && (
-                        <div className="flex gap-2 mt-1 ml-1">
-                          <button
-                            onClick={() => playAudioData(null)}
-                            className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-indigo-500 transition-colors"
-                            title="다시 듣기"
-                          >
-                            <Volume2 size={16} />
-                          </button>
-                        </div>
-                      )}
-
                       {/* User Style Feedback Indicator */}
                       {styleError && isUser && (
                         <div className="mt-1 mr-1 flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-100">
@@ -613,7 +600,7 @@ const AITalkPageDetail: React.FC = () => {
                       AI
                     </span>
                   </div>
-                  <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center gap-2">
+                  <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm flex items-center gap-2">
                     <div className="flex gap-1">
                       <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
                       <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>

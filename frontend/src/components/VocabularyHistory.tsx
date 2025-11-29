@@ -1,6 +1,6 @@
 // src/components/VocabularyHistory.tsx
 import React from "react";
-import { Check, XCircle } from "lucide-react";
+import { Check, X } from "lucide-react";
 
 interface Props {
   question: string;
@@ -43,7 +43,7 @@ export default function VocabularyHistory({
           } else if (isUserSelected && !isCorrect) {
             bgColor = "bg-rose-50 border-rose-500";
             textColor = "text-rose-700";
-            iconElement = <XCircle className="w-5 h-5 text-rose-600" />;
+            iconElement = <X className="w-5 h-5 text-rose-600" />;
           }
 
           return (

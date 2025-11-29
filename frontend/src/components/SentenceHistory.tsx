@@ -1,5 +1,5 @@
 // src/components/SentenceHistory.tsx
-import React from "react";
+// import React from "react";
 import { Check, XCircle } from "lucide-react";
 
 interface Props {
@@ -79,7 +79,7 @@ export default function SentenceHistory({
                 <Check className="w-4 h-4" />
               </span>
             </p>
-            <div className="bg-white border-2 border-green-500 bg-green-50 rounded-xl p-3">
+            <div className="bg-white border-2 border-green-500 rounded-xl p-3">
               <div className="flex flex-wrap gap-2">
                 {correctWords.map((word, idx) => (
                   <div

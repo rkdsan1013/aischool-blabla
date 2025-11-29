@@ -1,5 +1,5 @@
 // src/components/WritingHistory.tsx
-import React from "react";
+// import React from "react";
 import { Check, XCircle } from "lucide-react";
 
 interface Props {

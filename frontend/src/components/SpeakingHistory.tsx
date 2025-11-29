@@ -1,5 +1,5 @@
 // src/components/SpeakingHistory.tsx
-import React from "react";
+// import React from "react";
 import { Check, XCircle, Volume2 } from "lucide-react";
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
 export default function SpeakingHistory({
   question,
   userAnswer,
-  correctAnswer,
+  // correctAnswer,
   isCorrect,
 }: Props) {
   const playTTS = (text: string) => {

@@ -398,8 +398,8 @@ function AIRenderer({
                 className={`rounded-2xl px-4 py-3 text-[15px] sm:text-base leading-relaxed shadow-sm
                   ${
                     m.isUser
-                      ? "bg-rose-500 text-white rounded-tr-none"
-                      : "bg-white text-gray-800 border border-gray-200 rounded-tl-none"
+                      ? "bg-rose-500 text-white"
+                      : "bg-white text-gray-800 border border-gray-200"
                   } 
                   ${
                     styleError && m.isUser
@@ -512,13 +512,6 @@ function AIRenderer({
                   <span className="font-medium">표현 개선 제안</span>
                 </div>
               )}
-
-              {/* Timestamp */}
-              {m.timestamp && (
-                <span className="text-[10px] text-gray-400 mt-1 px-1">
-                  {typeof m.timestamp === "string" ? m.timestamp : ""}
-                </span>
-              )}
             </div>
           </div>
         );
@@ -611,10 +604,6 @@ export default function HistoryAI() {
       id: String(msg.messageId),
       role: msg.role === "ai" ? "ai" : "user",
       content: msg.content,
-      timestamp: new Date(msg.createdAt).toLocaleTimeString("ko-KR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
       feedback: msg.feedback ? JSON.stringify(msg.feedback) : undefined,
     }));
 

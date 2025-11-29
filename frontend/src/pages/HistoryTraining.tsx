@@ -197,18 +197,6 @@ const HistoryTraining: React.FC = () => {
     );
   }, [trainingDetail]);
 
-  const playTTS = (text: string, lang = "en-US") => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = lang;
-      window.speechSynthesis.speak(utterance);
-    } catch {
-      // ignore
-    }
-  };
-
   const handleBack = () => {
     if (window.history.length > 1) {
       navigate(-1);

@@ -1,6 +1,6 @@
 // src/components/SentenceHistory.tsx
 // import React from "react";
-import { Check, XCircle } from "lucide-react";
+import { Check, X } from "lucide-react";
 
 interface Props {
   question: string;
@@ -40,8 +40,7 @@ export default function SentenceHistory({
               </span>
             ) : (
               <span className="text-rose-600 flex items-center gap-1">
-                <XCircle className="w-4 h-4" />
-                오답
+                <X className="w-4 h-4" />
               </span>
             )}
           </p>

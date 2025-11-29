@@ -220,15 +220,15 @@ const HistoryTraining: React.FC = () => {
   /* ----------------------------- 렌더 ----------------------------- */
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="text-center text-gray-500">로딩 중...</div>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-gray-500">로딩 중...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="text-center">
           <p className="text-gray-500 mb-4">{error}</p>
           <p className="text-xs text-gray-400 mb-4">
@@ -236,7 +236,7 @@ const HistoryTraining: React.FC = () => {
           </p>
           <button
             onClick={handleBack}
-            className="text-rose-500 font-semibold hover:underline"
+            className="text-rose-500 font-bold hover:underline"
             aria-label="뒤로가기"
           >
             돌아가기
@@ -248,12 +248,12 @@ const HistoryTraining: React.FC = () => {
 
   if (!trainingDetail) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="text-center">
           <p className="text-gray-500 mb-4">학습 기록이 없습니다.</p>
           <button
             onClick={handleBack}
-            className="text-rose-500 font-semibold hover:underline"
+            className="text-rose-500 font-bold hover:underline"
             aria-label="뒤로가기"
           >
             돌아가기
@@ -264,20 +264,20 @@ const HistoryTraining: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* 헤더 */}
-      <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* 헤더: HistoryAI와 동일한 레이아웃 폭/패딩 기준 적용 */}
+      <header className="w-full bg-white/80 backdrop-blur-md shrink-0 border-b border-gray-200 sticky top-0 z-30">
+        <div className="max-w-2xl mx-auto flex items-center justify-between px-4 sm:px-6 h-14 sm:h-16">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={handleBack}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-600"
               aria-label="뒤로가기"
             >
-              <X className="w-5 h-5 text-gray-600" />
+              <X className="w-5 h-5" />
             </button>
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
                 {getTypeLabel(trainingDetail.trainingType)}
               </h1>
               <p className="text-xs text-gray-500">
@@ -288,9 +288,9 @@ const HistoryTraining: React.FC = () => {
         </div>
       </header>
 
-      {/* 결과 요약 */}
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 mb-6">
+      {/* 메인 컨텐츠: HistoryAI와 동일한 max-width, 패딩, 간격 적용 */}
+      <main className="flex-1 max-w-2xl mx-auto w-full px-4 sm:px-6 py-6">
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-200 mb-6 overflow-hidden">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-2xl font-bold text-gray-900">
@@ -311,13 +311,13 @@ const HistoryTraining: React.FC = () => {
           </div>
         </div>
 
-        {/* 문제별 결과 */}
+        {/* 문제별 결과: 카드 스타일과 간격을 HistoryAI와 맞춤 */}
         <div className="space-y-6">
           {trainingDetail.details.map(
             (detail: TrainingDetailItem, index: number) => (
               <section
                 key={String(detail.questionId) + "-" + index}
-                className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200"
+                className="bg-white rounded-3xl p-6 shadow-sm border border-gray-200"
                 aria-labelledby={`question-${detail.questionId}`}
               >
                 <div className="flex items-center justify-between mb-6">
@@ -384,15 +384,6 @@ const HistoryTraining: React.FC = () => {
                       correctAnswer={detail.correctAnswer}
                       isCorrect={detail.isCorrect}
                     />
-                    <div className="mt-3 flex justify-center">
-                      <button
-                        onClick={() => playTTS(detail.questionText, "en-US")}
-                        className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm"
-                        aria-label={`문제 ${index + 1} 듣기`}
-                      >
-                        문제 듣기
-                      </button>
-                    </div>
                   </div>
                 )}
               </section>

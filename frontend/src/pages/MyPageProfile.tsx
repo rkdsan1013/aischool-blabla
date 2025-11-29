@@ -470,7 +470,7 @@ const MyPageProfile: React.FC = () => {
                     className="flex-1 rounded-2xl bg-gray-900 text-white px-4 py-3.5 text-sm font-bold hover:bg-black transition active:scale-[0.98] shadow-lg disabled:opacity-50"
                     type="button"
                   >
-                    {loadingDelete ? "처리 중..." : "확인 (탈퇴)"}
+                    {loadingDelete ? "처리 중..." : "확인"}
                   </button>
                 </div>
               </>

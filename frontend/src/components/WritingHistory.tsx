@@ -1,6 +1,6 @@
 // src/components/WritingHistory.tsx
 // import React from "react";
-import { Check, XCircle } from "lucide-react";
+import { Check, X } from "lucide-react";
 
 interface Props {
   question: string;
@@ -38,8 +38,7 @@ export default function WritingHistory({
             </span>
           ) : (
             <span className="text-rose-600 flex items-center gap-1">
-              <XCircle className="w-4 h-4" />
-              오답
+              <X className="w-4 h-4" />
             </span>
           )}
         </p>
@@ -60,11 +59,11 @@ export default function WritingHistory({
         </div>
       </div>
 
-      {/* 모범 답안 */}
+      {/* 정답 */}
       {!isCorrect && (
         <div>
           <p className="text-sm font-semibold text-gray-600 mb-2 flex items-center gap-2">
-            모범 답안
+            정답
             <span className="text-green-600 flex items-center gap-1">
               <Check className="w-4 h-4" />
             </span>

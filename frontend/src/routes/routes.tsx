@@ -18,6 +18,8 @@ import AITalkPageDetail from "../pages/AITalkPageDetail";
 import AITalkCustomScenario from "../pages/AITalkCustomScenario";
 import MyPageHistory from "../pages/MyPageHistory";
 import MyPageProfile from "../pages/MyPageProfile";
+// [추가] 구독 관리 페이지 import
+import MyPageSubscription from "../pages/MyPageSubscription";
 import HomeLeaderBoard from "../pages/HomeLeaderBoard";
 import LevelTestPage from "../pages/LevelTestPage";
 import LevelTestResultPage from "../pages/LevelTestResultPage";
@@ -116,6 +118,15 @@ export const routes: RouteObject[] = [
         element: (
           <ProtectedRoute redirectTo="/auth">
             <MyPageHistory />
+          </ProtectedRoute>
+        ),
+      },
+      // [추가] 구독 관리 라우트
+      {
+        path: "/my/subscription",
+        element: (
+          <ProtectedRoute redirectTo="/auth">
+            <MyPageSubscription />
           </ProtectedRoute>
         ),
       },

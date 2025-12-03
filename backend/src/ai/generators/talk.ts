@@ -70,7 +70,7 @@ export async function generateTalkOpening(
     system: systemPrompt,
     temperature: 0.7,
     model: "gpt-4o",
-    context: "TALK OPENING", // [추가] 로그 식별자
+    context: "TALK OPENING",
   });
 
   const parsed = parseJSON<{ opening: string }>(res.text);
@@ -105,20 +105,23 @@ export async function generateTalkResponse(
     
     [Instructions]
     1. ${levelInst}
-    2. ACT as the character in the context.
-    3. Speak naturally like a human.
+    2. ACT as the character in the context. Speak naturally.
+    
+    [FEEDBACK RULES - VERY IMPORTANT]
+    1. Provide feedback ONLY for grammar errors, wrong word usage, or very awkward phrasing.
+    2. **DO NOT PROVIDE A SUGGESTION if the only change is punctuation.**
+       - User: "Hello" -> AI Suggestion: "Hello!" (FORBIDDEN)
+       - User: "I am fine" -> AI Suggestion: "I am fine." (FORBIDDEN)
+    3. If the user's sentence is understandable and natural enough for a chat, return an empty errors list and NO suggestion.
+    4. Chat is informal. Do NOT correct casual style.
     
     [CRITICAL LANGUAGE RULE]
     - Response ('reply') MUST be in ENGLISH.
     - Feedback ('explanation', 'message') MUST be in KOREAN.
 
-    [TERMINATION RULES - IMPORTANT]
-    - Analyze if the conversation has reached a natural conclusion.
-    - Set "is_finished": true IF:
-      1. The user says goodbye (e.g., "Bye", "See you", "Have a nice day").
-      2. The user indicates they want to stop (e.g., "I have to go", "Stop").
-      3. The scenario's goal is clearly achieved and there is nothing more to say.
-    - If "is_finished": true, give a final natural farewell message in 'reply'.
+    [TERMINATION RULES]
+    - Set "is_finished": true IF the conversation ends naturally (bye, see you, goal achieved).
+    - If "is_finished": true, give a final farewell in 'reply'.
 
     [IMPORTANT RULE FOR ERROR INDEXING]
     - Use [Word Index Map] to find the exact "index".
@@ -132,7 +135,7 @@ export async function generateTalkResponse(
       "is_finished": boolean, 
       "feedback": {
         "explanation": "Brief explanation in Korean",
-        "suggestion": "Corrected natural version",
+        "suggestion": "Corrected version (OR NULL if strictly punctuation change)",
         "errors": [
           {
             "index": number | null,

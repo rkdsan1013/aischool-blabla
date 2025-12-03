@@ -311,31 +311,44 @@ const AITalkPage: React.FC = () => {
               </div>
             ) : (
               <>
-                <div className="flex items-start gap-4 mb-6">
-                  <div
-                    className={`bg-gray-50 ${scenario.textClass} w-12 h-12 flex items-center justify-center rounded-2xl shadow-sm shrink-0 border border-gray-100`}
-                  >
-                    {scenario.icon}
-                  </div>
-                  <div className="flex-1 min-w-0 pt-1">
-                    <h3 className="font-bold text-lg sm:text-xl text-gray-900 truncate">
-                      {scenario.title}
-                    </h3>
-                    <p className="text-sm text-gray-500 mb-3">
-                      {scenario.description}
-                    </p>
-                    <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 border border-gray-100 max-h-36 overflow-y-auto">
-                      {scenario.context || "상세 컨텍스트가 없습니다."}
+                <div className="mb-4">
+                  <div className="flex items-start gap-4">
+                    <div
+                      className={`bg-gray-50 ${scenario.textClass} w-12 h-12 flex items-center justify-center rounded-2xl shadow-sm shrink-0 border border-gray-100`}
+                    >
+                      {scenario.icon}
+                    </div>
+
+                    {/* Content column: title, subtitle (description), context
+                        All three start at the same horizontal position (aligned with title) */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="font-bold text-lg sm:text-xl text-gray-900 truncate">
+                          {scenario.title}
+                        </h3>
+                        <button
+                          onClick={onClose}
+                          className="text-gray-400 -mr-2"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      <p className="text-sm text-gray-500 mt-2">
+                        {scenario.description}
+                      </p>
+
+                      <div className="mt-3 bg-gray-50 rounded-xl p-3 text-sm text-gray-600 border border-gray-100 max-h-36 overflow-y-auto">
+                        {scenario.context || "상세 컨텍스트가 없습니다."}
+                      </div>
                     </div>
                   </div>
-                  <button onClick={onClose} className="text-gray-400 -mr-2">
-                    <X className="w-5 h-5" />
-                  </button>
                 </div>
+
                 <div className="space-y-3">
                   <button
                     onClick={() => onStartConversation(scenario)}
-                    className="w-full flex items-center justify-between bg-rose-500 text-white px-5 py-4 rounded-2xl shadow-md hover:bg-rose-600 transition"
+                    className="w-full flex items-center justify-between bg-rose-500 text-white px-4 py-3 rounded-2xl shadow-md hover:bg-rose-600 transition"
                   >
                     <div className="flex items-center gap-3">
                       <div className="bg-white/20 p-1.5 rounded-lg">

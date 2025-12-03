@@ -11,6 +11,7 @@ import {
   User,
   ChevronRight,
   LogOut,
+  CreditCard,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfile } from "../hooks/useProfile";
@@ -227,6 +228,12 @@ const MyPage: React.FC = () => {
   const [isAttendanceLoading, setIsAttendanceLoading] = useState(true);
   const isLoading = isAuthLoading || isProfileLoading;
 
+  // [수정] 더미 구독 데이터 (PlanType: BASIC | PRO)
+  const currentSubscription: { plan: "PRO" | "BASIC"; label: string } = {
+    plan: "PRO", // "BASIC" | "PRO"
+    label: "PRO",
+  };
+
   useEffect(() => {
     if (!isLoading && profile === null) navigate("/");
   }, [profile, isLoading, navigate]);
@@ -251,7 +258,16 @@ const MyPage: React.FC = () => {
   }, [attendanceStats]);
 
   const handleOpenProfile = () => navigate("/my/profile");
-  const handleOpenHistory = () => navigate("/my/history"); // This function is now used
+  const handleOpenHistory = () => navigate("/my/history");
+  const handleOpenSubscription = () => navigate("/my/subscription");
+
+  // [수정] 뱃지 스타일 로직: Indigo -> Rose 변경 (브랜드 컬러 통일)
+  const getBadgeStyle = (plan: "PRO" | "BASIC") => {
+    if (plan === "PRO") {
+      return "bg-rose-100 text-rose-600 border-rose-200";
+    }
+    return "bg-gray-100 text-gray-600 border-gray-200";
+  };
 
   if (isLoading || isAttendanceLoading) {
     return (
@@ -282,7 +298,6 @@ const MyPage: React.FC = () => {
     }
   };
 
-  // [수정됨]: lg 기준으로 하단 패딩 제거 (lg:pb-0), 모바일은 pb-16
   return (
     <div className="min-h-screen bg-slate-50 pb-16 lg:pb-0 text-gray-900">
       <div className="bg-white p-6 sm:p-8 shadow-sm border-b border-gray-200">
@@ -293,9 +308,19 @@ const MyPage: React.FC = () => {
               {profile.name ? profile.name.charAt(0) : profile.email.charAt(0)}
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-black mb-1 tracking-tight truncate text-gray-900">
-                {profile.name ?? profile.email}
-              </h1>
+              <div className="flex items-center gap-2 mb-1">
+                <h1 className="text-2xl sm:text-3xl font-black tracking-tight truncate text-gray-900">
+                  {profile.name ?? profile.email}
+                </h1>
+                {/* [수정됨] 구독 플랜 뱃지 (Rose 컬러 적용) */}
+                <span
+                  className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-bold border ${getBadgeStyle(
+                    currentSubscription.plan
+                  )}`}
+                >
+                  {currentSubscription.plan === "PRO" ? "PRO" : "BASIC"}
+                </span>
+              </div>
               <p className="text-gray-500 text-sm sm:text-base font-medium">
                 {profile.email}
               </p>
@@ -392,6 +417,15 @@ const MyPage: React.FC = () => {
               title="히스토리"
               subtitle="상세한 학습 기록을 확인하세요"
               onClick={handleOpenHistory}
+            />
+            {/* [수정] 아이콘 색상 Rose로 통일 (Purple -> Rose) */}
+            <NavigateRow
+              icon={
+                <CreditCard className="w-6 h-6 sm:w-7 sm:h-7 text-rose-500" />
+              }
+              title="구독 관리"
+              subtitle="멤버십 플랜 및 결제 정보"
+              onClick={handleOpenSubscription}
             />
             <NavigateRow
               icon={<User className="w-6 h-6 sm:w-7 sm:h-7 text-blue-500" />}

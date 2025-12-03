@@ -135,11 +135,10 @@ const MyPageSubscription: React.FC = () => {
 
           {/* 1. Basic Plan (Static) */}
           <div
-            className={`bg-white rounded-3xl border p-6 sm:p-8 transition-all ${
-              currentPlan === "BASIC"
-                ? "border-gray-300 ring-2 ring-gray-200 shadow-sm"
-                : "border-gray-200 shadow-sm hover:border-rose-100" // Hover 색상 변경
-            }`}
+            className={`bg-white rounded-3xl border p-6 sm:p-8 transition-all ${currentPlan === "BASIC"
+              ? "border-gray-300 ring-2 ring-gray-200 shadow-sm"
+              : "border-gray-200 shadow-sm hover:border-rose-100" // Hover 색상 변경
+              }`}
           >
             <div className="flex justify-between items-start mb-4">
               <div>
@@ -171,11 +170,10 @@ const MyPageSubscription: React.FC = () => {
             </ul>
             <button
               disabled={currentPlan === "BASIC"}
-              className={`w-full py-3.5 rounded-2xl text-sm font-bold transition-all ${
-                currentPlan === "BASIC"
-                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                  : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
-              }`}
+              className={`w-full py-3.5 rounded-2xl text-sm font-bold transition-all ${currentPlan === "BASIC"
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
             >
               {currentPlan === "BASIC" ? "현재 이용 중" : "Basic으로 변경"}
             </button>
@@ -183,11 +181,10 @@ const MyPageSubscription: React.FC = () => {
 
           {/* 2. Pro Plan (with Toggle) */}
           <div
-            className={`bg-white rounded-3xl border p-6 sm:p-8 transition-all ${
-              currentPlan === "PRO"
-                ? "border-rose-200 ring-2 ring-rose-500/10 shadow-md relative overflow-hidden" // [수정] Border & Ring -> Rose
-                : "border-gray-200 shadow-sm hover:border-rose-100"
-            }`}
+            className={`bg-white rounded-3xl border p-6 sm:p-8 transition-all ${currentPlan === "PRO"
+              ? "border-rose-200 ring-2 ring-rose-500/10 shadow-md relative overflow-hidden" // [수정] Border & Ring -> Rose
+              : "border-gray-200 shadow-sm hover:border-rose-100"
+              }`}
           >
             {/* [수정] Pro Background Deco: Rose 그라디언트 */}
             {currentPlan === "PRO" && (
@@ -213,21 +210,19 @@ const MyPageSubscription: React.FC = () => {
               <div className="bg-gray-100 p-1 rounded-xl inline-flex self-start sm:self-auto">
                 <button
                   onClick={() => setBillingCycle("MONTHLY")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    billingCycle === "MONTHLY"
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${billingCycle === "MONTHLY"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                    }`}
                 >
                   월간
                 </button>
                 <button
                   onClick={() => setBillingCycle("YEARLY")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                    billingCycle === "YEARLY"
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${billingCycle === "YEARLY"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                    }`}
                 >
                   연간
                   {/* [수정] 할인 뱃지는 Rose보다 더 눈에 띄게 유지하거나 동일하게 Rose로 */}
@@ -246,11 +241,17 @@ const MyPageSubscription: React.FC = () => {
               <span className="text-sm font-medium text-gray-500">
                 {proPeriodText}
               </span>
-              {billingCycle === "YEARLY" && (
-                <span className="ml-2 text-sm text-rose-500 font-bold bg-rose-50 px-2 py-0.5 rounded-lg">
-                  2개월 무료
-                </span>
-              )}
+
+              {/* [수정] 조건부 렌더링( && ) 대신 클래스로 투명도/가시성 조절 */}
+              {/* 공간은 차지하되, MONTHLY일 때는 눈에만 안 보이게 처리하여 높이 고정 */}
+              <span
+                className={`ml-2 text-sm text-rose-500 font-bold bg-rose-50 px-2 py-0.5 rounded-lg transition-opacity duration-200 ${billingCycle === "YEARLY"
+                  ? "opacity-100 visible"
+                  : "opacity-0 invisible"
+                  }`}
+              >
+                2개월 무료
+              </span>
             </div>
 
             <ul className="space-y-3 mb-8">
@@ -275,17 +276,16 @@ const MyPageSubscription: React.FC = () => {
 
             <button
               disabled={currentPlan === "PRO"}
-              className={`w-full py-4 rounded-2xl text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 ${
-                currentPlan === "PRO"
-                  ? "bg-rose-50 text-rose-600 cursor-default shadow-none border border-rose-100" // [수정] 활성 상태 스타일
-                  : "bg-rose-600 text-white hover:bg-rose-700 hover:shadow-rose-200" // [수정] 비활성(선택가능) 상태 스타일
-              }`}
+              className={`w-full py-4 rounded-2xl text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 ${currentPlan === "PRO"
+                ? "bg-rose-50 text-rose-600 cursor-default shadow-none border border-rose-100" // [수정] 활성 상태 스타일
+                : "bg-rose-600 text-white hover:bg-rose-700 hover:shadow-rose-200" // [수정] 비활성(선택가능) 상태 스타일
+                }`}
             >
               {currentPlan === "PRO"
                 ? "현재 이용 중인 플랜"
                 : billingCycle === "YEARLY"
-                ? "연간 결제로 시작하기"
-                : "월간 결제로 시작하기"}
+                  ? "연간 결제로 시작하기"
+                  : "월간 결제로 시작하기"}
             </button>
           </div>
         </section>

@@ -40,12 +40,11 @@ function createWordIndexMap(text: string): string {
 
 /**
  * 독립적인 피드백 생성 함수
- * - 다른 페이지(작문, 문법 검사 등)에서 재사용 가능
  */
 export async function generateFeedbackOnly(
   userMessage: string,
   level: string,
-  context?: string // 선택적: 특정 상황에서의 피드백이 필요할 경우
+  context?: string
 ): Promise<any> {
   const levelInst = getLevelInstruction(level);
   const wordIndexMap = createWordIndexMap(userMessage);
@@ -63,10 +62,12 @@ export async function generateFeedbackOnly(
     
     ${contextPrompt}
 
-    [CRITICAL RULES]
+    [CRITICAL RULES - READ CAREFULLY]
     1. Analyze grammar, spelling, word choice, and style.
-    2. If the sentence is perfect, return an empty errors array but provide a better/native suggestion if possible.
-    3. Feedback ('explanation', 'message') MUST be in KOREAN.
+    2. **STRICTLY FORBIDDEN**: Do NOT generate a 'suggestion' if the ONLY difference is punctuation (e.g., "Hello" -> "Hello!", "Thanks" -> "Thanks.").
+    3. Treat the user's punctuation as CORRECT unless it changes the meaning significantly.
+    4. If the sentence is grammatically correct and natural enough, return empty errors AND set 'suggestion' to null (or return the exact original sentence).
+    5. Feedback ('explanation', 'message') MUST be in KOREAN.
     
     [IMPORTANT RULE FOR ERROR INDEXING]
     - Use [Word Index Map] to find the exact "index".
@@ -77,7 +78,7 @@ export async function generateFeedbackOnly(
     JSON Structure:
     {
       "explanation": "Brief explanation in Korean",
-      "suggestion": "Corrected or better natural version",
+      "suggestion": "Corrected/Better version (OR NULL if no significant change)",
       "errors": [
         {
           "index": number | null,
@@ -100,7 +101,7 @@ export async function generateFeedbackOnly(
   const res = await generateText({
     prompt: userPrompt,
     system: systemPrompt,
-    temperature: 0.2,
+    temperature: 0.2, // 창의성을 낮춰서 지시사항을 더 엄격하게 따르게 함
     model: "gpt-4o-mini",
     context: "FEEDBACK ONLY",
   });

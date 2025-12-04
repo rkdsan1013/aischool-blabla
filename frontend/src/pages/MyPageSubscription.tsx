@@ -123,13 +123,13 @@ const MyPageSubscription: React.FC = () => {
           </div>
         </section>
 
-        {/* Section 2: 멤버십 플랜 변경 (순서 변경: PRO -> BASIC) */}
+        {/* Section 2: 멤버십 플랜 변경 */}
         <section className="space-y-4">
           <div className="px-1 mb-2">
             <h2 className="text-lg font-bold text-gray-900">멤버십 변경</h2>
           </div>
 
-          {/* 1. Pro Plan (Promoted / Top) */}
+          {/* 1. Pro Plan */}
           <div
             className={`bg-white rounded-3xl border p-6 sm:p-8 transition-all ${currentPlan === "PRO"
                 ? "border-rose-200 ring-2 ring-rose-500/10 shadow-md relative overflow-hidden"
@@ -234,26 +234,19 @@ const MyPageSubscription: React.FC = () => {
             </button>
           </div>
 
-          {/* 2. Basic Plan (Downgrade option / Bottom) */}
+          {/* 2. Basic Plan (동그라미 제거) */}
           <div
             className={`bg-white rounded-3xl border p-6 sm:p-8 transition-all ${currentPlan === "BASIC"
                 ? "border-gray-300 ring-2 ring-gray-200 shadow-sm"
                 : "border-gray-200 shadow-sm hover:border-rose-100"
               }`}
           >
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="font-bold text-lg text-gray-900">Basic Plan</h3>
-                <p className="text-xl font-bold text-gray-900 mt-1">무료</p>
-              </div>
-              {currentPlan === "BASIC" ? (
-                <div className="w-6 h-6 rounded-full bg-gray-500 text-white flex items-center justify-center">
-                  <Check className="w-4 h-4" />
-                </div>
-              ) : (
-                <div className="w-6 h-6 rounded-full border-2 border-gray-200" />
-              )}
+            {/* [수정] 우상단 체크 아이콘 제거 -> 심플하게 타이틀과 가격만 배치 */}
+            <div className="mb-4">
+              <h3 className="font-bold text-lg text-gray-900">Basic Plan</h3>
+              <p className="text-xl font-bold text-gray-900 mt-1">무료</p>
             </div>
+
             <ul className="space-y-2 mb-6">
               {[
                 "일일 학습 제한적 이용",

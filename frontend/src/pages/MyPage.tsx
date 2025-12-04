@@ -25,25 +25,70 @@ const formatStudyTime = (totalSeconds: number) => {
   return hours.endsWith(".0") ? `${parseInt(hours)}시간` : `${hours}시간`;
 };
 
-// [Unified Style] StatCard (shadow-sm 유지)
+// [Unified Style] StatCard (텍스트 자동 축소 로직 적용)
 const StatCard: React.FC<{
   icon: React.ReactNode;
   value: React.ReactNode;
   label: string;
-}> = ({ icon, value, label }) => (
-  <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 shadow-sm hover:shadow-md transition-all duration-300">
-    <div className="flex flex-col items-center text-center">
-      {/* Icon Area: shadow-sm 유지 */}
-      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gray-50 text-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-sm border border-gray-100">
-        {icon}
+}> = ({ icon, value, label }) => {
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // value가 변경되거나 리사이징 될 때 텍스트 크기 조절
+  useEffect(() => {
+    const adjustFontSize = () => {
+      const textEl = textRef.current;
+      const containerEl = containerRef.current;
+
+      if (!textEl || !containerEl) return;
+
+      // 1. 먼저 스케일을 초기화하여 원래 너비를 측정
+      textEl.style.transform = "scale(1)";
+      textEl.style.width = "auto";
+
+      const textWidth = textEl.offsetWidth;
+      const containerWidth = containerEl.offsetWidth;
+
+      // 2. 텍스트가 컨테이너보다 크면 비율에 맞춰 축소 (약간의 여유 0.95)
+      if (textWidth > containerWidth) {
+        const scale = containerWidth / textWidth;
+        textEl.style.transform = `scale(${scale})`;
+      } else {
+        textEl.style.transform = "scale(1)";
+      }
+    };
+
+    adjustFontSize();
+    window.addEventListener("resize", adjustFontSize);
+    return () => window.removeEventListener("resize", adjustFontSize);
+  }, [value]);
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 shadow-sm hover:shadow-md transition-all duration-300">
+      <div className="flex flex-col items-center text-center">
+        {/* Icon Area: shadow-sm 유지 */}
+        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gray-50 text-rose-500 flex items-center justify-center mb-3 sm:mb-4 shadow-sm border border-gray-100">
+          {icon}
+        </div>
+
+        {/* Value Area: 무조건 한 줄 유지 및 자동 축소 */}
+        <div
+          ref={containerRef}
+          className="w-full flex justify-center overflow-hidden mb-1"
+        >
+          <p
+            ref={textRef}
+            className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight whitespace-nowrap origin-center transition-transform duration-200"
+          >
+            {value}
+          </p>
+        </div>
+
+        <p className="text-xs sm:text-sm text-gray-500 font-medium">{label}</p>
       </div>
-      <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 tracking-tight">
-        {value}
-      </p>
-      <p className="text-xs sm:text-sm text-gray-500 font-medium">{label}</p>
     </div>
-  </div>
-);
+  );
+};
 
 // [Unified Style] NavigateRow (shadow-sm 유지)
 const NavigateRow: React.FC<{

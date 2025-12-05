@@ -4,13 +4,13 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   CheckCircle2,
   TrendingUp,
-  TrendingDown,
+  TrendingDown, // 아래 그래프에서 아이콘으로 사용되므로 import 유지
   UserPlus,
   Home,
-  Sparkles,
   ArrowRight,
   X,
   Share2,
+  Sparkles,
 } from "lucide-react";
 import { updateUserLevel } from "../services/userService";
 import { useProfile } from "../hooks/useProfile";
@@ -82,26 +82,18 @@ const LevelTestResultPage: React.FC = () => {
     }
   };
 
-  // 이전 레벨 인덱스: 게스트인 경우 selectedBaseLevel을 무시하고 결과 레벨로 간주 (변화 없음)
+  // 이전 레벨 인덱스
   const prevLevelIndex =
     !result.isGuest &&
-    result.selectedBaseLevel &&
-    LEVEL_ORDER.includes(result.selectedBaseLevel as Level)
+      result.selectedBaseLevel &&
+      LEVEL_ORDER.includes(result.selectedBaseLevel as Level)
       ? LEVEL_ORDER.indexOf(result.selectedBaseLevel as Level)
       : LEVEL_ORDER.indexOf(result.level);
   const resultLevelIndex = LEVEL_ORDER.indexOf(result.level);
 
-  // 레벨 변화: 양수 = 상승, 음수 = 하락, 0 = 동일
+  // 레벨 변화
   const levelChange = resultLevelIndex - prevLevelIndex;
 
-  /**
-   * effectiveDiff 계산 규칙 (여러 단계 이동을 정확히 반영)
-   * - 동일 레벨: current - prev
-   * - 상승 (예: A1 50 -> B2 50, steps = 3):
-   *     (100 - prev) + (steps - 1) * 100 + current
-   * - 하락 (예: B2 50 -> A1 50, steps = -3):
-   *     - (prev + (stepsAbs - 1) * 100 + (100 - current))
-   */
   const computeEffectiveDiff = (
     prevProg: number,
     currProg: number,
@@ -120,7 +112,6 @@ const LevelTestResultPage: React.FC = () => {
       const middleFulls = Math.max(0, steps - 1);
       return -1 * (prev + middleFulls * 100 + (100 - curr));
     }
-    // 동일 레벨
     return curr - prev;
   };
 
@@ -133,9 +124,9 @@ const LevelTestResultPage: React.FC = () => {
   const isLevelUp =
     levelChange > 0 ||
     (levelChange === 0 && result.currentProgress > result.prevProgress);
-  const isLevelDown =
-    levelChange < 0 ||
-    (levelChange === 0 && result.currentProgress < result.prevProgress);
+
+  // [수정됨] isLevelDown 삭제 (사용하지 않음)
+  // const isLevelDown = ... 삭제
 
   const progressDiffDisplay =
     effectiveDiff >= 0 ? `+${effectiveDiff}` : `${effectiveDiff}`;
@@ -148,14 +139,8 @@ const LevelTestResultPage: React.FC = () => {
     alert("결과 이미지 저장/공유 기능이 실행됩니다.");
   };
 
-  // 레벨 변경 여부: 게스트 사용자는 이전 레벨 표시를 하지 않음
-  const prevLevelLabel =
-    !result.isGuest && result.selectedBaseLevel
-      ? result.selectedBaseLevel
-      : null;
-  const levelChanged = prevLevelLabel && prevLevelLabel !== result.level;
+  // [수정됨] prevLevelLabel, levelChanged 삭제 (상단 바 삭제로 인해 사용하지 않음)
 
-  // 시각용 클램프된 값 (메인 카드 바에 표시할 값은 0..100)
   const prevBar = clamp(result.prevProgress);
   const currBar = clamp(result.currentProgress);
 
@@ -198,9 +183,7 @@ const LevelTestResultPage: React.FC = () => {
             </p>
           </div>
 
-          {/* 메인 카드: 상단에 상태 표시를 통합 */}
           <div className="w-full bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-gray-100 relative overflow-hidden">
-            {/* 공유 버튼 */}
             {!result.isGuest && (
               <button
                 onClick={handleShare}
@@ -211,68 +194,7 @@ const LevelTestResultPage: React.FC = () => {
               </button>
             )}
 
-            {/* 통합 상태 바 (메인 카드 상단에 자연스럽게 배치) */}
-            <div className="mb-5 flex items-center justify-center">
-              <div
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ${
-                  isLevelUp
-                    ? "bg-green-50 text-green-700 border border-green-100"
-                    : isLevelDown
-                    ? "bg-rose-50 text-rose-700 border border-rose-100"
-                    : "bg-gray-50 text-gray-700 border border-gray-100"
-                }`}
-              >
-                {/* 게스트인 경우 이전 레벨 표시를 숨기고 간단한 결과 뱃지만 노출 */}
-                {result.isGuest ? (
-                  <>
-                    <CheckCircle2 size={16} />
-                    <span className="ml-1 font-semibold">{result.level}</span>
-                    <span className="ml-2 text-xs font-medium">
-                      {clamp(result.currentProgress)}%
-                    </span>
-                  </>
-                ) : levelChanged ? (
-                  <>
-                    {levelChange > 0 ? (
-                      <Sparkles size={16} />
-                    ) : (
-                      <TrendingDown size={16} />
-                    )}
-                    <span>
-                      {result.selectedBaseLevel} → {result.level}
-                    </span>
-                    <span className="ml-2 text-xs font-medium">
-                      {progressDiffDisplay}%
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    {isLevelUp ? (
-                      <TrendingUp size={16} />
-                    ) : isLevelDown ? (
-                      <TrendingDown size={16} />
-                    ) : (
-                      <CheckCircle2 size={16} />
-                    )}
-                    <span className="ml-1">
-                      {isLevelUp
-                        ? "진척도"
-                        : isLevelDown
-                        ? "진척도"
-                        : "변화 없음"}
-                    </span>
-                    {effectiveDiff !== 0 && (
-                      <span className="ml-2 text-xs font-medium">
-                        {progressDiffDisplay}%
-                      </span>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-col items-center text-center">
-              {/* 레벨 뱃지 */}
+            <div className="flex flex-col items-center text-center mt-2">
               <div className="relative mb-5">
                 <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-slate-50 border-4 border-white ring-1 ring-gray-100 shadow-inner flex items-center justify-center">
                   <span className="text-4xl sm:text-5xl font-black text-rose-500 tracking-tighter">
@@ -284,7 +206,6 @@ const LevelTestResultPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* 설명 */}
               <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
                 {result.level} Level
               </h2>
@@ -293,7 +214,6 @@ const LevelTestResultPage: React.FC = () => {
               </p>
             </div>
 
-            {/* --- [User Mode Only] 진척도 그래프 --- */}
             {!result.isGuest && (
               <div className="mt-6 pt-6 border-t border-gray-100">
                 <div className="flex items-center justify-between mb-2">
@@ -301,9 +221,8 @@ const LevelTestResultPage: React.FC = () => {
                     레벨 달성도
                   </span>
                   <div
-                    className={`flex items-center gap-1 text-xs font-bold ${
-                      isLevelUp ? "text-green-600" : "text-rose-500"
-                    }`}
+                    className={`flex items-center gap-1 text-xs font-bold ${isLevelUp ? "text-green-600" : "text-rose-500"
+                      }`}
                   >
                     {isLevelUp ? (
                       <TrendingUp size={14} />
@@ -314,7 +233,6 @@ const LevelTestResultPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 시각적 바: 이전(회색) 위에 결과(그라데이션) */}
                 <div className="relative h-3 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className="absolute top-0 left-0 h-full bg-gray-300"

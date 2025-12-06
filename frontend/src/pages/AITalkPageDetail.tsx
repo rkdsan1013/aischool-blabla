@@ -146,14 +146,8 @@ const AITalkPageDetail: React.FC = () => {
 
       setIsProcessing(true);
 
-      const tempUserMsgId = `temp-${Date.now()}`;
-      const newUserMsg: Message = {
-        id: tempUserMsgId,
-        role: "user",
-        content: "🎤 음성 인식 중...",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, newUserMsg]);
+      // [변경됨] "음성 인식 중..." 임시 텍스트 메시지 생성 로직 제거
+      // 대신 UI에서 isProcessing 상태를 이용해 우측 로딩 버블을 보여줍니다.
 
       try {
         const { userMessage, aiMessage, audioData, ended } =
@@ -162,9 +156,9 @@ const AITalkPageDetail: React.FC = () => {
         if (isUnmountedRef.current) return;
 
         setMessages((prev) => {
-          const filtered = prev.filter((m) => m.id !== tempUserMsgId);
+          // 임시 메시지를 필터링할 필요 없이 바로 추가
           return [
-            ...filtered,
+            ...prev,
             {
               id: String(userMessage.message_id),
               role: userMessage.sender_role,
@@ -193,9 +187,7 @@ const AITalkPageDetail: React.FC = () => {
         }
       } catch (error) {
         console.error("음성 전송 실패:", error);
-        if (!isUnmountedRef.current) {
-          setMessages((prev) => prev.filter((m) => m.id !== tempUserMsgId));
-        }
+        // 에러 발생 시 별도의 메시지 삭제 로직 불필요 (임시 메시지가 없으므로)
       } finally {
         if (!isUnmountedRef.current) setIsProcessing(false);
       }
@@ -283,7 +275,6 @@ const AITalkPageDetail: React.FC = () => {
       isUnmountedRef.current = true;
       stopRecording();
     };
-    // [수정됨] 의존성 배열에 playAudioData, stopRecording 추가
   }, [scenarioId, navigate, playAudioData, stopRecording]);
 
   useEffect(() => {
@@ -347,7 +338,6 @@ const AITalkPageDetail: React.FC = () => {
 
     const rect = node.getBoundingClientRect();
     const viewportW = window.innerWidth;
-    // const viewportH = window.innerHeight; // [수정됨] spaceBelow 제거로 미사용
 
     const desiredWidth = Math.min(rect.width, viewportW * 0.92);
     const center = rect.left + rect.width / 2;
@@ -356,11 +346,8 @@ const AITalkPageDetail: React.FC = () => {
 
     const estimatedCardHeight = 260;
     const headerHeight = 80;
-    // const safeBottom = FOOTER_HEIGHT + 8; // [수정됨] spaceBelow 제거로 미사용
 
-    // const spaceBelow = viewportH - rect.bottom - safeBottom; // [수정됨] 제거
     const spaceAbove = rect.top - headerHeight;
-
     const preferAbove = spaceAbove >= estimatedCardHeight + TOOLTIP_GAP_ABOVE;
 
     let top;
@@ -473,9 +460,8 @@ const AITalkPageDetail: React.FC = () => {
                 return (
                   <div
                     key={m.id}
-                    className={`relative flex items-end gap-2 ${
-                      isUser ? "justify-end" : "justify-start"
-                    }`}
+                    className={`relative flex items-end gap-2 ${isUser ? "justify-end" : "justify-start"
+                      }`}
                   >
                     {!isUser && (
                       <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mb-1 border border-indigo-200">
@@ -486,25 +472,22 @@ const AITalkPageDetail: React.FC = () => {
                     )}
 
                     <div
-                      className={`flex flex-col max-w-[85%] sm:max-w-[75%] ${
-                        isUser ? "items-end" : "items-start"
-                      }`}
+                      className={`flex flex-col max-w-[85%] sm:max-w-[75%] ${isUser ? "items-end" : "items-start"
+                        }`}
                     >
                       <div
                         ref={(el) => {
                           bubbleRefs.current[m.id] = el;
                         }}
                         className={`rounded-2xl px-4 py-3 text-[15px] sm:text-base leading-relaxed shadow-sm
-                        ${
-                          isUser
+                        ${isUser
                             ? "bg-rose-500 text-white"
                             : "bg-white text-gray-800 border border-gray-200"
-                        } 
-                        ${
-                          styleError && isUser
+                          } 
+                        ${styleError && isUser
                             ? "ring-2 ring-yellow-300 cursor-pointer"
                             : ""
-                        }`}
+                          }`}
                         onMouseEnter={() => {
                           if (!isMobile && styleError && isUser)
                             onSentenceInteract(m.id, m.feedback);
@@ -518,11 +501,10 @@ const AITalkPageDetail: React.FC = () => {
                         }}
                       >
                         <div
-                          className={`whitespace-pre-wrap wrap-break-word ${
-                            styleError && isUser
+                          className={`whitespace-pre-wrap wrap-break-word ${styleError && isUser
                               ? "bg-yellow-400/20 rounded px-1 -mx-1"
                               : ""
-                          }`}
+                            }`}
                         >
                           {isUser ? (
                             <span>
@@ -566,7 +548,11 @@ const AITalkPageDetail: React.FC = () => {
                                     onClick={(e) => {
                                       if (err && isMobile) {
                                         e.stopPropagation();
-                                        onWordInteract(m.id, index, m.feedback);
+                                        onWordInteract(
+                                          m.id,
+                                          index,
+                                          m.feedback
+                                        );
                                       }
                                     }}
                                   >
@@ -593,18 +579,14 @@ const AITalkPageDetail: React.FC = () => {
                 );
               })}
 
+              {/* [변경됨] 사용자 발화 처리 중일 때: 우측 로딩 버블 (Rose 색상, 흰색 점) */}
               {isProcessing && !isAISpeaking && (
-                <div className="flex justify-start items-end gap-2">
-                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mb-1 border border-indigo-200">
-                    <span className="text-xs font-bold text-indigo-600">
-                      AI
-                    </span>
-                  </div>
-                  <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm flex items-center gap-2">
+                <div className="flex justify-end items-end gap-2">
+                  <div className="bg-rose-500 border border-rose-500 rounded-2xl px-4 py-3 shadow-sm flex items-center gap-2">
                     <div className="flex gap-1">
-                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                      <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
+                      <span className="w-2 h-2 bg-white rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                      <span className="w-2 h-2 bg-white rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                      <span className="w-2 h-2 bg-white rounded-full animate-bounce"></span>
                     </div>
                   </div>
                 </div>
@@ -632,16 +614,15 @@ const AITalkPageDetail: React.FC = () => {
         <div className="relative h-full max-w-2xl mx-auto px-4 sm:px-6 flex items-center justify-center pb-4 pointer-events-auto">
           <div
             className={`relative w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 cursor-pointer
-              ${
-                isRecording
-                  ? isTalking
-                    ? "bg-rose-500 scale-110 shadow-rose-500/40 ring-4 ring-rose-200"
-                    : "bg-rose-400 shadow-rose-400/30"
-                  : isProcessing
+              ${isRecording
+                ? isTalking
+                  ? "bg-rose-500 scale-110 shadow-rose-500/40 ring-4 ring-rose-200"
+                  : "bg-rose-400 shadow-rose-400/30"
+                : isProcessing
                   ? "bg-white border-2 border-gray-100 shadow-sm"
                   : isAISpeaking
-                  ? "bg-indigo-500 shadow-indigo-500/40 ring-4 ring-indigo-200"
-                  : "bg-white border border-gray-200 shadow-md hover:shadow-lg hover:border-rose-200 group"
+                    ? "bg-indigo-500 shadow-indigo-500/40 ring-4 ring-indigo-200"
+                    : "bg-white border border-gray-200 shadow-md hover:shadow-lg hover:border-rose-200 group"
               }
             `}
             onClick={() => {

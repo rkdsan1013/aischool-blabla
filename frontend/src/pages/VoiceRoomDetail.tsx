@@ -230,6 +230,9 @@ export default function VoiceRoomDetail(): React.ReactElement {
   const isMobile = isMobileUA();
 
   const isMutedRef = useRef(isMuted);
+
+  // ✅ 수정됨: 기존 useEffect 외에도 toggleMute 함수에서 즉시 업데이트 하도록 수정할 것이므로,
+  // 이 useEffect는 초기값 동기화 및 안전장치 역할로 유지합니다.
   useEffect(() => {
     isMutedRef.current = isMuted;
   }, [isMuted]);
@@ -263,6 +266,9 @@ export default function VoiceRoomDetail(): React.ReactElement {
   // -----------------------------------------------------------------------
 
   const onInterimResult = useCallback((text: string, id: string) => {
+    // ✅ 수정됨: 음소거 상태라면 중간 결과 무시 (화면에 이상한 텍스트 표시 방지)
+    if (isMutedRef.current) return;
+
     const item: TranscriptItem = {
       id,
       speaker: "나",
@@ -286,9 +292,11 @@ export default function VoiceRoomDetail(): React.ReactElement {
   }, []);
 
   const onFinalResult = useCallback((text: string, id: string) => {
+    // ✅ 수정됨: 음소거 상태라면 최종 결과 무시
+    if (isMutedRef.current) return;
+
     setTranscript((prev) => {
       const index = prev.findIndex((t) => t.id === id);
-      // 기존 항목이 있다면 isAnalyzing 상태를 유지
       const wasAnalyzing = index !== -1 ? prev[index].isAnalyzing : false;
 
       const finalItem: TranscriptItem = {
@@ -319,6 +327,9 @@ export default function VoiceRoomDetail(): React.ReactElement {
   }, []);
 
   const onAudioCaptured = useCallback((blob: Blob, id: string) => {
+    // ✅ 수정됨: 음소거 상태라면 오디오 데이터 전송 차단 (잡음 전송 방지)
+    if (isMutedRef.current) return;
+
     setTranscript((prev) =>
       prev.map((t) => (t.id === id ? { ...t, isAnalyzing: true } : t))
     );
@@ -329,6 +340,9 @@ export default function VoiceRoomDetail(): React.ReactElement {
       .map((t) => `${t.speaker}: ${t.text}`);
 
     blob.arrayBuffer().then((buffer) => {
+      // ✅ 수정됨: 비동기 처리 도중 음소거 되었을 경우를 대비해 한 번 더 체크
+      if (isMutedRef.current) return;
+
       socketRef.current?.emit("audio_message", {
         audio: buffer,
         tempId: id,
@@ -346,6 +360,15 @@ export default function VoiceRoomDetail(): React.ReactElement {
     onAudioCaptured,
   });
 
+  // ✅ 수정됨: isMutedRef.current 동기화 시점을 보장하기 위해 별도 함수로 분리했던 toggleMute 로직 개선
+  const toggleMute = () => {
+    setIsMuted((prev) => {
+      const nextState = !prev;
+      isMutedRef.current = nextState; // 상태 변경 즉시 Ref 동기화
+      return nextState;
+    });
+  };
+
   useEffect(() => {
     if (isMuted) {
       stopRecording();
@@ -355,6 +378,18 @@ export default function VoiceRoomDetail(): React.ReactElement {
       }
     }
   }, [isMuted, startRecording, stopRecording]);
+
+  useEffect(() => {
+    setParticipants((prev) =>
+      prev.map((p) => (p.socketId === "me" ? { ...p, isMuted } : p))
+    );
+    if (!localStreamRef.current) return;
+    const audioTrack = localStreamRef.current.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !isMuted;
+      socketRef.current?.emit("toggle_mute", isMuted);
+    }
+  }, [isMuted]);
 
   /* ------------------ Audio Analyzer (Visualizer) ------------------ */
   const attachAnalyzer = useCallback(
@@ -383,7 +418,7 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
   const updateParticipantStreamRef = useRef<
     (id: string, s: MediaStream) => void
-  >(() => {});
+  >(() => { });
   const updateParticipantStream = useCallback(
     (socketId: string, stream: MediaStream) => {
       setParticipants((prev) => {
@@ -523,6 +558,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
 
         const audioTrack = stream.getAudioTracks()[0];
         const initialIsMuted = audioTrack ? !audioTrack.enabled : false;
+
+        // 초기 음소거 상태 설정
         setIsMuted(initialIsMuted);
         isMutedRef.current = initialIsMuted;
 
@@ -811,22 +848,6 @@ export default function VoiceRoomDetail(): React.ReactElement {
     addOrUpdateTranscript,
   ]);
 
-  const toggleMute = () => {
-    setIsMuted((prev) => !prev);
-  };
-
-  useEffect(() => {
-    setParticipants((prev) =>
-      prev.map((p) => (p.socketId === "me" ? { ...p, isMuted } : p))
-    );
-    if (!localStreamRef.current) return;
-    const audioTrack = localStreamRef.current.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = !isMuted;
-      socketRef.current?.emit("toggle_mute", isMuted);
-    }
-  }, [isMuted]);
-
   useEffect(() => {
     setTranscript([]);
     transcriptIdsRef.current.clear();
@@ -1004,11 +1025,10 @@ export default function VoiceRoomDetail(): React.ReactElement {
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => setIsSpeakerOn((s) => !s)}
-              className={`p-2.5 rounded-full flex items-center justify-center ${
-                isSpeakerOn
+              className={`p-2.5 rounded-full flex items-center justify-center ${isSpeakerOn
                   ? "bg-rose-50 text-rose-600"
                   : "bg-gray-100 text-gray-500"
-              } hover:brightness-95 transition-colors`}
+                } hover:brightness-95 transition-colors`}
               style={{ width: 40, height: 40 }}
             >
               {isSpeakerOn ? (
@@ -1019,9 +1039,8 @@ export default function VoiceRoomDetail(): React.ReactElement {
             </button>
             <button
               onClick={toggleMute}
-              className={`p-2.5 rounded-full flex items-center justify-center ${
-                isMuted ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-700"
-              } hover:brightness-95 transition-colors`}
+              className={`p-2.5 rounded-full flex items-center justify-center ${isMuted ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-700"
+                } hover:brightness-95 transition-colors`}
               style={{ width: 40, height: 40 }}
             >
               {isMuted ? (
@@ -1092,11 +1111,10 @@ export default function VoiceRoomDetail(): React.ReactElement {
                       <div className="absolute inset-0 rounded-full ring-4 ring-rose-400 ring-opacity-60 animate-pulse" />
                     )}
                     <div
-                      className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold shadow-md border-2 border-white ${
-                        p.socketId === "me"
+                      className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold shadow-md border-2 border-white ${p.socketId === "me"
                           ? "bg-linear-to-br from-rose-400 to-rose-600"
                           : "bg-gray-300"
-                      }`}
+                        }`}
                     >
                       {p.name.charAt(0)}
                     </div>
@@ -1148,19 +1166,16 @@ export default function VoiceRoomDetail(): React.ReactElement {
                 return (
                   <div
                     key={item.id}
-                    className={`flex ${
-                      isMe ? "justify-end" : "justify-start"
-                    } mb-4`}
+                    className={`flex ${isMe ? "justify-end" : "justify-start"
+                      } mb-4`}
                   >
                     <div
-                      className={`w-full max-w-[85%] sm:max-w-[75%] ${
-                        isMe ? "items-end" : "items-start"
-                      } flex flex-col gap-1`}
+                      className={`w-full max-w-[85%] sm:max-w-[75%] ${isMe ? "items-end" : "items-start"
+                        } flex flex-col gap-1`}
                     >
                       <div
-                        className={`flex items-center gap-2 ${
-                          isMe ? "flex-row-reverse justify-end" : ""
-                        }`}
+                        className={`flex items-center gap-2 ${isMe ? "flex-row-reverse justify-end" : ""
+                          }`}
                       >
                         <span className="text-xs font-bold text-gray-700">
                           {item.speaker}
@@ -1177,16 +1192,14 @@ export default function VoiceRoomDetail(): React.ReactElement {
                           bubbleRefs.current[item.id] = el;
                         }}
                         className={`rounded-2xl px-4 py-3 text-[15px] sm:text-base leading-relaxed shadow-sm transition-all
-                        ${
-                          isMe
+                        ${isMe
                             ? "bg-rose-500 text-white rounded-tr-none"
                             : "bg-white text-gray-800 border border-gray-200 rounded-tl-none"
-                        } 
-                        ${
-                          styleError && isMe
+                          } 
+                        ${styleError && isMe
                             ? "ring-2 ring-yellow-300 cursor-pointer hover:ring-4"
                             : ""
-                        }
+                          }
                         ${item.interim ? "opacity-80" : ""}`}
                         onMouseEnter={() =>
                           !isMobile &&
@@ -1227,11 +1240,10 @@ export default function VoiceRoomDetail(): React.ReactElement {
                                 return (
                                   <span
                                     key={i}
-                                    className={`rounded-sm px-0.5 inline-block transition-colors ${highlight} ${
-                                      res.errored
+                                    className={`rounded-sm px-0.5 inline-block transition-colors ${highlight} ${res.errored
                                         ? "cursor-pointer hover:bg-opacity-60"
                                         : ""
-                                    }`}
+                                      }`}
                                     onMouseEnter={() =>
                                       !isMobile &&
                                       res.errored &&
